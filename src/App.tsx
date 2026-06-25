@@ -56,9 +56,8 @@ function App() {
 
   const [newCustomerName, setNewCustomerName] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
-  const [newCustomerBirthYear, setNewCustomerBirthYear] = useState('')
+  const [newCustomerBirthDayMonth, setNewCustomerBirthDayMonth] = useState('')
   const [newCustomerExtraWord, setNewCustomerExtraWord] = useState('')
-  const [newCustomerPassword, setNewCustomerPassword] = useState('')
   const [newCustomerSuccess, setNewCustomerSuccess] = useState('')
   const [newCustomerError, setNewCustomerError] = useState('')
   const [expenseAmount, setExpenseAmount] = useState('')
@@ -91,7 +90,6 @@ function App() {
   const [newRewardPoints, setNewRewardPoints] = useState('')
   const [rewardError, setRewardError] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
-  const [showNewCustomerPassword, setShowNewCustomerPassword] = useState(false)
   const [showAllMovements, setShowAllMovements] = useState(false)
   const [toast, setToast] = useState<Toast | null>(null)
 
@@ -676,14 +674,17 @@ function App() {
     setResetCustomerPassword('')
   }
 
-  const buildUsername = (fullName: string, extraWord: string, birthYear: string) => {
+  const buildUsername = (fullName: string, extraWord: string, birthDayMonth: string) => {
     const base = `${fullName}${extraWord}`
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9]/g, '')
       .toLowerCase()
-    const yearDigits = birthYear.replace(/\D/g, '')
-    const suffix = yearDigits.length >= 2 ? yearDigits.slice(-2) : '00'
+    const match = birthDayMonth.replace(/\s/g, '').match(/^(\d{2})\/(\d{2})$/)
+    const day = match ? Number(match[1]) : 0
+    const month = match ? Number(match[2]) : 0
+    const valid = day >= 1 && day <= 31 && month >= 1 && month <= 12
+    const suffix = valid && match ? `${match[1]}${match[2]}` : '0000'
     return `${base}${suffix}`
   }
 
@@ -696,19 +697,25 @@ function App() {
 
     const name = newCustomerName.trim()
     const phone = newCustomerPhone.replace(/\D/g, '')
-    const password = newCustomerPassword.trim()
-    const username = buildUsername(newCustomerName.trim(), newCustomerExtraWord.trim(), newCustomerBirthYear.trim())
+    const password = phone
+    const birthDayMonth = newCustomerBirthDayMonth.trim()
+    const username = buildUsername(newCustomerName.trim(), newCustomerExtraWord.trim(), birthDayMonth)
 
     setNewCustomerError('')
     setNewCustomerSuccess('')
 
-    if (!name || !phone || !password || !username) {
+    if (!name || !phone || !username) {
       setNewCustomerError('Compila tutti i campi')
       return
     }
 
-    if (password.length < 8) {
-      setNewCustomerError('Password minimo 8 caratteri')
+    if (!/^\d{2}\/\d{2}$/.test(birthDayMonth)) {
+      setNewCustomerError('Inserisci giorno/mese nel formato GG/MM')
+      return
+    }
+
+    if (phone.length < 8) {
+      setNewCustomerError('Numero di telefono non valido (minimo 8 cifre)')
       return
     }
 
@@ -743,13 +750,12 @@ function App() {
       return
     }
 
-    setNewCustomerSuccess(`Cliente creato! Username: ${username}`)
+    setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
     pushToast('success', `Cliente creato: ${username}`)
     setNewCustomerName('')
     setNewCustomerPhone('')
-    setNewCustomerBirthYear('')
+    setNewCustomerBirthDayMonth('')
     setNewCustomerExtraWord('')
-    setNewCustomerPassword('')
     await loadStoreCustomers(profile.store_id)
   }
 
@@ -1159,12 +1165,20 @@ function App() {
                     />
                   </label>
                   <label>
-                    Anno di nascita
+                    Giorno/Mese di nascita
                     <input
                       type="text"
-                      value={newCustomerBirthYear}
-                      onChange={(event) => setNewCustomerBirthYear(event.target.value)}
-                      placeholder="Es: 1990"
+                      inputMode="numeric"
+                      maxLength={5}
+                      value={newCustomerBirthDayMonth}
+                      onChange={(event) => {
+                        const digits = event.target.value.replace(/\D/g, '').slice(0, 4)
+                        const formatted = digits.length > 2
+                          ? `${digits.slice(0, 2)}/${digits.slice(2)}`
+                          : digits
+                        setNewCustomerBirthDayMonth(formatted)
+                      }}
+                      placeholder="Es: 23/07"
                     />
                   </label>
                   <label>
@@ -1176,9 +1190,9 @@ function App() {
                       placeholder="Es: Milano"
                     />
                   </label>
-                  {(newCustomerName || newCustomerBirthYear) ? (
+                  {(newCustomerName || newCustomerBirthDayMonth) ? (
                     <p className="username-preview">
-                      Username: <strong>{buildUsername(newCustomerName, newCustomerExtraWord, newCustomerBirthYear)}</strong>
+                      Username: <strong>{buildUsername(newCustomerName, newCustomerExtraWord, newCustomerBirthDayMonth)}</strong>
                     </p>
                   ) : null}
                   <label>
@@ -1189,24 +1203,9 @@ function App() {
                       placeholder="Es: 3401234567"
                     />
                   </label>
-                  <label>
-                    Password iniziale
-                    <div className="password-row">
-                      <input
-                        type={showNewCustomerPassword ? 'text' : 'password'}
-                        value={newCustomerPassword}
-                        onChange={(event) => setNewCustomerPassword(event.target.value)}
-                        placeholder="Almeno 8 caratteri"
-                      />
-                      <button
-                        className="ghost small"
-                        type="button"
-                        onClick={() => setShowNewCustomerPassword((v) => !v)}
-                      >
-                        {showNewCustomerPassword ? 'Nascondi' : 'Mostra'}
-                      </button>
-                    </div>
-                  </label>
+                  <p className="hint no-top">
+                    Password iniziale cliente: numero di telefono inserito.
+                  </p>
                   {newCustomerError ? <p className="error">{newCustomerError}</p> : null}
                   {newCustomerSuccess ? <p className="success">{newCustomerSuccess}</p> : null}
                   <button className="cta" type="submit">
