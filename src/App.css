@@ -189,6 +189,13 @@
   color: var(--text-h);
 }
 
+.customer-header-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
 .card {
   background: #fff;
   border: 1px solid var(--border);
@@ -352,11 +359,26 @@ select {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
-  align-items: baseline;
+  align-items: stretch;
   padding: 0.55rem 0.65rem;
   border-radius: 0.7rem;
   background: #f8f8f8;
   border-left: 4px solid transparent;
+}
+
+.movement-content {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.movement-actions {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: end;
+  flex-shrink: 0;
 }
 
 .movements li.movement-earn {

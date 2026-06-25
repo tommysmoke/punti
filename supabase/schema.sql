@@ -368,6 +368,116 @@ $$;
 
 grant execute on function public.record_redeem(bigint, integer, text) to authenticated;
 
+create or replace function public.delete_point_transaction(
+  p_transaction_id bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_id bigint;
+  v_store_id uuid;
+  v_kind text;
+  v_points integer;
+  v_current_points integer;
+begin
+  select pt.customer_id, pt.kind, pt.points, c.store_id, c.points
+  into v_customer_id, v_kind, v_points, v_store_id, v_current_points
+  from public.point_transactions pt
+  join public.customers c on c.id = pt.customer_id
+  where pt.id = p_transaction_id;
+
+  if v_customer_id is null then
+    raise exception 'Movimento non trovato';
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'store'
+      and p.store_id = v_store_id
+  ) then
+    raise exception 'Permesso negato';
+  end if;
+
+  if v_kind = 'earn' then
+    if v_current_points < v_points then
+      raise exception 'Impossibile eliminare il movimento: il saldo attuale diventerebbe negativo';
+    end if;
+
+    update public.customers
+    set points = points - v_points
+    where id = v_customer_id;
+  elsif v_kind = 'redeem' then
+    update public.customers
+    set points = points + v_points
+    where id = v_customer_id;
+  else
+    raise exception 'Tipo movimento non valido';
+  end if;
+
+  delete from public.point_transactions
+  where id = p_transaction_id;
+end;
+$$;
+
+grant execute on function public.delete_point_transaction(bigint) to authenticated;
+
+create or replace function public.delete_customer_account(
+  p_customer_id bigint
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_store_id uuid;
+  v_user_id uuid;
+begin
+  select c.store_id
+  into v_store_id
+  from public.customers c
+  where c.id = p_customer_id;
+
+  if v_store_id is null then
+    raise exception 'Cliente non trovato';
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'store'
+      and p.store_id = v_store_id
+  ) then
+    raise exception 'Permesso negato';
+  end if;
+
+  select p.id
+  into v_user_id
+  from public.profiles p
+  where p.customer_id = p_customer_id
+  limit 1;
+
+  if v_user_id is not null then
+    delete from auth.identities
+    where user_id = v_user_id;
+
+    delete from auth.users
+    where id = v_user_id;
+  end if;
+
+  delete from public.customers
+  where id = p_customer_id;
+end;
+$$;
+
+grant execute on function public.delete_customer_account(bigint) to authenticated;
+
 create or replace function public.admin_reset_customer_password(
   p_customer_id bigint,
   p_new_password text

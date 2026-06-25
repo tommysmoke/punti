@@ -99,8 +99,10 @@ function App() {
 
   // Modali di conferma per operazioni critiche
   const [confirmModal, setConfirmModal] = useState<{
-    action: 'redeem' | 'reset-customer-pwd' | 'reset-store-pwd'
+    action: 'redeem' | 'reset-customer-pwd' | 'reset-store-pwd' | 'delete-transaction' | 'delete-customer'
     message: string
+    transactionId?: number
+    customerId?: number
   } | null>(null)
 
   const pointsPreview = useMemo(() => {
@@ -816,6 +818,82 @@ function App() {
     setResetCustomerPassword('')
   }
 
+  const askDeleteTransaction = (movement: Movement) => {
+    setConfirmModal({
+      action: 'delete-transaction',
+      message: `Eliminare il movimento di ${movement.points} punti del ${new Date(movement.created_at).toLocaleDateString('it-IT')}? Il saldo del cliente verrà aggiornato.`,
+      transactionId: movement.id,
+    })
+  }
+
+  const confirmDeleteTransaction = async () => {
+    if (!supabase || !confirmModal?.transactionId) {
+      return
+    }
+
+    const transactionId = confirmModal.transactionId
+    setConfirmModal(null)
+    setActionError('')
+
+    const { error } = await supabase.rpc('delete_point_transaction', {
+      p_transaction_id: transactionId,
+    })
+
+    if (error) {
+      setActionError(error.message)
+      pushToast('error', 'Eliminazione movimento non riuscita')
+      return
+    }
+
+    pushToast('success', 'Movimento eliminato')
+    if (profile?.store_id) {
+      await loadStoreCustomers(profile.store_id)
+    }
+  }
+
+  const askDeleteCustomer = () => {
+    if (!selectedStoreCustomer) {
+      return
+    }
+
+    setConfirmModal({
+      action: 'delete-customer',
+      message: `Eliminare definitivamente ${selectedStoreCustomer.name}? Verranno rimossi anagrafica, accesso e movimenti.`,
+      customerId: selectedStoreCustomer.id,
+    })
+  }
+
+  const confirmDeleteCustomer = async () => {
+    if (!supabase || !confirmModal?.customerId) {
+      return
+    }
+
+    const customerId = confirmModal.customerId
+    const deletedCustomerName = selectedStoreCustomer?.name ?? 'Cliente'
+    setConfirmModal(null)
+    setActionError('')
+    setResetCustomerError('')
+    setResetCustomerSuccess('')
+
+    const { error } = await supabase.rpc('delete_customer_account', {
+      p_customer_id: customerId,
+    })
+
+    if (error) {
+      setActionError(error.message)
+      pushToast('error', 'Eliminazione cliente non riuscita')
+      return
+    }
+
+    setSelectedStoreCustomerId(null)
+    setCustomerMovements([])
+    setResetCustomerPassword('')
+    pushToast('success', `Cliente eliminato: ${deletedCustomerName}`)
+    if (profile?.store_id) {
+      await loadStoreCustomers(profile.store_id)
+    }
+  }
+
   const addCustomer = async (event: FormEvent) => {
     event.preventDefault()
 
@@ -1101,6 +1179,8 @@ function App() {
                   if (confirmModal.action === 'redeem') await confirmRedeem()
                   else if (confirmModal.action === 'reset-customer-pwd') await confirmResetCustomerPassword()
                   else if (confirmModal.action === 'reset-store-pwd') await confirmResetStorePassword()
+                  else if (confirmModal.action === 'delete-transaction') await confirmDeleteTransaction()
+                  else if (confirmModal.action === 'delete-customer') await confirmDeleteCustomer()
                 }}
               >
                 Conferma
@@ -1256,9 +1336,16 @@ function App() {
                 </div>
               ) : selectedStoreCustomer ? (
                 <>
-                  <p className="customer-name">{selectedStoreCustomer.name}</p>
+                  <div className="customer-header-row">
+                    <div>
+                      <p className="customer-name">{selectedStoreCustomer.name}</p>
+                      <p className="hint no-top">Telefono: {selectedStoreCustomer.phone}</p>
+                    </div>
+                    <button className="ghost small danger" type="button" onClick={askDeleteCustomer}>
+                      Elimina cliente
+                    </button>
+                  </div>
                   <p className="points-balance mini">{selectedStoreCustomer.points} punti</p>
-                  <p className="hint no-top">Telefono: {selectedStoreCustomer.phone}</p>
 
                   <h3 className="subsection-title">
                     Premi raggiungibili
@@ -1305,14 +1392,25 @@ function App() {
                     {customerMovements.length ? (
                       (showAllMovements ? customerMovements : customerMovements.slice(0, 7)).map((movement) => (
                         <li key={movement.id} className={`movement-${movement.kind}`}>
-                          <div>
-                            <strong>
-                              {movement.kind === 'earn' ? '+ ' : '- '}
-                              {movement.points} pt
-                            </strong>
-                            <p>{movement.note ?? 'Movimento registrato'}</p>
+                          <div className="movement-content">
+                            <div>
+                              <strong>
+                                {movement.kind === 'earn' ? '+ ' : '- '}
+                                {movement.points} pt
+                              </strong>
+                              <p>{movement.note ?? 'Movimento registrato'}</p>
+                            </div>
+                            <div className="movement-actions">
+                              <time>{new Date(movement.created_at).toLocaleDateString('it-IT')}</time>
+                              <button
+                                className="ghost small danger"
+                                type="button"
+                                onClick={() => askDeleteTransaction(movement)}
+                              >
+                                Elimina
+                              </button>
+                            </div>
                           </div>
-                          <time>{new Date(movement.created_at).toLocaleDateString('it-IT')}</time>
                         </li>
                       ))
                     ) : (
