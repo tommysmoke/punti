@@ -293,6 +293,29 @@ select {
   font-size: 0.86rem;
 }
 
+.creation-summary {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px dashed #c9dde3;
+  border-radius: 0.85rem;
+  background: #f6fbfc;
+}
+
+.creation-summary h3,
+.creation-summary p {
+  margin: 0;
+}
+
+.creation-summary h3 {
+  font-size: 0.92rem;
+  color: var(--text-h);
+}
+
+.creation-summary p {
+  font-size: 0.88rem;
+}
+
 .hero-card {
   min-height: 260px;
   background:
@@ -620,6 +643,14 @@ time {
   flex-shrink: 0;
 }
 
+.rewards-list-compact {
+  margin-bottom: 0.2rem;
+}
+
+.rewards-list-compact .reward-item {
+  padding: 0.55rem 0.65rem;
+}
+
 .ghost.small.danger {
   border-color: #e0c0c0;
   color: #a11c1c;
@@ -646,6 +677,73 @@ time {
 
 .customer-rewards-card {
   grid-column: 1 / -1;
+}
+
+.skeleton-stack,
+.skeleton-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.skeleton-line,
+.skeleton-box {
+  position: relative;
+  overflow: hidden;
+  background: #edf3f5;
+}
+
+.skeleton-line::after,
+.skeleton-box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  animation: shimmer 1.2s infinite;
+}
+
+.skeleton-line {
+  height: 0.9rem;
+  border-radius: 999px;
+}
+
+.skeleton-title {
+  width: 56%;
+  height: 1.15rem;
+}
+
+.skeleton-subtitle {
+  width: 42%;
+}
+
+.skeleton-pill {
+  width: 34%;
+  height: 1.8rem;
+  border-radius: 999px;
+}
+
+.skeleton-balance {
+  width: 48%;
+  height: 2.6rem;
+  border-radius: 0.9rem;
+}
+
+.skeleton-box {
+  border-radius: 0.8rem;
+}
+
+.skeleton-customer {
+  height: 3rem;
+}
+
+.skeleton-movement {
+  height: 4rem;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @media (max-width: 920px) {

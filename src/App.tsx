@@ -57,7 +57,7 @@ function App() {
   const [newCustomerName, setNewCustomerName] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
   const [newCustomerBirthDayMonth, setNewCustomerBirthDayMonth] = useState('')
-  const [newCustomerNickname, setNewCustomerNickname] = useState('')
+  const [newCustomerNote, setNewCustomerNote] = useState('')
   const [newCustomerSuccess, setNewCustomerSuccess] = useState('')
   const [newCustomerError, setNewCustomerError] = useState('')
   const [expenseAmount, setExpenseAmount] = useState('')
@@ -82,6 +82,7 @@ function App() {
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
   const [actionError, setActionError] = useState('')
   const [storePage, setStorePage] = useState<'operations' | 'new-customer' | 'rewards' | 'security'>('operations')
   const [rewards, setRewards] = useState<Reward[]>([])
@@ -131,6 +132,27 @@ function App() {
     setToast({ type, message })
   }
 
+  const togglePasswordVisibility = (field: string) => {
+    setVisiblePasswords((current) => ({
+      ...current,
+      [field]: !current[field],
+    }))
+  }
+
+  function buildUsername(fullName: string, birthDayMonth: string) {
+    const base = fullName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toLowerCase()
+    const match = birthDayMonth.replace(/\s/g, '').match(/^(\d{2})\/(\d{2})$/)
+    const day = match ? Number(match[1]) : 0
+    const month = match ? Number(match[2]) : 0
+    const valid = day >= 1 && day <= 31 && month >= 1 && month <= 12
+    const suffix = valid && match ? `${match[1]}${match[2]}` : '0000'
+    return `${base}${suffix}`
+  }
+
   const customerView =
     role === 'customer'
       ? customers.find((customer) => customer.id === profile?.customer_id)
@@ -140,6 +162,33 @@ function App() {
     role === 'store'
       ? 'Team Negozio'
       : customerView?.name.split(' ')[0] ?? 'Cliente'
+
+  const activeRewards = useMemo(
+    () => rewards.filter((reward) => reward.active),
+    [rewards],
+  )
+
+  const selectedCustomerReachableRewards = useMemo(() => {
+    if (!selectedStoreCustomer) {
+      return []
+    }
+
+    return activeRewards.filter((reward) => reward.points_cost <= selectedStoreCustomer.points)
+  }, [activeRewards, selectedStoreCustomer])
+
+  const selectedCustomerNextReward = useMemo(() => {
+    if (!selectedStoreCustomer) {
+      return null
+    }
+
+    return activeRewards.find((reward) => reward.points_cost > selectedStoreCustomer.points) ?? null
+  }, [activeRewards, selectedStoreCustomer])
+
+  const previewDisplayName = newCustomerNote.trim()
+    ? `${newCustomerName.trim()} (${newCustomerNote.trim()})`
+    : newCustomerName.trim()
+
+  const previewUsername = buildUsername(newCustomerName, newCustomerBirthDayMonth)
 
   const loadCustomerMovements = async (customerId: number) => {
     if (!supabase) {
@@ -306,7 +355,7 @@ function App() {
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Errore caricamento dati'
+      const message = error instanceof Error ? error.message : 'Non sono riuscito a caricare i dati del profilo'
       setActionError(message)
     } finally {
       setLoadingData(false)
@@ -409,6 +458,100 @@ function App() {
     }
   }, [toast])
 
+  useEffect(() => {
+    if (!supabase || !profile) {
+      return
+    }
+
+    const client = supabase
+    const channels: ReturnType<typeof client.channel>[] = []
+
+    if (role === 'store' && profile.store_id) {
+      const customerChannel = client
+        .channel(`store-customers-${profile.store_id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'customers',
+            filter: `store_id=eq.${profile.store_id}`,
+          },
+          () => {
+            void loadStoreCustomers(profile.store_id!)
+          },
+        )
+        .subscribe()
+
+      channels.push(customerChannel)
+    }
+
+    if (role === 'customer' && profile.customer_id) {
+      const customerChannel = client
+        .channel(`customer-home-${profile.customer_id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'customers',
+            filter: `id=eq.${profile.customer_id}`,
+          },
+          () => {
+            void loadCustomerHome(profile.customer_id!)
+          },
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'point_transactions',
+            filter: `customer_id=eq.${profile.customer_id}`,
+          },
+          () => {
+            void loadCustomerHome(profile.customer_id!)
+          },
+        )
+        .subscribe()
+
+      channels.push(customerChannel)
+    }
+
+    return () => {
+      channels.forEach((channel) => {
+        void client.removeChannel(channel)
+      })
+    }
+  }, [profile, role])
+
+  useEffect(() => {
+    if (!supabase || role !== 'store' || !selectedStoreCustomerId || !profile?.store_id) {
+      return
+    }
+
+    const client = supabase
+    const movementChannel = client
+      .channel(`store-customer-tx-${selectedStoreCustomerId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'point_transactions',
+          filter: `customer_id=eq.${selectedStoreCustomerId}`,
+        },
+        () => {
+          void loadStoreCustomers(profile.store_id!)
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void client.removeChannel(movementChannel)
+    }
+  }, [profile?.store_id, role, selectedStoreCustomerId])
+
   // Keyboard shortcuts: Ctrl/Cmd+Enter per registrare spesa, N per Nuovo cliente, S per Sicurezza, frecce per navigare clienti
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -472,7 +615,7 @@ function App() {
         })
 
         if (error || !data) {
-          setLoginError('Credenziali non valide')
+          setLoginError('Controlla username o telefono e riprova con la password corretta')
           return
         }
 
@@ -480,7 +623,7 @@ function App() {
       }
 
       if (!emailForLogin) {
-        setLoginError('Credenziali non valide')
+        setLoginError('Controlla username o telefono e riprova con la password corretta')
         return
       }
 
@@ -490,7 +633,7 @@ function App() {
       })
 
       if (error) {
-        setLoginError('Credenziali non valide')
+        setLoginError('Controlla username o telefono e riprova con la password corretta')
         return
       }
 
@@ -579,7 +722,7 @@ function App() {
 
     const username = resetStoreUsername.trim()
     if (!username) {
-      setResetStoreError('Inserisci lo username del socio')
+      setResetStoreError('Inserisci il codice utente del socio')
       return
     }
 
@@ -636,7 +779,7 @@ function App() {
     }
 
     if (!resetCustomerPassword.trim()) {
-      setResetCustomerError('Inserisci la nuova password')
+      setResetCustomerError('Inserisci una nuova password per il cliente')
       return
     }
 
@@ -673,20 +816,6 @@ function App() {
     setResetCustomerPassword('')
   }
 
-  const buildUsername = (nickname: string, birthDayMonth: string) => {
-    const base = nickname
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .toLowerCase()
-    const match = birthDayMonth.replace(/\s/g, '').match(/^(\d{2})\/(\d{2})$/)
-    const day = match ? Number(match[1]) : 0
-    const month = match ? Number(match[2]) : 0
-    const valid = day >= 1 && day <= 31 && month >= 1 && month <= 12
-    const suffix = valid && match ? `${match[1]}${match[2]}` : '0000'
-    return `${base}${suffix}`
-  }
-
   const addCustomer = async (event: FormEvent) => {
     event.preventDefault()
 
@@ -695,17 +824,18 @@ function App() {
     }
 
     const name = newCustomerName.trim()
-    const nickname = newCustomerNickname.trim()
+    const note = newCustomerNote.trim()
     const phone = newCustomerPhone.replace(/\D/g, '')
     const password = phone
     const birthDayMonth = newCustomerBirthDayMonth.trim()
-    const username = buildUsername(nickname, birthDayMonth)
+    const username = buildUsername(name, birthDayMonth)
+    const displayName = note ? `${name} (${note})` : name
 
     setNewCustomerError('')
     setNewCustomerSuccess('')
 
-    if (!name || !nickname || !phone || !username) {
-      setNewCustomerError('Compila tutti i campi')
+    if (!name || !phone || !username) {
+      setNewCustomerError('Compila nome, giorno/mese e telefono del cliente')
       return
     }
 
@@ -729,7 +859,7 @@ function App() {
     }
 
     if (!isAvailable) {
-      setNewCustomerError(`Username già usato (${username}). Chiedi al cliente un nickname diverso.`)
+      setNewCustomerError(`Esiste già un cliente con questo codice utente: ${username}`)
       return
     }
 
@@ -748,7 +878,7 @@ function App() {
       options: {
         data: {
           role: 'customer',
-          name,
+          name: displayName,
           phone,
           username,
           store_id: profile.store_id,
@@ -759,7 +889,7 @@ function App() {
     await tempClient.auth.signOut()
 
     if (error) {
-      setNewCustomerError(error.message)
+      setNewCustomerError('Non sono riuscito a creare il cliente. Riprova tra qualche secondo.')
       pushToast('error', 'Creazione cliente non riuscita')
       return
     }
@@ -767,7 +897,7 @@ function App() {
     setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
     pushToast('success', `Cliente creato: ${username}`)
     setNewCustomerName('')
-    setNewCustomerNickname('')
+    setNewCustomerNote('')
     setNewCustomerPhone('')
     setNewCustomerBirthDayMonth('')
     await loadStoreCustomers(profile.store_id)
@@ -898,12 +1028,21 @@ function App() {
             </label>
             <label>
               Password
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(event) => setLoginPassword(event.target.value)}
-                placeholder="Inserisci password"
-              />
+              <div className="password-row">
+                <input
+                  type={visiblePasswords.login ? 'text' : 'password'}
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  placeholder="Inserisci password"
+                />
+                <button
+                  className="ghost small"
+                  type="button"
+                  onClick={() => togglePasswordVisibility('login')}
+                >
+                  {visiblePasswords.login ? 'Nascondi' : 'Mostra'}
+                </button>
+              </div>
             </label>
             {loginError ? <p className="error">{loginError}</p> : null}
             <button className="cta" type="submit" disabled={loginLoading}>
@@ -972,38 +1111,53 @@ function App() {
       ) : null}
 
       {actionError ? <p className="error">{actionError}</p> : null}
-      {loadingData ? <p className="hint">Sincronizzazione dati in corso...</p> : null}
 
       {role !== 'store' && showChangePassword ? (
         <article className="card" style={{marginBottom:'1rem'}}>
           <h2>Cambia password</h2>
+          <p className="hint no-top">Usa Mostra per controllare la password prima di salvarla.</p>
           <form className="stack" onSubmit={changePassword}>
             <label>
               Password attuale
-              <input
-                type="password"
-                value={changePasswordCurrent}
-                onChange={(event) => setChangePasswordCurrent(event.target.value)}
-                placeholder="Inserisci la password attuale"
-              />
+              <div className="password-row">
+                <input
+                  type={visiblePasswords.changeCurrent ? 'text' : 'password'}
+                  value={changePasswordCurrent}
+                  onChange={(event) => setChangePasswordCurrent(event.target.value)}
+                  placeholder="Inserisci la password attuale"
+                />
+                <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeCurrent')}>
+                  {visiblePasswords.changeCurrent ? 'Nascondi' : 'Mostra'}
+                </button>
+              </div>
             </label>
             <label>
               Nuova password
-              <input
-                type="password"
-                value={changePasswordNew}
-                onChange={(event) => setChangePasswordNew(event.target.value)}
-                placeholder="Inserisci nuova password"
-              />
+              <div className="password-row">
+                <input
+                  type={visiblePasswords.changeNew ? 'text' : 'password'}
+                  value={changePasswordNew}
+                  onChange={(event) => setChangePasswordNew(event.target.value)}
+                  placeholder="Inserisci nuova password"
+                />
+                <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeNew')}>
+                  {visiblePasswords.changeNew ? 'Nascondi' : 'Mostra'}
+                </button>
+              </div>
             </label>
             <label>
               Conferma nuova password
-              <input
-                type="password"
-                value={changePasswordConfirm}
-                onChange={(event) => setChangePasswordConfirm(event.target.value)}
-                placeholder="Ripeti la nuova password"
-              />
+              <div className="password-row">
+                <input
+                  type={visiblePasswords.changeConfirm ? 'text' : 'password'}
+                  value={changePasswordConfirm}
+                  onChange={(event) => setChangePasswordConfirm(event.target.value)}
+                  placeholder="Ripeti la nuova password"
+                />
+                <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeConfirm')}>
+                  {visiblePasswords.changeConfirm ? 'Nascondi' : 'Mostra'}
+                </button>
+              </div>
             </label>
             {changePasswordError ? <p className="error">{changePasswordError}</p> : null}
             {changePasswordSuccess ? <p className="success">{changePasswordSuccess}</p> : null}
@@ -1058,6 +1212,14 @@ function App() {
                 placeholder="Nome o telefono"
               />
             </label>
+            {loadingData ? (
+              <div className="skeleton-list" aria-hidden="true">
+                <div className="skeleton-box skeleton-customer"></div>
+                <div className="skeleton-box skeleton-customer"></div>
+                <div className="skeleton-box skeleton-customer"></div>
+                <div className="skeleton-box skeleton-customer"></div>
+              </div>
+            ) : (
             <ul className="customer-list">
               {filteredCustomers.length ? (
                 filteredCustomers.map((customer) => (
@@ -1073,19 +1235,56 @@ function App() {
                   </li>
                 ))
               ) : (
-                <li className="hint no-top">Nessun cliente trovato</li>
+                <li className="hint no-top">Nessun cliente corrisponde alla ricerca</li>
               )}
             </ul>
+            )}
           </article>
 
           <div className="grid store-main">
             <article className="card selected-customer-card">
               <h2>Cliente selezionato</h2>
-              {selectedStoreCustomer ? (
+              {loadingData ? (
+                <div className="skeleton-stack" aria-hidden="true">
+                  <div className="skeleton-line skeleton-title"></div>
+                  <div className="skeleton-line skeleton-pill"></div>
+                  <div className="skeleton-line"></div>
+                  <div className="skeleton-line skeleton-subtitle"></div>
+                  <div className="skeleton-box skeleton-movement"></div>
+                  <div className="skeleton-box skeleton-movement"></div>
+                  <div className="skeleton-box skeleton-movement"></div>
+                </div>
+              ) : selectedStoreCustomer ? (
                 <>
                   <p className="customer-name">{selectedStoreCustomer.name}</p>
                   <p className="points-balance mini">{selectedStoreCustomer.points} punti</p>
                   <p className="hint no-top">Telefono: {selectedStoreCustomer.phone}</p>
+
+                  <h3 className="subsection-title">
+                    Premi raggiungibili
+                    {selectedCustomerReachableRewards.length > 0 ? (
+                      <span className="badge">{selectedCustomerReachableRewards.length}</span>
+                    ) : null}
+                  </h3>
+                  {selectedCustomerReachableRewards.length > 0 ? (
+                    <ul className="rewards-list rewards-list-compact">
+                      {selectedCustomerReachableRewards.map((reward) => (
+                        <li key={reward.id} className="reward-item reward-reachable">
+                          <div className="reward-info">
+                            <strong>{reward.name}</strong>
+                            {reward.description ? <p className="reward-desc">{reward.description}</p> : null}
+                          </div>
+                          <span className="reward-cost">{reward.points_cost} pt</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : selectedCustomerNextReward ? (
+                    <p className="hint no-top">
+                      Nessun premio riscattabile ora. Prossimo premio: <strong>{selectedCustomerNextReward.name}</strong> a {selectedCustomerNextReward.points_cost} punti.
+                    </p>
+                  ) : (
+                    <p className="hint no-top">Nessun premio attivo configurato per questo negozio.</p>
+                  )}
 
                   <h3 className="subsection-title">
                     Movimenti cliente
@@ -1111,13 +1310,13 @@ function App() {
                               {movement.kind === 'earn' ? '+ ' : '- '}
                               {movement.points} pt
                             </strong>
-                            <p>{movement.note ?? 'Movimento punti'}</p>
+                            <p>{movement.note ?? 'Movimento registrato'}</p>
                           </div>
                           <time>{new Date(movement.created_at).toLocaleDateString('it-IT')}</time>
                         </li>
                       ))
                     ) : (
-                      <li>Nessun movimento disponibile</li>
+                      <li>Nessun movimento registrato per questo cliente</li>
                     )}
                   </ul>
                 </>
@@ -1196,17 +1395,17 @@ function App() {
                     />
                   </label>
                   <label>
-                    Nickname per accesso
+                    Note
                     <input
                       type="text"
-                      value={newCustomerNickname}
-                      onChange={(event) => setNewCustomerNickname(event.target.value)}
+                      value={newCustomerNote}
+                      onChange={(event) => setNewCustomerNote(event.target.value)}
                       placeholder="Es: Napoleone"
                     />
                   </label>
-                  {(newCustomerNickname || newCustomerBirthDayMonth) ? (
+                  {(newCustomerName || newCustomerBirthDayMonth) ? (
                     <p className="username-preview">
-                      Username: <strong>{buildUsername(newCustomerNickname, newCustomerBirthDayMonth)}</strong>
+                      Username: <strong>{buildUsername(newCustomerName, newCustomerBirthDayMonth)}</strong>
                     </p>
                   ) : null}
                   <label>
@@ -1220,6 +1419,15 @@ function App() {
                   <p className="hint no-top">
                     Password iniziale cliente: numero di telefono inserito.
                   </p>
+                  {(newCustomerName || newCustomerBirthDayMonth || newCustomerPhone || newCustomerNote) ? (
+                    <div className="creation-summary">
+                      <h3>Riepilogo accesso</h3>
+                      <p><strong>Nominativo visibile:</strong> {previewDisplayName || 'Da completare'}</p>
+                      <p><strong>Codice utente:</strong> {previewUsername}</p>
+                      <p><strong>Password iniziale:</strong> {newCustomerPhone.trim() || 'Numero di telefono inserito'}</p>
+                      <p><strong>Telefono:</strong> {newCustomerPhone.trim() || 'Da completare'}</p>
+                    </div>
+                  ) : null}
                   {newCustomerError ? <p className="error">{newCustomerError}</p> : null}
                   {newCustomerSuccess ? <p className="success">{newCustomerSuccess}</p> : null}
                   <button className="cta" type="submit">
@@ -1304,33 +1512,49 @@ function App() {
             <section className="grid two-cols" style={{marginBottom:'1rem'}}>
               <article className="card">
                 <h2>Cambia mia password</h2>
+                <p className="hint no-top">Puoi mostrare i campi password prima di confermare il salvataggio.</p>
                 <form className="stack" onSubmit={changePassword}>
                   <label>
                     Password attuale
-                    <input
-                      type="password"
-                      value={changePasswordCurrent}
-                      onChange={(event) => setChangePasswordCurrent(event.target.value)}
-                      placeholder="Inserisci la password attuale"
-                    />
+                    <div className="password-row">
+                      <input
+                        type={visiblePasswords.changeCurrent ? 'text' : 'password'}
+                        value={changePasswordCurrent}
+                        onChange={(event) => setChangePasswordCurrent(event.target.value)}
+                        placeholder="Inserisci la password attuale"
+                      />
+                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeCurrent')}>
+                        {visiblePasswords.changeCurrent ? 'Nascondi' : 'Mostra'}
+                      </button>
+                    </div>
                   </label>
                   <label>
                     Nuova password
-                    <input
-                      type="password"
-                      value={changePasswordNew}
-                      onChange={(event) => setChangePasswordNew(event.target.value)}
-                      placeholder="Inserisci nuova password"
-                    />
+                    <div className="password-row">
+                      <input
+                        type={visiblePasswords.changeNew ? 'text' : 'password'}
+                        value={changePasswordNew}
+                        onChange={(event) => setChangePasswordNew(event.target.value)}
+                        placeholder="Inserisci nuova password"
+                      />
+                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeNew')}>
+                        {visiblePasswords.changeNew ? 'Nascondi' : 'Mostra'}
+                      </button>
+                    </div>
                   </label>
                   <label>
                     Conferma nuova password
-                    <input
-                      type="password"
-                      value={changePasswordConfirm}
-                      onChange={(event) => setChangePasswordConfirm(event.target.value)}
-                      placeholder="Ripeti la nuova password"
-                    />
+                    <div className="password-row">
+                      <input
+                        type={visiblePasswords.changeConfirm ? 'text' : 'password'}
+                        value={changePasswordConfirm}
+                        onChange={(event) => setChangePasswordConfirm(event.target.value)}
+                        placeholder="Ripeti la nuova password"
+                      />
+                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeConfirm')}>
+                        {visiblePasswords.changeConfirm ? 'Nascondi' : 'Mostra'}
+                      </button>
+                    </div>
                   </label>
                   {changePasswordError ? <p className="error">{changePasswordError}</p> : null}
                   {changePasswordSuccess ? <p className="success">{changePasswordSuccess}</p> : null}
@@ -1340,7 +1564,7 @@ function App() {
 
               <article className="card">
                 <h2>Reset password socio</h2>
-                <p className="hint" style={{marginBottom:'0.7rem'}}>Usa questa funzione se un socio ha dimenticato la password.</p>
+                <p className="hint" style={{marginBottom:'0.7rem'}}>Usa questa funzione se un socio ha dimenticato la password. Puoi mostrare la password mentre la inserisci.</p>
                 <form className="stack" onSubmit={resetStoreUserPassword}>
                   <label>
                     Username socio
@@ -1353,21 +1577,31 @@ function App() {
                   </label>
                   <label>
                     Nuova password
-                    <input
-                      type="password"
-                      value={resetStorePassword}
-                      onChange={(event) => setResetStorePassword(event.target.value)}
-                      placeholder="Inserisci nuova password"
-                    />
+                    <div className="password-row">
+                      <input
+                        type={visiblePasswords.resetStore ? 'text' : 'password'}
+                        value={resetStorePassword}
+                        onChange={(event) => setResetStorePassword(event.target.value)}
+                        placeholder="Inserisci nuova password"
+                      />
+                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('resetStore')}>
+                        {visiblePasswords.resetStore ? 'Nascondi' : 'Mostra'}
+                      </button>
+                    </div>
                   </label>
                   <label>
                     Conferma password
-                    <input
-                      type="password"
-                      value={resetStoreConfirm}
-                      onChange={(event) => setResetStoreConfirm(event.target.value)}
-                      placeholder="Ripeti la password"
-                    />
+                    <div className="password-row">
+                      <input
+                        type={visiblePasswords.resetStoreConfirm ? 'text' : 'password'}
+                        value={resetStoreConfirm}
+                        onChange={(event) => setResetStoreConfirm(event.target.value)}
+                        placeholder="Ripeti la password"
+                      />
+                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('resetStoreConfirm')}>
+                        {visiblePasswords.resetStoreConfirm ? 'Nascondi' : 'Mostra'}
+                      </button>
+                    </div>
                   </label>
                   {resetStoreError ? <p className="error">{resetStoreError}</p> : null}
                   {resetStoreSuccess ? <p className="success">{resetStoreSuccess}</p> : null}
@@ -1377,17 +1611,27 @@ function App() {
                 <form onSubmit={resetCustomerPasswordFn} className="stack split">
                   <label>
                     Reset password cliente
-                    <input
-                      type="password"
-                      value={resetCustomerPassword}
-                      onChange={(event) => setResetCustomerPassword(event.target.value)}
-                      placeholder={
-                        selectedStoreCustomer
-                          ? `Nuova password per ${selectedStoreCustomer.name}`
-                          : 'Seleziona un cliente dalla barra laterale'
-                      }
-                      disabled={!selectedStoreCustomer}
-                    />
+                    <div className="password-row">
+                      <input
+                        type={visiblePasswords.resetCustomer ? 'text' : 'password'}
+                        value={resetCustomerPassword}
+                        onChange={(event) => setResetCustomerPassword(event.target.value)}
+                        placeholder={
+                          selectedStoreCustomer
+                            ? `Nuova password per ${selectedStoreCustomer.name}`
+                            : 'Seleziona un cliente dalla barra laterale'
+                        }
+                        disabled={!selectedStoreCustomer}
+                      />
+                      <button
+                        className="ghost small"
+                        type="button"
+                        onClick={() => togglePasswordVisibility('resetCustomer')}
+                        disabled={!selectedStoreCustomer}
+                      >
+                        {visiblePasswords.resetCustomer ? 'Nascondi' : 'Mostra'}
+                      </button>
+                    </div>
                   </label>
                   {resetCustomerError ? <p className="error">{resetCustomerError}</p> : null}
                   {resetCustomerSuccess ? <p className="success">{resetCustomerSuccess}</p> : null}
@@ -1403,10 +1647,15 @@ function App() {
         <section className="grid customer-view">
           <article className="card hero-card">
             <h2>I tuoi punti</h2>
-            {customerView ? (
+            {loadingData ? (
+              <div className="skeleton-stack" aria-hidden="true">
+                <div className="skeleton-line skeleton-balance"></div>
+                <div className="skeleton-line skeleton-subtitle"></div>
+              </div>
+            ) : customerView ? (
               <p className="points-balance">{customerView.points} punti</p>
             ) : (
-              <p className="hint no-top">Cliente non trovato</p>
+              <p className="hint no-top">Scheda cliente non disponibile</p>
             )}
           </article>
 
@@ -1421,6 +1670,13 @@ function App() {
                 <span className="badge" style={{marginLeft:'0.5rem'}}>{customerMovements.length}</span>
               ) : null}
             </h2>
+            {loadingData ? (
+              <div className="skeleton-stack" aria-hidden="true">
+                <div className="skeleton-box skeleton-movement"></div>
+                <div className="skeleton-box skeleton-movement"></div>
+                <div className="skeleton-box skeleton-movement"></div>
+              </div>
+            ) : (
             <ul className="movements">
               {customerMovements.length ? (
                 customerMovements.slice(0, 7).map((movement) => (
@@ -1430,15 +1686,16 @@ function App() {
                         {movement.kind === 'earn' ? '+ ' : '- '}
                         {movement.points} pt
                       </strong>
-                      <p>{movement.note ?? 'Movimento punti'}</p>
+                      <p>{movement.note ?? 'Movimento registrato'}</p>
                     </div>
                     <time>{new Date(movement.created_at).toLocaleDateString('it-IT')}</time>
                   </li>
                 ))
               ) : (
-                <li>Nessun movimento disponibile</li>
+                <li>Nessun movimento registrato per ora</li>
               )}
             </ul>
+            )}
           </article>
 
           {rewards.length > 0 ? (
