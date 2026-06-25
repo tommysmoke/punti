@@ -391,6 +391,11 @@ select {
   border-left-color: #cf7a26;
 }
 
+.movements li.movement-adjust {
+  background: #fff0f0;
+  border-left-color: #c0392b;
+}
+
 .movements p {
   margin: 0.1rem 0 0;
   font-size: 0.88rem;

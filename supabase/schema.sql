@@ -28,7 +28,7 @@ create table if not exists public.customers (
 create table if not exists public.point_transactions (
   id bigint generated always as identity primary key,
   customer_id bigint not null references public.customers(id) on delete cascade,
-  kind text not null check (kind in ('earn', 'redeem')),
+  kind text not null check (kind in ('earn', 'redeem', 'adjust')),
   points integer not null check (points > 0),
   note text,
   created_at timestamptz not null default now()
@@ -367,6 +367,57 @@ end;
 $$;
 
 grant execute on function public.record_redeem(bigint, integer, text) to authenticated;
+
+create or replace function public.record_manual_deduct(
+  p_customer_id bigint,
+  p_points integer,
+  p_note text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_store_id uuid;
+  v_current_points integer;
+begin
+  if p_points is null or p_points <= 0 then
+    raise exception 'Punti non validi';
+  end if;
+
+  select c.store_id, c.points into v_store_id, v_current_points
+  from public.customers c
+  where c.id = p_customer_id;
+
+  if v_store_id is null then
+    raise exception 'Cliente non trovato';
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'store'
+      and p.store_id = v_store_id
+  ) then
+    raise exception 'Permesso negato';
+  end if;
+
+  if v_current_points < p_points then
+    raise exception 'Saldo punti insufficiente';
+  end if;
+
+  insert into public.point_transactions (customer_id, kind, points, note)
+  values (p_customer_id, 'adjust', p_points, coalesce(p_note, 'Sottrazione manuale'));
+
+  update public.customers
+  set points = points - p_points
+  where id = p_customer_id;
+end;
+$$;
+
+grant execute on function public.record_manual_deduct(bigint, integer, text) to authenticated;
 
 create or replace function public.delete_point_transaction(
   p_transaction_id bigint
