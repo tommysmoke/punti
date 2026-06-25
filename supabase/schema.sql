@@ -381,10 +381,6 @@ declare
   v_store_id uuid;
   v_user_id uuid;
 begin
-  if length(coalesce(p_new_password, '')) < 8 then
-    raise exception 'La password deve essere almeno 8 caratteri';
-  end if;
-
   select c.store_id into v_store_id
   from public.customers c
   where c.id = p_customer_id;
@@ -455,10 +451,6 @@ begin
 
   if v_instance_id is null then
     raise exception 'Impossibile determinare instance_id auth';
-  end if;
-
-  if length(coalesce(p_password, '')) < 8 then
-    raise exception 'Password minimo 8 caratteri';
   end if;
 
   v_username := lower(regexp_replace(coalesce(p_username, ''), '[^a-zA-Z0-9]', '', 'g'));
@@ -593,10 +585,6 @@ declare
   v_target_store_id uuid;
   v_caller_store_id uuid;
 begin
-  if length(coalesce(p_new_password, '')) < 8 then
-    raise exception 'La password deve essere almeno 8 caratteri';
-  end if;
-
   select p.id, p.store_id
   into v_target_id, v_target_store_id
   from public.profiles p
@@ -638,10 +626,6 @@ declare
   v_target_id uuid;
   v_hashed_password text;
 begin
-  if length(coalesce(p_new_password, '')) < 8 then
-    raise exception 'La password deve essere almeno 8 caratteri';
-  end if;
-
   select p.id
   into v_target_id
   from public.profiles p

@@ -57,7 +57,7 @@ function App() {
   const [newCustomerName, setNewCustomerName] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
   const [newCustomerBirthDayMonth, setNewCustomerBirthDayMonth] = useState('')
-  const [newCustomerExtraWord, setNewCustomerExtraWord] = useState('')
+  const [newCustomerNickname, setNewCustomerNickname] = useState('')
   const [newCustomerSuccess, setNewCustomerSuccess] = useState('')
   const [newCustomerError, setNewCustomerError] = useState('')
   const [expenseAmount, setExpenseAmount] = useState('')
@@ -524,8 +524,8 @@ function App() {
       return
     }
 
-    if (changePasswordNew.length < 8) {
-      setChangePasswordError('La nuova password deve essere almeno 8 caratteri')
+    if (!changePasswordNew) {
+      setChangePasswordError('Inserisci la nuova password')
       return
     }
 
@@ -583,8 +583,8 @@ function App() {
       return
     }
 
-    if (resetStorePassword.length < 8) {
-      setResetStoreError('La password deve essere almeno 8 caratteri')
+    if (!resetStorePassword) {
+      setResetStoreError('Inserisci la nuova password')
       return
     }
 
@@ -635,9 +635,8 @@ function App() {
       return
     }
 
-    const newPwd = resetCustomerPassword.trim()
-    if (newPwd.length < 8) {
-      setResetCustomerError('La password deve essere almeno 8 caratteri')
+    if (!resetCustomerPassword.trim()) {
+      setResetCustomerError('Inserisci la nuova password')
       return
     }
 
@@ -674,8 +673,8 @@ function App() {
     setResetCustomerPassword('')
   }
 
-  const buildUsername = (fullName: string, extraWord: string, birthDayMonth: string) => {
-    const base = `${fullName}${extraWord}`
+  const buildUsername = (nickname: string, birthDayMonth: string) => {
+    const base = nickname
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9]/g, '')
@@ -696,15 +695,16 @@ function App() {
     }
 
     const name = newCustomerName.trim()
+    const nickname = newCustomerNickname.trim()
     const phone = newCustomerPhone.replace(/\D/g, '')
     const password = phone
     const birthDayMonth = newCustomerBirthDayMonth.trim()
-    const username = buildUsername(newCustomerName.trim(), newCustomerExtraWord.trim(), birthDayMonth)
+    const username = buildUsername(nickname, birthDayMonth)
 
     setNewCustomerError('')
     setNewCustomerSuccess('')
 
-    if (!name || !phone || !username) {
+    if (!name || !nickname || !phone || !username) {
       setNewCustomerError('Compila tutti i campi')
       return
     }
@@ -716,6 +716,20 @@ function App() {
 
     if (phone.length < 8) {
       setNewCustomerError('Numero di telefono non valido (minimo 8 cifre)')
+      return
+    }
+
+    const { data: isAvailable, error: availabilityError } = await supabase.rpc('is_username_available', {
+      p_username: username,
+    })
+
+    if (availabilityError) {
+      setNewCustomerError('Impossibile verificare lo username, riprova')
+      return
+    }
+
+    if (!isAvailable) {
+      setNewCustomerError(`Username già usato (${username}). Chiedi al cliente un nickname diverso.`)
       return
     }
 
@@ -753,9 +767,9 @@ function App() {
     setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
     pushToast('success', `Cliente creato: ${username}`)
     setNewCustomerName('')
+    setNewCustomerNickname('')
     setNewCustomerPhone('')
     setNewCustomerBirthDayMonth('')
-    setNewCustomerExtraWord('')
     await loadStoreCustomers(profile.store_id)
   }
 
@@ -979,7 +993,7 @@ function App() {
                 type="password"
                 value={changePasswordNew}
                 onChange={(event) => setChangePasswordNew(event.target.value)}
-                placeholder="Almeno 8 caratteri"
+                placeholder="Inserisci nuova password"
               />
             </label>
             <label>
@@ -1182,17 +1196,17 @@ function App() {
                     />
                   </label>
                   <label>
-                    Parola extra (se username già usato)
+                    Nickname per accesso
                     <input
                       type="text"
-                      value={newCustomerExtraWord}
-                      onChange={(event) => setNewCustomerExtraWord(event.target.value)}
-                      placeholder="Es: Milano"
+                      value={newCustomerNickname}
+                      onChange={(event) => setNewCustomerNickname(event.target.value)}
+                      placeholder="Es: Napoleone"
                     />
                   </label>
-                  {(newCustomerName || newCustomerBirthDayMonth) ? (
+                  {(newCustomerNickname || newCustomerBirthDayMonth) ? (
                     <p className="username-preview">
-                      Username: <strong>{buildUsername(newCustomerName, newCustomerExtraWord, newCustomerBirthDayMonth)}</strong>
+                      Username: <strong>{buildUsername(newCustomerNickname, newCustomerBirthDayMonth)}</strong>
                     </p>
                   ) : null}
                   <label>
@@ -1306,7 +1320,7 @@ function App() {
                       type="password"
                       value={changePasswordNew}
                       onChange={(event) => setChangePasswordNew(event.target.value)}
-                      placeholder="Almeno 8 caratteri"
+                      placeholder="Inserisci nuova password"
                     />
                   </label>
                   <label>
@@ -1343,7 +1357,7 @@ function App() {
                       type="password"
                       value={resetStorePassword}
                       onChange={(event) => setResetStorePassword(event.target.value)}
-                      placeholder="Almeno 8 caratteri"
+                      placeholder="Inserisci nuova password"
                     />
                   </label>
                   <label>
