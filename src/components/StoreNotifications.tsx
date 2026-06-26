@@ -102,22 +102,39 @@ export function StoreNotifications() {
       setError(null)
       setSuccess(null)
 
+      // DEBUG 1: Auth check
+      console.log('🔐 [1/5] Verificando autenticazione...')
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Non autenticato')
+      if (!user) throw new Error('Non autenticato - nessun utente loggato')
+      console.log('✅ Utente autenticato:', user.email)
 
+      // DEBUG 2: Session token
+      console.log('🔐 [2/5] Ottenendo token di sessione...')
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
+      if (!token) throw new Error('Token di autenticazione non trovato - sessione scaduta?')
+      console.log('✅ Token ottenuto, lunghezza:', token.length)
 
-      if (!token) throw new Error('Token di autenticazione non trovato')
-
-      // Call the broadcast-notification edge function
+      // DEBUG 3: URL check
+      console.log('🔗 [3/5] Verificando configurazione URL...')
       const baseUrl = import.meta.env.VITE_SUPABASE_URL
       if (!baseUrl) {
-        throw new Error('VITE_SUPABASE_URL non configurato')
+        throw new Error('VITE_SUPABASE_URL non configurato - controlla .env')
       }
-
       const functionUrl = `${baseUrl}/functions/v1/broadcast-notification`
-      console.log('Calling edge function:', functionUrl)
+      console.log('✅ URL completo:', functionUrl)
+      console.log('   Store ID:', storeId)
+      console.log('   Titolo:', title)
+      console.log('   Messaggio:', message)
+
+      // DEBUG 4: Fetch request
+      console.log('📡 [4/5] Inviando richiesta...')
+      const requestBody = JSON.stringify({
+        store_id: storeId,
+        title: title.trim(),
+        body: message.trim(),
+      })
+      console.log('   Payload:', requestBody)
 
       const response = await fetch(functionUrl, {
         method: 'POST',
@@ -126,21 +143,39 @@ export function StoreNotifications() {
           'Authorization': `Bearer ${token}`,
           'x-user-id': user.id,
         },
-        body: JSON.stringify({
-          store_id: storeId,
-          title: title.trim(),
-          body: message.trim(),
-        }),
+        body: requestBody,
       })
 
-      const result = await response.json()
+      console.log('✅ Risposta ricevuta')
+      console.log('   Status:', response.status, response.statusText)
+      console.log('   Headers:', {
+        contentType: response.headers.get('content-type'),
+        contentLength: response.headers.get('content-length'),
+      })
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Errore nell\'invio della notifica')
+      // DEBUG 5: Response parsing
+      console.log('🔍 [5/5] Analizzando risposta...')
+      let result
+      try {
+        result = await response.json()
+        console.log('   Response JSON:', result)
+      } catch (parseErr) {
+        console.error('   ❌ Errore nel parsing JSON:', parseErr)
+        throw new Error(
+          `Risposta non valida dalla funzione (status ${response.status}). ` +
+          `Possibile: Edge Function non deployata, CORS bloccato, o errore interno Supabase.`
+        )
       }
 
+      if (!response.ok) {
+        const errorMsg = result.error || result.message || 'Errore sconosciuto'
+        const details = result.details ? ` - ${result.details}` : ''
+        throw new Error(`${errorMsg}${details}`)
+      }
+
+      console.log('✅ Successo! Notifiche inviate:', result.sent_count)
       setSuccess(
-        `Notifica inviata a ${result.sent_count} clienti!`
+        `✅ Notifica inviata a ${result.sent_count} clienti!`
       )
       setTitle('')
       setMessage('')
@@ -148,12 +183,11 @@ export function StoreNotifications() {
       // Reload notifications
       setTimeout(() => loadNotifications(), 1000)
     } catch (err) {
-      console.error('Error sending notification:', err)
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Errore nell\'invio della notifica'
-      )
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error('❌ Errore completo:', errorMessage)
+      console.error('Stack trace:', err instanceof Error ? err.stack : 'N/A')
+      
+      setError(errorMessage || 'Errore nell\'invio della notifica')
     } finally {
       setSending(false)
     }
