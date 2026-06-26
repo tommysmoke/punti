@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { createClient } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import { registerForPushNotifications, setupMessageListener } from './lib/notifications'
 
 type Role = 'store' | 'customer'
 
@@ -53,6 +54,7 @@ function App() {
   )
   const [customerMovements, setCustomerMovements] = useState<Movement[]>([])
   const [loadingData, setLoadingData] = useState(false)
+  const [notificationPermissionRequested, setNotificationPermissionRequested] = useState(false)
 
   const [newCustomerName, setNewCustomerName] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
@@ -355,6 +357,13 @@ function App() {
           .single()
         if (custData?.store_id) {
           await loadCustomerRewards(custData.store_id)
+        }
+
+        // Register for push notifications
+        if (!notificationPermissionRequested) {
+          await registerForPushNotifications(nextProfile.customer_id)
+          await setupMessageListener()
+          setNotificationPermissionRequested(true)
         }
       }
     } catch (error) {
