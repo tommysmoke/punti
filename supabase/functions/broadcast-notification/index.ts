@@ -117,16 +117,22 @@ async function sendViaFCM(fcmToken: string, title: string, body: string, accessT
   }
 }
 
+// Helper function to add CORS headers to all responses
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-user-id',
+    'Content-Type': 'application/json',
+  }
+}
+
 // @ts-ignore
 Deno.serve(async (req: Request) => {
-  // Handle CORS
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-user-id',
-      },
+      headers: corsHeaders(),
     })
   }
 
@@ -134,7 +140,7 @@ Deno.serve(async (req: Request) => {
     if (req.method !== 'POST') {
       return new Response(
         JSON.stringify({ error: 'Method not allowed' }),
-        { status: 405, headers: { 'Content-Type': 'application/json' } }
+        { status: 405, headers: corsHeaders() }
       )
     }
 
@@ -144,7 +150,7 @@ Deno.serve(async (req: Request) => {
     if (!store_id || !title || !message_body) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: store_id, title, body' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: corsHeaders() }
       )
     }
 
@@ -160,7 +166,7 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           error: 'Missing Supabase environment variables',
         }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: corsHeaders() }
       )
     }
 
@@ -179,7 +185,7 @@ Deno.serve(async (req: Request) => {
           error: 'Failed to fetch subscriptions',
           details: subscriptionsError.message,
         }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: corsHeaders() }
       )
     }
 
@@ -239,7 +245,7 @@ Deno.serve(async (req: Request) => {
           error: 'Failed to save notification record',
           details: insertError.message,
         }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: corsHeaders() }
       )
     }
 
@@ -252,7 +258,7 @@ Deno.serve(async (req: Request) => {
       }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: corsHeaders(),
       }
     )
   } catch (error) {
@@ -262,7 +268,7 @@ Deno.serve(async (req: Request) => {
         error: 'Internal server error',
         details: error instanceof Error ? error.message : String(error),
       }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: corsHeaders() }
     )
   }
 })
