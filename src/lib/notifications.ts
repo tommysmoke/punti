@@ -45,10 +45,25 @@ export async function registerForPushNotifications(customerId: number) {
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
     console.log('   VAPID Key disponibile:', !!vapidKey)
     
+    // Registra il service worker con scope corretto per GitHub Pages
+    let swRegistration: ServiceWorkerRegistration | undefined = undefined
+    try {
+      if ('serviceWorker' in navigator) {
+        swRegistration = await navigator.serviceWorker.register(
+          '/punti/firebase-messaging-sw.js',
+          { scope: '/punti/' }
+        )
+        console.log('✅ [PUSH] Service Worker registrato:', swRegistration.scope)
+      }
+    } catch (swError) {
+      console.warn('⚠️ [PUSH] Errore nella registrazione del service worker:', swError instanceof Error ? swError.message : String(swError))
+    }
+    
     let token: string | null = null
     try {
       token = await getToken(messaging, {
         vapidKey,
+        serviceWorkerRegistration: swRegistration,
       })
       console.log('✅ [PUSH] FCM Token ottenuto:', token.substring(0, 50) + '...')
     } catch (tokenError) {
