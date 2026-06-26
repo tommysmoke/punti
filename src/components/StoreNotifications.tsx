@@ -111,22 +111,27 @@ export function StoreNotifications() {
       if (!token) throw new Error('Token di autenticazione non trovato')
 
       // Call the broadcast-notification edge function
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/broadcast-notification`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'x-user-id': user.id,
-          },
-          body: JSON.stringify({
-            store_id: storeId,
-            title: title.trim(),
-            body: message.trim(),
-          }),
-        }
-      )
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL
+      if (!baseUrl) {
+        throw new Error('VITE_SUPABASE_URL non configurato')
+      }
+
+      const functionUrl = `${baseUrl}/functions/v1/broadcast-notification`
+      console.log('Calling edge function:', functionUrl)
+
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({
+          store_id: storeId,
+          title: title.trim(),
+          body: message.trim(),
+        }),
+      })
 
       const result = await response.json()
 
