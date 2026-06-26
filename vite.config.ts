@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'favicon-192x192.png', 'favicon-512x512.png'],
       manifest: {
-        name: 'Punti Facili',
-        short_name: 'Punti',
-        description: 'Raccolta punti per negozi e clienti.',
+        name: 'Tommy Smoke',
+        short_name: 'TommySmoke',
+        description: 'Raccolta Punti Tommy Smoke',
         theme_color: '#0f4c5c',
         background_color: '#f3efe2',
         display: 'standalone',
