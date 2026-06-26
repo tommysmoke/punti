@@ -3,6 +3,7 @@ import './App.css'
 import { createClient } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { registerForPushNotifications, setupMessageListener } from './lib/notifications'
+import { StoreNotifications } from './components/StoreNotifications'
 
 type Role = 'store' | 'customer'
 
@@ -87,7 +88,7 @@ function App() {
   const [loginLoading, setLoginLoading] = useState(false)
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
   const [actionError, setActionError] = useState('')
-  const [storePage, setStorePage] = useState<'operations' | 'new-customer' | 'rewards' | 'security'>('operations')
+  const [storePage, setStorePage] = useState<'operations' | 'new-customer' | 'rewards' | 'security' | 'communications'>('operations')
   const [rewards, setRewards] = useState<Reward[]>([])
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardDescription, setNewRewardDescription] = useState('')
@@ -1338,6 +1339,13 @@ function App() {
             >
               Sicurezza
             </button>
+            <button
+              type="button"
+              className={`ghost small ${storePage === 'communications' ? 'active-tab' : ''}`}
+              onClick={() => setStorePage('communications')}
+            >
+              📢 Comunicazioni
+            </button>
           </section>
 
           {storePage === 'operations' ? (
@@ -1612,6 +1620,8 @@ function App() {
                 </form>
               </article>
             </section>
+          ) : storePage === 'communications' ? (
+            <StoreNotifications />
           ) : storePage === 'rewards' ? (
             <section className="store-single-page">
               <article className="card">

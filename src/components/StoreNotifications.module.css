@@ -1,0 +1,239 @@
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.container h2 {
+  margin-bottom: 30px;
+  font-size: 24px;
+  color: #0f4c5c;
+}
+
+.form {
+  background: #f9f7f4;
+  border: 1px solid #e0d7ce;
+  border-radius: 12px;
+  padding: 25px;
+  margin-bottom: 30px;
+}
+
+.formGroup {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.formGroup label {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #0f4c5c;
+  font-size: 14px;
+}
+
+.formGroup input,
+.formGroup textarea {
+  padding: 12px;
+  border: 1px solid #d4c8be;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.formGroup input:focus,
+.formGroup textarea:focus {
+  outline: none;
+  border-color: #0f4c5c;
+  box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.1);
+}
+
+.formGroup input:disabled,
+.formGroup textarea:disabled {
+  background: #e8e0d8;
+  cursor: not-allowed;
+}
+
+.formGroup small {
+  font-size: 12px;
+  color: #8b7d74;
+  margin-top: 5px;
+}
+
+.preview {
+  background: #fff;
+  border: 1px solid #e0d7ce;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.preview h3 {
+  font-size: 14px;
+  color: #0f4c5c;
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+.phoneFrame {
+  background: #000;
+  border-radius: 20px;
+  padding: 12px;
+  max-width: 350px;
+  margin: 0 auto;
+}
+
+.notification {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 14px;
+}
+
+.notificationTitle {
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.notificationBody {
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0.95;
+}
+
+.error {
+  background: #fee;
+  color: #c33;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+.success {
+  background: #efe;
+  color: #3c3;
+  border: 1px solid #cfc;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+.sendButton {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.sendButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.sendButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sendButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.history {
+  background: #f9f7f4;
+  border: 1px solid #e0d7ce;
+  border-radius: 12px;
+  padding: 25px;
+}
+
+.history h3 {
+  margin-bottom: 20px;
+  color: #0f4c5c;
+  font-size: 18px;
+}
+
+.empty {
+  color: #8b7d74;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.notificationsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.historyItem {
+  background: white;
+  border: 1px solid #e0d7ce;
+  border-radius: 8px;
+  padding: 16px;
+  transition: box-shadow 0.2s;
+}
+
+.historyItem:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.historyHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.historyHeader strong {
+  color: #0f4c5c;
+  font-size: 15px;
+}
+
+.date {
+  font-size: 12px;
+  color: #8b7d74;
+}
+
+.historyBody {
+  color: #333;
+  font-size: 14px;
+  line-height: 1.4;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0e8e0;
+}
+
+.historyFooter {
+  font-size: 12px;
+  color: #0f4c5c;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 15px;
+  }
+
+  .form,
+  .history {
+    padding: 15px;
+  }
+
+  .container h2 {
+    font-size: 20px;
+  }
+
+  .phoneFrame {
+    max-width: 100%;
+  }
+}
