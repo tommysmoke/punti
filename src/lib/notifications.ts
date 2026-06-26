@@ -45,15 +45,56 @@ export async function registerForPushNotifications(customerId: number) {
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
     console.log('   VAPID Key disponibile:', !!vapidKey)
     
-    const token = await getToken(messaging, {
-      vapidKey,
-    })
+    let token: string | null = null
+    try {
+      token = await getToken(messaging, {
+        vapidKey,
+      })
+      console.log('✅ [PUSH] FCM Token ottenuto:', token.substring(0, 50) + '...')
+    } catch (tokenError) {
+      console.warn('⚠️ [PUSH] Errore nell\'ottenimento del token (potrebbe essere normale se service worker non è registrato):')
+      console.warn('   ', tokenError instanceof Error ? tokenError.message : String(tokenError))
+      
+      // Se il problema è il service worker, prova con fallback
+      if (tokenError instanceof Error && tokenError.message.includes('service worker')) {
+        console.log('🔄 [PUSH] Cercando service worker alternativo...')
+        
+        // Questo non è ideale, ma almeno registra il cliente
+        // In caso di notifiche real-time, useremo il fallback di Supabase
+        if (!supabase) {
+          throw new Error('Supabase non configurato per fallback')
+        }
+        
+        // Salva il cliente senza FCM token - userà il fallback
+        console.log('📝 [PUSH] Registrando senza FCM token (usa fallback real-time)')
+        const { error: fallbackError } = await supabase
+          .from('push_subscriptions')
+          .upsert(
+            {
+              customer_id: customerId,
+              fcm_token: null, // Null token - userà polling o real-time
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'customer_id' }
+          )
+          .select()
+
+        if (fallbackError) {
+          console.error('❌ [PUSH] Errore nel fallback:', fallbackError)
+          throw fallbackError
+        }
+
+        console.log('✅ [PUSH] Fallback registrato (faremo polling per notifiche)')
+        return null
+      }
+      
+      throw tokenError
+    }
 
     if (!token) {
       console.error('❌ [PUSH] Impossibile ottenere FCM token')
       return null
     }
-    console.log('✅ [PUSH] FCM Token ottenuto:', token.substring(0, 50) + '...')
 
     console.log('🔔 [PUSH] Step 4: Salvando subscription nel database...')
     console.log('   Customer ID:', customerId)
