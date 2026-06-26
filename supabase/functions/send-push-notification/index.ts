@@ -1,4 +1,4 @@
-/// <reference lib="deno.window" />
+// @ts-ignore - Deno types not available in VS Code (but works on Supabase)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.6'
 
 interface PushRequest {
@@ -7,6 +7,7 @@ interface PushRequest {
   body?: string
 }
 
+// @ts-ignore - Deno types not available in VS Code (but works on Supabase)
 Deno.serve(async (req: Request) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -36,8 +37,11 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // @ts-ignore - Deno types not available in VS Code (but works on Supabase)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    // @ts-ignore - Deno types not available in VS Code (but works on Supabase)
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    // @ts-ignore - Deno types not available in VS Code (but works on Supabase)
     const firebaseServiceAccountKeyStr = Deno.env.get(
       'FIREBASE_SERVICE_ACCOUNT_KEY'
     )
