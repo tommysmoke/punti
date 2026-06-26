@@ -23,31 +23,49 @@ export async function requestNotificationPermission() {
 
 export async function registerForPushNotifications(customerId: number) {
   try {
+    console.log('🔔 [PUSH] Step 1: Inizializzando Firebase...')
     const messaging = await initializeFirebase()
     if (!messaging) {
-      console.warn('Firebase messaging not available')
+      console.warn('❌ [PUSH] Firebase messaging non disponibile (browser non supportato?)')
       return null
     }
+    console.log('✅ [PUSH] Firebase inizializzato')
 
+    console.log('🔔 [PUSH] Step 2: Richiedendo permesso notifiche...')
     const permission = await requestNotificationPermission()
+    console.log('   Permesso ricevuto:', permission)
+    
     if (permission !== 'granted') {
-      console.log('Notification permission:', permission)
+      console.warn('⚠️ [PUSH] Permesso non concesso:', permission)
       return null
     }
+    console.log('✅ [PUSH] Permesso concesso')
 
-    // Get FCM token
+    console.log('🔔 [PUSH] Step 3: Ottenendo FCM token...')
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
+    console.log('   VAPID Key disponibile:', !!vapidKey)
+    
     const token = await getToken(messaging, {
-      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+      vapidKey,
     })
 
     if (!token) {
-      console.warn('Failed to get FCM token')
+      console.error('❌ [PUSH] Impossibile ottenere FCM token')
+      return null
+    }
+    console.log('✅ [PUSH] FCM Token ottenuto:', token.substring(0, 50) + '...')
+
+    console.log('🔔 [PUSH] Step 4: Salvando subscription nel database...')
+    console.log('   Customer ID:', customerId)
+    
+    if (!supabase) {
+      console.error('❌ [PUSH] Supabase non configurato')
       return null
     }
 
-    // Save subscription to Supabase
-    if (supabase) {
-      const { error } = await supabase.from('push_subscriptions').upsert(
+    const { data, error } = await supabase
+      .from('push_subscriptions')
+      .upsert(
         {
           customer_id: customerId,
           fcm_token: token,
@@ -55,18 +73,28 @@ export async function registerForPushNotifications(customerId: number) {
         },
         { onConflict: 'customer_id' }
       )
+      .select()
 
-      if (error) {
-        console.error('Failed to save push subscription:', error)
-        return null
-      }
-
-      console.log('Push subscription registered successfully')
+    if (error) {
+      console.error('❌ [PUSH] Errore nel salvare subscription:', error)
+      console.error('   Codice errore:', error.code)
+      console.error('   Messaggio:', error.message)
+      console.error('   Hint:', error.hint)
+      console.error('   Details:', error.details)
+      return null
     }
+
+    console.log('✅ [PUSH] Subscription salvata nel database!')
+    console.log('   Data:', data)
+    console.log('🎉 [PUSH] Registrazione completata con successo!')
 
     return token
   } catch (error) {
-    console.error('Error registering for push notifications:', error)
+    console.error('❌ [PUSH] Errore generale:', error)
+    if (error instanceof Error) {
+      console.error('   Stack:', error.stack)
+      console.error('   Messaggio:', error.message)
+    }
     return null
   }
 }
