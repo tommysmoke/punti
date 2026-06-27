@@ -54,6 +54,7 @@ function App() {
     null,
   )
   const [customerMovements, setCustomerMovements] = useState<Movement[]>([])
+  const [recentNotifications, setRecentNotifications] = useState<{ id: number; title: string; body: string; created_at: string }[]>([])
   const [loadingData, setLoadingData] = useState(false)
   const [notificationPermissionRequested, setNotificationPermissionRequested] = useState(false)
   const [pushStatus, setPushStatus] = useState<string | null>(null)
@@ -236,6 +237,19 @@ function App() {
     setRewards((data ?? []) as Reward[])
   }
 
+  const loadRecentNotifications = async (storeId: string) => {
+    if (!supabase) return
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { data } = await supabase
+      .from('store_notifications')
+      .select('id, title, body, created_at')
+      .eq('store_id', storeId)
+      .gte('created_at', oneDayAgo)
+      .order('created_at', { ascending: false })
+      .limit(10)
+    setRecentNotifications((data ?? []) as { id: number; title: string; body: string; created_at: string }[])
+  }
+
   const addReward = async (event: FormEvent) => {
     event.preventDefault()
     if (!supabase || !profile?.store_id) return
@@ -347,6 +361,7 @@ function App() {
       if (nextProfile.role === 'store' && nextProfile.store_id) {
         await loadStoreCustomers(nextProfile.store_id)
         await loadRewards(nextProfile.store_id)
+        await loadRecentNotifications(nextProfile.store_id)
       }
 
       if (nextProfile.role === 'customer' && nextProfile.customer_id) {
@@ -359,6 +374,7 @@ function App() {
           .single()
         if (custData?.store_id) {
           await loadCustomerRewards(custData.store_id)
+          await loadRecentNotifications(custData.store_id)
         }
 
         // Register for push notifications
@@ -1314,6 +1330,7 @@ function App() {
           </section>
 
           {storePage === 'operations' ? (
+        <>
         <section className="store-shell">
           <article className="card customers-sidebar">
             <h2>Clienti <span className="badge">{filteredCustomers.length}</span></h2>
@@ -1513,6 +1530,25 @@ function App() {
             </article>
           </div>
         </section>
+
+          {recentNotifications.length > 0 ? (
+            <article className="card" style={{marginTop:'1rem'}}>
+              <h2>Comunicazioni recenti <span className="badge">{recentNotifications.length}</span></h2>
+              <ul className="movements">
+                {recentNotifications.map((n) => (
+                  <li key={n.id} className="movement-earn">
+                    <div>
+                      <strong>{n.title}</strong>
+                      <p>{n.body}</p>
+                    </div>
+                    <time>{new Date(n.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ) : null}
+        </>
+
           ) : storePage === 'new-customer' ? (
             <section className="store-single-page">
               <article className="card">
@@ -1877,6 +1913,23 @@ function App() {
                     </li>
                   )
                 })}
+              </ul>
+            </article>
+          ) : null}
+
+          {recentNotifications.length > 0 ? (
+            <article className="card customer-rewards-card">
+              <h2>Comunicazioni recenti</h2>
+              <ul className="movements">
+                {recentNotifications.map((n) => (
+                  <li key={n.id} className="movement-earn">
+                    <div>
+                      <strong>{n.title}</strong>
+                      <p>{n.body}</p>
+                    </div>
+                    <time>{new Date(n.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                  </li>
+                ))}
               </ul>
             </article>
           ) : null}
