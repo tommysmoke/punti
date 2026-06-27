@@ -1309,7 +1309,7 @@ function App() {
               className={`ghost small ${storePage === 'operations' ? 'active-tab' : ''}`}
               onClick={() => setStorePage('operations')}
             >
-              Operazioni {customers.length > 0 ? <span className="tab-badge">{customers.length}</span> : null}
+              Operazioni
             </button>
             <button
               type="button"
@@ -1323,7 +1323,7 @@ function App() {
               className={`ghost small ${storePage === 'rewards' ? 'active-tab' : ''}`}
               onClick={() => setStorePage('rewards')}
             >
-              Premi {rewards.length > 0 ? <span className="tab-badge">{rewards.length}</span> : null}
+              Premi
             </button>
             <button
               type="button"
