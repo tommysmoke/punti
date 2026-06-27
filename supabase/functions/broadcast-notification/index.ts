@@ -7,78 +7,93 @@ interface BroadcastRequest {
   body: string
 }
 
+// Helper: decode base64 string to ArrayBuffer
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  // @ts-ignore - Deno global
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer as ArrayBuffer
+}
+
+// Helper: encode ArrayBuffer or Uint8Array to base64url string
+function arrayBufferToBase64url(source: Uint8Array | ArrayBuffer): string {
+  const bytes = source instanceof Uint8Array ? source : new Uint8Array(source)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  // @ts-ignore - Deno global
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+}
+
 // Helper to create JWT for Firebase
 // @ts-ignore
 async function getFirebaseAccessToken(serviceAccountKey: string): Promise<string> {
-  try {
-    const key = JSON.parse(serviceAccountKey)
-    
-    // Create JWT header and payload
-    const now = Math.floor(Date.now() / 1000)
-    const header = {
-      alg: 'RS256',
-      typ: 'JWT',
-    }
-    
-    const payload = {
-      iss: key.client_email,
-      scope: 'https://www.googleapis.com/auth/cloud-platform',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now,
-    }
+  const key = JSON.parse(serviceAccountKey)
+  const encoder = new TextEncoder()
 
-    // Encode header and payload
-    const headerStr = JSON.stringify(header)
-    const payloadStr = JSON.stringify(payload)
-    
-    // @ts-ignore
-    const headerB64 = btoa(headerStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-    // @ts-ignore
-    const payloadB64 = btoa(payloadStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-    
-    const message = `${headerB64}.${payloadB64}`
-    
-    // Sign with private key using Web Crypto (Deno supports this)
-    // @ts-ignore
-    const encoder = new TextEncoder()
-    const keyData = key.private_key.replace(/\\n/g, '\n')
-    
-    // Use Deno's crypto for signing
-    // @ts-ignore
-    const sign = await crypto.subtle.sign(
-      'RSASSA-PKCS1-v1_5',
-      // @ts-ignore
-      await crypto.subtle.importKey(
-        'pkcs8',
-        // @ts-ignore
-        Deno.core.encode(keyData.replace(/-----BEGIN PRIVATE KEY-----/, '').replace(/-----END PRIVATE KEY-----/, '').replace(/\n/g, '').split('').slice(0, -1).join('')),
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-        false,
-        ['sign']
-      ),
-      encoder.encode(message)
-    )
-    
-    // @ts-ignore
-    const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(sign))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-    const jwt = `${message}.${signatureB64}`
-
-    // Exchange JWT for access token
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: jwt,
-      }).toString(),
-    })
-
-    const tokenData = await tokenResponse.json()
-    return tokenData.access_token
-  } catch (error) {
-    throw new Error(`Failed to get Firebase access token: ${error instanceof Error ? error.message : String(error)}`)
+  const now = Math.floor(Date.now() / 1000)
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const payload = {
+    iss: key.client_email,
+    scope: 'https://www.googleapis.com/auth/cloud-platform',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
   }
+
+  const headerB64 = arrayBufferToBase64url(encoder.encode(JSON.stringify(header)))
+  const payloadB64 = arrayBufferToBase64url(encoder.encode(JSON.stringify(payload)))
+  const message = `${headerB64}.${payloadB64}`
+
+  // Extract base64 content from PEM private key and decode to binary (DER)
+  const pemContent = key.private_key
+    .replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\n/g, '')
+
+  const keyBinary = base64ToArrayBuffer(pemContent)
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    keyBinary,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    encoder.encode(message),
+  )
+
+  const jwt = `${message}.${arrayBufferToBase64url(signature)}`
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }).toString(),
+  })
+
+  if (!tokenResponse.ok) {
+    const errBody = await tokenResponse.text()
+    throw new Error(`OAuth2 token exchange failed (${tokenResponse.status}): ${errBody}`)
+  }
+
+  const tokenData = await tokenResponse.json()
+  if (!tokenData.access_token) {
+    throw new Error(`No access_token in OAuth2 response: ${JSON.stringify(tokenData)}`)
+  }
+
+  return tokenData.access_token
 }
 
 // Send notification via FCM API
@@ -96,11 +111,12 @@ async function sendViaFCM(fcmToken: string, title: string, body: string, accessT
         body: JSON.stringify({
           message: {
             token: fcmToken,
-            notification: {
-              title,
-              body,
-            },
             webpush: {
+              notification: {
+                title,
+                body,
+                icon: 'https://tommysmoke.github.io/punti/favicon-192x192.png',
+              },
               fcmOptions: {
                 link: 'https://tommysmoke.github.io/punti/',
               },
@@ -224,6 +240,9 @@ Deno.serve(async (req: Request) => {
       console.log(`[BROADCAST] Would send to ${count} customers (FCM not available)`)
     }
 
+    const actuallySent = accessToken ? successCount : 0
+    const subscribersCount = count
+
     // Save notification record
     const { data: notification, error: insertError } = await supabase
       .from('store_notifications')
@@ -232,8 +251,8 @@ Deno.serve(async (req: Request) => {
         title,
         body: message_body,
         created_by: req.headers.get('x-user-id'),
-        sent_count: successCount || count,
-        sent_at: new Date().toISOString(),
+        sent_count: actuallySent,
+        sent_at: actuallySent > 0 ? new Date().toISOString() : null,
       })
       .select()
       .single()
@@ -249,12 +268,22 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    let message: string
+    if (actuallySent > 0) {
+      message = `Notifica inviata a ${actuallySent} clienti su ${subscribersCount} registrati`
+    } else if (subscribersCount > 0) {
+      message = `Notifica registrata ma NON inviata: ${subscribersCount} clienti registrati ma FCM non configurato. Aggiungi FIREBASE_SERVICE_ACCOUNT_KEY nei secrets della Edge Function.`
+    } else {
+      message = 'Nessun cliente con notifiche push attive'
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Notification sent to ${successCount || count} customers`,
+        message,
         notification_id: notification.id,
-        sent_count: successCount || count,
+        sent_count: actuallySent,
+        subscribers_count: subscribersCount,
       }),
       {
         status: 200,

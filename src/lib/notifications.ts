@@ -64,18 +64,15 @@ export async function registerForPushNotifications(customerId: number) {
       const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
       console.log('   VAPID Key disponibile:', !!vapidKey)
 
-      // Registra il service worker con scope corretto per GitHub Pages
+      // Usa il service worker esistente della PWA (evita conflitto tra due SW)
       let swRegistration: ServiceWorkerRegistration | undefined = undefined
       try {
         if ('serviceWorker' in navigator) {
-          swRegistration = await navigator.serviceWorker.register(
-            '/punti/firebase-messaging-sw.js',
-            { scope: '/punti/' }
-          )
-          console.log('✅ [PUSH] Service Worker registrato:', swRegistration.scope)
+          swRegistration = await navigator.serviceWorker.ready
+          console.log('✅ [PUSH] Service Worker PWA esistente:', swRegistration.scope)
         }
       } catch (swError) {
-        console.warn('⚠️ [PUSH] Errore nella registrazione del service worker:', swError instanceof Error ? swError.message : String(swError))
+        console.warn('⚠️ [PUSH] Service Worker PWA non disponibile:', swError instanceof Error ? swError.message : String(swError))
       }
 
       let token: string | null = null
