@@ -9,6 +9,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'public',
+      filename: 'sw.js',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+      },
       includeAssets: ['favicon.svg', 'favicon-192x192.png', 'favicon-512x512.png'],
       manifest: {
         name: 'Tommy Smoke',
@@ -39,9 +45,6 @@ export default defineConfig({
             type: 'image/svg+xml',
           },
         ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
       },
     }),
   ],
