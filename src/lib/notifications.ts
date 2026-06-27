@@ -2,6 +2,10 @@ import { getToken, onMessage } from 'firebase/messaging'
 import { initializeFirebase } from './firebase'
 import { supabase } from './supabase'
 
+const pushRegistrationInFlight = new Map<number, Promise<string | null>>()
+const pushRegistrationCache = new Map<number, string | null>()
+let messageListenerInitialized = false
+
 export async function requestNotificationPermission() {
   if (!('Notification' in window)) {
     console.warn('Notifications not supported by browser')
@@ -22,143 +26,178 @@ export async function requestNotificationPermission() {
 }
 
 export async function registerForPushNotifications(customerId: number) {
-  try {
-    console.log('🔔 [PUSH] Step 1: Inizializzando Firebase...')
-    const messaging = await initializeFirebase()
-    if (!messaging) {
-      console.warn('❌ [PUSH] Firebase messaging non disponibile (browser non supportato?)')
-      return null
-    }
-    console.log('✅ [PUSH] Firebase inizializzato')
+  const cached = pushRegistrationCache.get(customerId)
+  if (cached !== undefined) {
+    console.log('ℹ️ [PUSH] Registrazione già completata per questo cliente, skip')
+    return cached
+  }
 
-    console.log('🔔 [PUSH] Step 2: Richiedendo permesso notifiche...')
-    const permission = await requestNotificationPermission()
-    console.log('   Permesso ricevuto:', permission)
-    
-    if (permission !== 'granted') {
-      console.warn('⚠️ [PUSH] Permesso non concesso:', permission)
-      return null
-    }
-    console.log('✅ [PUSH] Permesso concesso')
+  const currentAttempt = pushRegistrationInFlight.get(customerId)
+  if (currentAttempt) {
+    console.log('ℹ️ [PUSH] Registrazione già in corso per questo cliente, attendo risultato')
+    return currentAttempt
+  }
 
-    console.log('🔔 [PUSH] Step 3: Ottenendo FCM token...')
-    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
-    console.log('   VAPID Key disponibile:', !!vapidKey)
-    
-    // Registra il service worker con scope corretto per GitHub Pages
-    let swRegistration: ServiceWorkerRegistration | undefined = undefined
+  const attempt = (async () => {
     try {
-      if ('serviceWorker' in navigator) {
-        swRegistration = await navigator.serviceWorker.register(
-          '/punti/firebase-messaging-sw.js',
-          { scope: '/punti/' }
-        )
-        console.log('✅ [PUSH] Service Worker registrato:', swRegistration.scope)
-      }
-    } catch (swError) {
-      console.warn('⚠️ [PUSH] Errore nella registrazione del service worker:', swError instanceof Error ? swError.message : String(swError))
-    }
-    
-    let token: string | null = null
-    try {
-      token = await getToken(messaging, {
-        vapidKey,
-        serviceWorkerRegistration: swRegistration,
-      })
-      console.log('✅ [PUSH] FCM Token ottenuto:', token.substring(0, 50) + '...')
-    } catch (tokenError) {
-      console.warn('⚠️ [PUSH] Errore nell\'ottenimento del token (potrebbe essere normale se service worker non è registrato):')
-      console.warn('   ', tokenError instanceof Error ? tokenError.message : String(tokenError))
-      
-      // Se il problema è il service worker, prova con fallback
-      if (tokenError instanceof Error && tokenError.message.includes('service worker')) {
-        console.log('🔄 [PUSH] Cercando service worker alternativo...')
-        
-        // Questo non è ideale, ma almeno registra il cliente
-        // In caso di notifiche real-time, useremo il fallback di Supabase
-        if (!supabase) {
-          throw new Error('Supabase non configurato per fallback')
-        }
-        
-        // Salva il cliente senza FCM token - userà il fallback
-        console.log('📝 [PUSH] Registrando senza FCM token (usa fallback real-time)')
-        const { error: fallbackError } = await supabase
-          .from('push_subscriptions')
-          .upsert(
-            {
-              customer_id: customerId,
-              fcm_token: null, // Null token - userà polling o real-time
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'customer_id' }
-          )
-          .select()
-
-        if (fallbackError) {
-          console.error('❌ [PUSH] Errore nel fallback:', fallbackError)
-          throw fallbackError
-        }
-
-        console.log('✅ [PUSH] Fallback registrato (faremo polling per notifiche)')
+      console.log('🔔 [PUSH] Step 1: Inizializzando Firebase...')
+      const messaging = await initializeFirebase()
+      if (!messaging) {
+        console.warn('❌ [PUSH] Firebase messaging non disponibile (browser non supportato?)')
+        pushRegistrationCache.set(customerId, null)
         return null
       }
-      
-      throw tokenError
-    }
+      console.log('✅ [PUSH] Firebase inizializzato')
 
-    if (!token) {
-      console.error('❌ [PUSH] Impossibile ottenere FCM token')
+      console.log('🔔 [PUSH] Step 2: Richiedendo permesso notifiche...')
+      const permission = await requestNotificationPermission()
+      console.log('   Permesso ricevuto:', permission)
+
+      if (permission !== 'granted') {
+        console.warn('⚠️ [PUSH] Permesso non concesso:', permission)
+        pushRegistrationCache.set(customerId, null)
+        return null
+      }
+      console.log('✅ [PUSH] Permesso concesso')
+
+      console.log('🔔 [PUSH] Step 3: Ottenendo FCM token...')
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
+      console.log('   VAPID Key disponibile:', !!vapidKey)
+
+      // Registra il service worker con scope corretto per GitHub Pages
+      let swRegistration: ServiceWorkerRegistration | undefined = undefined
+      try {
+        if ('serviceWorker' in navigator) {
+          swRegistration = await navigator.serviceWorker.register(
+            '/punti/firebase-messaging-sw.js',
+            { scope: '/punti/' }
+          )
+          console.log('✅ [PUSH] Service Worker registrato:', swRegistration.scope)
+        }
+      } catch (swError) {
+        console.warn('⚠️ [PUSH] Errore nella registrazione del service worker:', swError instanceof Error ? swError.message : String(swError))
+      }
+
+      let token: string | null = null
+      try {
+        token = await getToken(messaging, {
+          vapidKey,
+          serviceWorkerRegistration: swRegistration,
+        })
+        if (token) {
+          console.log('✅ [PUSH] FCM Token ottenuto:', token.substring(0, 50) + '...')
+        }
+      } catch (tokenError) {
+        console.warn('⚠️ [PUSH] Errore nell\'ottenimento del token (potrebbe essere normale se service worker non è registrato):')
+        console.warn('   ', tokenError instanceof Error ? tokenError.message : String(tokenError))
+
+        // Se il problema è il service worker, prova con fallback
+        if (tokenError instanceof Error && tokenError.message.includes('service worker')) {
+          console.log('🔄 [PUSH] Cercando service worker alternativo...')
+
+          // Questo non è ideale, ma almeno registra il cliente
+          // In caso di notifiche real-time, useremo il fallback di Supabase
+          if (!supabase) {
+            throw new Error('Supabase non configurato per fallback')
+          }
+
+          // Salva il cliente senza FCM token - userà il fallback
+          console.log('📝 [PUSH] Registrando senza FCM token (usa fallback real-time)')
+          const { error: fallbackError } = await supabase
+            .from('push_subscriptions')
+            .upsert(
+              {
+                customer_id: customerId,
+                fcm_token: null, // Null token - userà polling o real-time
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'customer_id' }
+            )
+            .select()
+
+          if (fallbackError) {
+            console.error('❌ [PUSH] Errore nel fallback:', fallbackError)
+            throw fallbackError
+          }
+
+          console.log('✅ [PUSH] Fallback registrato (faremo polling per notifiche)')
+          pushRegistrationCache.set(customerId, null)
+          return null
+        }
+
+        throw tokenError
+      }
+
+      if (!token) {
+        console.error('❌ [PUSH] Impossibile ottenere FCM token')
+        pushRegistrationCache.set(customerId, null)
+        return null
+      }
+
+      console.log('🔔 [PUSH] Step 4: Salvando subscription nel database...')
+      console.log('   Customer ID:', customerId)
+
+      if (!supabase) {
+        console.error('❌ [PUSH] Supabase non configurato')
+        pushRegistrationCache.set(customerId, null)
+        return null
+      }
+
+      const { data, error } = await supabase
+        .from('push_subscriptions')
+        .upsert(
+          {
+            customer_id: customerId,
+            fcm_token: token,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'customer_id' }
+        )
+        .select()
+
+      if (error) {
+        console.error('❌ [PUSH] Errore nel salvare subscription:', error)
+        console.error('   Codice errore:', error.code)
+        console.error('   Messaggio:', error.message)
+        console.error('   Hint:', error.hint)
+        console.error('   Details:', error.details)
+        pushRegistrationCache.set(customerId, null)
+        return null
+      }
+
+      console.log('✅ [PUSH] Subscription salvata nel database!')
+      console.log('   Data:', data)
+      console.log('🎉 [PUSH] Registrazione completata con successo!')
+
+      pushRegistrationCache.set(customerId, token)
+      return token
+    } catch (error) {
+      console.error('❌ [PUSH] Errore generale:', error)
+      if (error instanceof Error) {
+        console.error('   Stack:', error.stack)
+        console.error('   Messaggio:', error.message)
+      }
+      pushRegistrationCache.set(customerId, null)
       return null
+    } finally {
+      pushRegistrationInFlight.delete(customerId)
     }
+  })()
 
-    console.log('🔔 [PUSH] Step 4: Salvando subscription nel database...')
-    console.log('   Customer ID:', customerId)
-    
-    if (!supabase) {
-      console.error('❌ [PUSH] Supabase non configurato')
-      return null
-    }
-
-    const { data, error } = await supabase
-      .from('push_subscriptions')
-      .upsert(
-        {
-          customer_id: customerId,
-          fcm_token: token,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'customer_id' }
-      )
-      .select()
-
-    if (error) {
-      console.error('❌ [PUSH] Errore nel salvare subscription:', error)
-      console.error('   Codice errore:', error.code)
-      console.error('   Messaggio:', error.message)
-      console.error('   Hint:', error.hint)
-      console.error('   Details:', error.details)
-      return null
-    }
-
-    console.log('✅ [PUSH] Subscription salvata nel database!')
-    console.log('   Data:', data)
-    console.log('🎉 [PUSH] Registrazione completata con successo!')
-
-    return token
-  } catch (error) {
-    console.error('❌ [PUSH] Errore generale:', error)
-    if (error instanceof Error) {
-      console.error('   Stack:', error.stack)
-      console.error('   Messaggio:', error.message)
-    }
-    return null
-  }
+  pushRegistrationInFlight.set(customerId, attempt)
+  return attempt
 }
 
 export async function setupMessageListener() {
   try {
+    if (messageListenerInitialized) {
+      return
+    }
+
     const messaging = await initializeFirebase()
     if (!messaging) return
+
+    messageListenerInitialized = true
 
     // Handle messages when app is in foreground
     onMessage(messaging, (payload) => {
