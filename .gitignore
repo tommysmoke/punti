@@ -28,3 +28,4 @@ dist-ssr
 *.sw?
 FIREBASE_SETUP.md
 convert-svg-to-png.html
+scripts/test-rate-limit.js
