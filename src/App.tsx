@@ -67,7 +67,7 @@ function App() {
   const [newCustomerError, setNewCustomerError] = useState('')
   const [expenseAmount, setExpenseAmount] = useState('')
   const [redeemAmount, setRedeemAmount] = useState('')
-  const [deductAmount, setDeductAmount] = useState('')
+  const [overrideAmount, setOverrideAmount] = useState('')
 
   const [showChangePassword, setShowChangePassword] = useState(false)
   const [changePasswordCurrent, setChangePasswordCurrent] = useState('')
@@ -104,7 +104,7 @@ function App() {
 
   // Modali di conferma per operazioni critiche
   const [confirmModal, setConfirmModal] = useState<{
-    action: 'redeem' | 'deduct' | 'reset-customer-pwd' | 'reset-store-pwd' | 'delete-transaction' | 'delete-customer'
+    action: 'redeem' | 'override' | 'reset-customer-pwd' | 'reset-store-pwd' | 'delete-transaction' | 'delete-customer'
     message: string
     transactionId?: number
     customerId?: number
@@ -1065,51 +1065,50 @@ function App() {
     }
   }
 
-  const deductPoints = async (event: FormEvent) => {
+  const overridePoints = async (event: FormEvent) => {
     event.preventDefault()
 
     if (!supabase || !selectedStoreCustomer) {
       return
     }
 
-    const points = Number(deductAmount)
-    if (!Number.isFinite(points) || points <= 0) {
+    const points = Number(overrideAmount)
+    if (!Number.isFinite(points) || points < 0) {
       return
     }
 
     setConfirmModal({
-      action: 'deduct',
-      message: `Togliere ${points} punti da ${selectedStoreCustomer.name}?`,
+      action: 'override',
+      message: `Sovrascrivere i punti di ${selectedStoreCustomer.name} da ${selectedStoreCustomer.points} a ${points}?`,
     })
   }
 
-  const confirmDeduct = async () => {
+  const confirmOverride = async () => {
     if (!supabase || !selectedStoreCustomer) {
       return
     }
 
-    const points = Number(deductAmount)
-    if (!Number.isFinite(points) || points <= 0) {
+    const points = Number(overrideAmount)
+    if (!Number.isFinite(points) || points < 0) {
       return
     }
 
     setConfirmModal(null)
     setActionError('')
 
-    const { error } = await supabase.rpc('record_manual_deduct', {
+    const { error } = await supabase.rpc('set_customer_points', {
       p_customer_id: selectedStoreCustomer.id,
-      p_points: points,
-      p_note: 'Sottrazione manuale',
+      p_new_points: points,
     })
 
     if (error) {
       setActionError(error.message)
-      pushToast('error', 'Sottrazione punti non riuscita')
+      pushToast('error', 'Sovrascrittura punti non riuscita')
       return
     }
 
-    setDeductAmount('')
-    pushToast('success', `${points} punti sottratti`)
+    setOverrideAmount('')
+    pushToast('success', `Punti sovrascritti a ${points}`)
     if (profile?.store_id) {
       await loadStoreCustomers(profile.store_id)
     }
@@ -1231,7 +1230,7 @@ function App() {
                 className="cta"
                 onClick={async () => {
                   if (confirmModal.action === 'redeem') await confirmRedeem()
-                  else if (confirmModal.action === 'deduct') await confirmDeduct()
+                  else if (confirmModal.action === 'override') await confirmOverride()
                   else if (confirmModal.action === 'reset-customer-pwd') await confirmResetCustomerPassword()
                   else if (confirmModal.action === 'reset-store-pwd') await confirmResetStorePassword()
                   else if (confirmModal.action === 'delete-transaction') await confirmDeleteTransaction()
@@ -1514,20 +1513,21 @@ function App() {
                 </button>
               </form>
 
-              <form onSubmit={deductPoints} className="stack split">
+              <form onSubmit={overridePoints} className="stack split">
                 <label>
-                  Punti da togliere
+                  Sovrascrittura punti
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     step="1"
-                    value={deductAmount}
-                    onChange={(event) => setDeductAmount(event.target.value)}
-                    placeholder="Es: 5"
+                    value={overrideAmount}
+                    onChange={(event) => setOverrideAmount(event.target.value)}
+                    placeholder={selectedStoreCustomer ? `Nuovo valore (attuali: ${selectedStoreCustomer.points})` : 'Seleziona un cliente'}
+                    disabled={!selectedStoreCustomer}
                   />
                 </label>
-                <button className="ghost small danger" type="submit" disabled={!selectedStoreCustomer}>
-                  Togli punti
+                <button className="ghost small" type="submit" disabled={!selectedStoreCustomer}>
+                  Sovrascrivi punti
                 </button>
               </form>
             </article>
