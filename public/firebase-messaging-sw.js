@@ -5,7 +5,7 @@ importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: "AIzaSyDs94zp6xp0E_coyFNgFC-R49cnXoecBWI",
+  apiKey: "AIzaSyDs94zp6XpOE_coyFNgFC-R49cnXoecBWI",
   projectId: "tommy-smoke",
   messagingSenderId: "734298221292",
   appId: "1:734298221292:web:5b7dd556d48c3ceb3c53c9"
