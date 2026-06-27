@@ -97,7 +97,6 @@ function App() {
   const [newRewardPoints, setNewRewardPoints] = useState('')
   const [rewardError, setRewardError] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
-  const [showAllMovements, setShowAllMovements] = useState(false)
   const [toast, setToast] = useState<Toast | null>(null)
 
   // TODO: Feature #6 - Real-time sync: quando saldo cliente cambia da altro browser, aggiorna automaticamente
@@ -1358,7 +1357,7 @@ function App() {
                     <button
                       type="button"
                       className={`customer-item ${selectedStoreCustomerId === customer.id ? 'active' : ''}`}
-                      onClick={() => { setSelectedStoreCustomerId(customer.id); setShowAllMovements(false) }}
+                      onClick={() => { setSelectedStoreCustomerId(customer.id) }}
                     >
                       <span>{customer.name}</span>
                       <strong>{customer.points} pt</strong>
@@ -1426,22 +1425,13 @@ function App() {
 
                   <h3 className="subsection-title">
                     Movimenti cliente
-                    {customerMovements.length > 7 ? (
-                      <button
-                        type="button"
-                        className="badge badge-btn"
-                        onClick={() => setShowAllMovements((v) => !v)}
-                        title={showAllMovements ? 'Mostra solo ultimi 7' : 'Mostra tutti'}
-                      >
-                        {showAllMovements ? `tutti (${customerMovements.length})` : `+${customerMovements.length - 7} altri`}
-                      </button>
-                    ) : customerMovements.length > 0 ? (
+                    {customerMovements.length > 0 ? (
                       <span className="badge">{customerMovements.length}</span>
                     ) : null}
                   </h3>
                   <ul className="movements">
                     {customerMovements.length ? (
-                      (showAllMovements ? customerMovements : customerMovements.slice(0, 7)).map((movement) => (
+                      customerMovements.map((movement) => (
                         <li key={movement.id} className={`movement-${movement.kind}`}>
                           <div className="movement-content">
                             <div>

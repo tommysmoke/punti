@@ -172,7 +172,7 @@
 }
 
 .selected-customer-card .movements {
-  max-height: 340px;
+  max-height: 18rem;
   overflow-y: auto;
 }
 
