@@ -1533,23 +1533,6 @@ function App() {
             </article>
           </div>
         </section>
-
-          {recentNotifications.length > 0 ? (
-            <article className="card" style={{marginTop:'1rem'}}>
-              <h2>Comunicazioni recenti <span className="badge">{recentNotifications.length}</span></h2>
-              <ul className="movements">
-                {recentNotifications.map((n) => (
-                  <li key={n.id} className="movement-earn">
-                    <div>
-                      <strong>{n.title}</strong>
-                      <p>{n.body}</p>
-                    </div>
-                    <time>{new Date(n.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ) : null}
         </>
 
           ) : storePage === 'new-customer' ? (
