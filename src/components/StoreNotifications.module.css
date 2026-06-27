@@ -60,6 +60,60 @@
   margin-top: 5px;
 }
 
+.emojiSection {
+  margin-bottom: 20px;
+}
+
+.emojiSection label {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #0f4c5c;
+  font-size: 14px;
+  display: block;
+}
+
+.emojiGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d4c8be;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.emojiBtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.emojiBtn:hover:not(:disabled) {
+  background: #eef5f8;
+  border-color: #c0d8df;
+  transform: scale(1.15);
+}
+
+.emojiBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.emojiActive {
+  background: #ddf0f5;
+  border-color: #0f4c5c;
+}
+
 .preview {
   background: #fff;
   border: 1px solid #e0d7ce;

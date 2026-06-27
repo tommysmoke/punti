@@ -572,48 +572,6 @@ function App() {
     }
   }, [profile?.store_id, role, selectedStoreCustomerId])
 
-  // Keyboard shortcuts: Ctrl/Cmd+Enter per registrare spesa, N per Nuovo cliente, S per Sicurezza, frecce per navigare clienti
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMeta = e.ctrlKey || e.metaKey
-
-      // Shortcut: Ctrl/Cmd+Enter per registrare spesa (solo in store operations)
-      if (isMeta && e.key === 'Enter' && role === 'store' && storePage === 'operations' && selectedStoreCustomer && pointsPreview > 0) {
-        e.preventDefault()
-        void addPoints({ preventDefault: () => {} } as FormEvent)
-      }
-
-      // Shortcut: N per andare su Nuovo cliente
-      if (e.key === 'n' && !isMeta && role === 'store' && storePage !== 'new-customer' && !(e.target as HTMLElement).closest('input')) {
-        setStorePage('new-customer')
-      }
-
-      // Shortcut: S per andare su Sicurezza
-      if (e.key === 's' && !isMeta && role === 'store' && storePage !== 'security' && !(e.target as HTMLElement).closest('input')) {
-        setStorePage('security')
-      }
-
-      // Shortcut: Freccia su/giù per navigare clienti
-      if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && role === 'store' && storePage === 'operations' && !(e.target as HTMLElement).closest('input')) {
-        e.preventDefault()
-        const currentIndex = filteredCustomers.findIndex((c) => c.id === selectedStoreCustomerId)
-        let nextIndex = currentIndex
-
-        if (e.key === 'ArrowUp') {
-          nextIndex = currentIndex > 0 ? currentIndex - 1 : filteredCustomers.length - 1
-        } else {
-          nextIndex = currentIndex < filteredCustomers.length - 1 ? currentIndex + 1 : 0
-        }
-
-        if (filteredCustomers[nextIndex]) {
-          setSelectedStoreCustomerId(filteredCustomers[nextIndex].id)
-        }
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [role, storePage, selectedStoreCustomerId, selectedStoreCustomer, pointsPreview, filteredCustomers])
 
   const login = async (event: FormEvent) => {
     event.preventDefault()

@@ -2,6 +2,19 @@ import { useState, useEffect } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import styles from './StoreNotifications.module.css'
 
+const STORE_EMOJIS = [
+  '🔔', '📢', '📣', '⚠️', '🚨', '🔴', '🟡', '🟢',
+  '🕐', '⏰', '📅', '🗓️', '⏳',
+  '💰', '🎁', '🎀', '🏷️', '⭐', '🌟', '🔥', '💯',
+  '🎉', '🎊', '🥳', '🎂', '🎈', '🎄', '🎃',
+  '🛒', '🛍️', '📦', '🏪',
+  '☕', '🍕', '🍔', '🌭', '🍟', '🥤', '🍩', '🍪',
+  '☀️', '🌧️', '❄️', '🌸', '🍂', '🌈',
+  '✅', '❌', '💡', '🆕', '📌',
+  '😊', '🙏', '👏', '👍', '🤝',
+  '❤️', '💙', '💚',
+]
+
 interface Notification {
   id: number
   title: string
@@ -12,6 +25,7 @@ interface Notification {
 }
 
 export function StoreNotifications() {
+  const [emoji, setEmoji] = useState('')
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -124,6 +138,7 @@ export function StoreNotifications() {
       const functionUrl = `${baseUrl}/functions/v1/broadcast-notification`
       console.log('✅ URL completo:', functionUrl)
       console.log('   Store ID:', storeId)
+      const finalTitle = emoji ? `${emoji} ${title.trim()}` : title.trim()
       console.log('   Titolo:', title)
       console.log('   Messaggio:', message)
 
@@ -131,7 +146,7 @@ export function StoreNotifications() {
       console.log('📡 [4/5] Inviando richiesta...')
       const requestBody = JSON.stringify({
         store_id: storeId,
-        title: title.trim(),
+        title: finalTitle,
         body: message.trim(),
       })
       console.log('   Payload:', requestBody)
@@ -177,6 +192,7 @@ export function StoreNotifications() {
       setSuccess(
         `✅ Notifica inviata a ${result.sent_count} clienti!`
       )
+      setEmoji('')
       setTitle('')
       setMessage('')
 
@@ -208,6 +224,24 @@ export function StoreNotifications() {
 
       {/* Form */}
       <div className={styles.form}>
+        <div className={styles.emojiSection}>
+          <label>Scegli un&apos;emoji</label>
+          <div className={styles.emojiGrid}>
+            {STORE_EMOJIS.map((e) => (
+              <button
+                key={e}
+                type="button"
+                className={`${styles.emojiBtn} ${emoji === e ? styles.emojiActive : ''}`}
+                onClick={() => setEmoji(emoji === e ? '' : e)}
+                disabled={sending}
+                title={e}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className={styles.formGroup}>
           <label htmlFor="title">Titolo</label>
           <input
@@ -242,7 +276,7 @@ export function StoreNotifications() {
           <div className={styles.phoneFrame}>
             <div className={styles.notification}>
               <div className={styles.notificationTitle}>
-                🔔 {title || 'Titolo notifica'}
+                {emoji ? `${emoji} ` : '🔔 '}{title || 'Titolo notifica'}
               </div>
               <div className={styles.notificationBody}>
                 {message || 'Il testo apparirà qui...'}
