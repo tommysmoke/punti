@@ -298,17 +298,30 @@ function App() {
       return
     }
 
-    const { data, error } = await supabase
-      .from('customers')
-      .select('id, store_id, name, phone, points')
-      .eq('store_id', storeId)
-      .order('updated_at', { ascending: false, nullsFirst: false })
+    const all: Customer[] = []
+    let page = 0
+    const pageSize = 1000
 
-    if (error) {
-      throw error
+    while (true) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, store_id, name, phone, points')
+        .eq('store_id', storeId)
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .range(page * pageSize, page * pageSize + pageSize - 1)
+
+      if (error) {
+        throw error
+      }
+
+      const chunk = (data ?? []) as Customer[]
+      all.push(...chunk)
+
+      if (chunk.length < pageSize) break
+      page++
     }
 
-    const nextCustomers = (data ?? []) as Customer[]
+    const nextCustomers = all
     setCustomers(nextCustomers)
 
     if (nextCustomers.length === 0) {
