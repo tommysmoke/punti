@@ -56,6 +56,7 @@ function App() {
   const [customerMovements, setCustomerMovements] = useState<Movement[]>([])
   const [loadingData, setLoadingData] = useState(false)
   const [notificationPermissionRequested, setNotificationPermissionRequested] = useState(false)
+  const [pushStatus, setPushStatus] = useState<string | null>(null)
 
   const [newCustomerName, setNewCustomerName] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
@@ -362,7 +363,13 @@ function App() {
 
         // Register for push notifications
         if (!notificationPermissionRequested) {
-          await registerForPushNotifications(nextProfile.customer_id)
+          setPushStatus('Registrazione notifiche in corso...')
+          const token = await registerForPushNotifications(nextProfile.customer_id)
+          if (token) {
+            setPushStatus('Notifiche push attive')
+          } else {
+            setPushStatus('Notifiche push non disponibili su questo dispositivo')
+          }
           await setupMessageListener()
           setNotificationPermissionRequested(true)
         }
@@ -1833,6 +1840,12 @@ function App() {
         <section className="grid customer-view">
           <article className="card hero-card">
             <h2>I tuoi punti</h2>
+            {pushStatus ? (
+              <p className={`hint no-top ${pushStatus.includes('attive') ? 'success' : pushStatus.includes('non disponibili') ? 'error' : ''}`} style={{marginBottom:'0.5rem',fontSize:'0.78rem'}}>
+                {pushStatus.includes('attive') ? '🔔 ' : pushStatus.includes('corso') ? '⏳ ' : '⚠️ '}
+                {pushStatus}
+              </p>
+            ) : null}
             {loadingData ? (
               <div className="skeleton-stack" aria-hidden="true">
                 <div className="skeleton-line skeleton-balance"></div>
