@@ -13,14 +13,8 @@ const messaging = firebase.messaging()
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[sw.js] Background message:', payload)
-  const title = payload.notification?.title || 'Notifica'
-  const options = {
-    body: payload.notification?.body || '',
-    icon: '/punti/favicon.svg',
-    badge: '/punti/favicon.svg',
-    data: payload.data || {},
-  }
-  self.registration.showNotification(title, options)
+  // Chrome auto-displays webpush.notification — non chiamare showNotification
+  // per evitare notifiche duplicate
 })
 
 self.addEventListener('notificationclick', (event) => {
