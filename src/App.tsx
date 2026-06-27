@@ -303,7 +303,7 @@ function App() {
       .from('customers')
       .select('id, store_id, name, phone, points')
       .eq('store_id', storeId)
-      .order('name', { ascending: true })
+      .order('updated_at', { ascending: false, nullsFirst: false })
 
     if (error) {
       throw error
@@ -1852,6 +1852,23 @@ function App() {
             )}
           </article>
 
+          {recentNotifications.length > 0 ? (
+            <article className="card customer-rewards-card">
+              <h2>Comunicazioni recenti</h2>
+              <ul className="movements">
+                {recentNotifications.map((n) => (
+                  <li key={n.id} className="movement-earn">
+                    <div>
+                      <strong>{n.title}</strong>
+                      <p>{n.body}</p>
+                    </div>
+                    <time>{new Date(n.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ) : null}
+
           <article className="card">
             <h2>
               Ultimi movimenti
@@ -1913,23 +1930,6 @@ function App() {
                     </li>
                   )
                 })}
-              </ul>
-            </article>
-          ) : null}
-
-          {recentNotifications.length > 0 ? (
-            <article className="card customer-rewards-card">
-              <h2>Comunicazioni recenti</h2>
-              <ul className="movements">
-                {recentNotifications.map((n) => (
-                  <li key={n.id} className="movement-earn">
-                    <div>
-                      <strong>{n.title}</strong>
-                      <p>{n.body}</p>
-                    </div>
-                    <time>{new Date(n.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
-                  </li>
-                ))}
               </ul>
             </article>
           ) : null}

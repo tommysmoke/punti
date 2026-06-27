@@ -142,7 +142,7 @@
   list-style: none;
   display: grid;
   gap: 0.45rem;
-  max-height: 62vh;
+  max-height: 28rem;
   overflow-y: auto;
 }
 
