@@ -15,17 +15,11 @@ const sizes = [16, 32, 48, 64, 180, 192, 256, 512];
 const outputs = [
   ...sizes.map((size) => ({
     size,
-    files: [
-      path.join(rootDir, 'public', `favicon-${size}x${size}.png`),
-      path.join(rootDir, `favicon-${size}x${size}.png`),
-    ],
+    files: [path.join(rootDir, 'public', `favicon-${size}x${size}.png`)],
   })),
   {
     size: 512,
-    files: [
-      path.join(rootDir, 'public', 'favicon.png'),
-      path.join(rootDir, 'favicon.png'),
-    ],
+    files: [path.join(rootDir, 'public', 'favicon.png')],
   },
 ];
 
@@ -49,13 +43,8 @@ async function main() {
   const icoBuffer = await pngToIco(icoSource);
 
   await writeFile(path.join(rootDir, 'public', 'favicon.ico'), icoBuffer);
-  await writeFile(path.join(rootDir, 'favicon.ico'), icoBuffer);
 
   console.log(`Generated ${path.join(rootDir, 'public', 'favicon.ico')}`);
-  console.log(`Generated ${path.join(rootDir, 'favicon.ico')}`);
-
-  // Keep SVG reference filename alive by generating a PNG and writing to .svg path is invalid,
-  // so we don't touch favicon.svg here; HTML/config will point to PNG files.
 }
 
 main().catch((error) => {

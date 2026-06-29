@@ -35,8 +35,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate PNG icons
-        run: node generate-icons.js
+      - name: Generate app icons
+        run: node scripts/generate-all-icons.js
 
       - name: Build
         run: npm run build
