@@ -1211,7 +1211,11 @@ function App() {
       <main className="app-shell auth-layout">
         <section className="card auth-card auth-card-polished">
           <p className="eyebrow">Tommy Smoke</p>
-          <img className="auth-logo" src="/favicon-192x192.png" alt="Logo Tommy Smoke" />
+          <img
+            className="auth-logo"
+            src={`${import.meta.env.BASE_URL}favicon-192x192.png`}
+            alt="Logo Tommy Smoke"
+          />
           <h1>Raccolta Punti di Tommy Smoke</h1>
           <p className="hint no-top">Accedi con username o telefono per continuare.</p>
 
