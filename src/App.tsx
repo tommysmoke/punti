@@ -1174,8 +1174,8 @@ function App() {
     return (
       <main className="app-shell auth-layout">
         <section className="card auth-card">
-          <p className="eyebrow">PWA Loyalty</p>
-          <h1>Punti Facili</h1>
+          <p className="eyebrow">Tommy Smoke</p>
+          <h1>Raccolta Punti di Tommy Smoke</h1>
           <p className="error">Mancano SUPABASE_URL e SUPABASE_ANON_KEY nel file .env</p>
         </section>
       </main>
@@ -1196,11 +1196,9 @@ function App() {
     return (
       <main className="app-shell auth-layout">
         <section className="card auth-card auth-card-polished">
-          <p className="eyebrow">PWA Loyalty</p>
-          <p className="auth-icon" aria-hidden="true">
-            PF
-          </p>
-          <h1>Punti Facili</h1>
+          <p className="eyebrow">Tommy Smoke</p>
+          <img className="auth-logo" src="/favicon-192x192.png" alt="Logo Tommy Smoke" />
+          <h1>Raccolta Punti di Tommy Smoke</h1>
           <p className="hint no-top">Accedi con username o telefono per continuare.</p>
 
           <form className="stack" onSubmit={login}>
@@ -1245,7 +1243,7 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="topbar-title">
-          <p className="eyebrow">PWA Loyalty</p>
+          <p className="eyebrow">Tommy Smoke's Punti</p>
           <h1>{role === 'store' ? `Ciao ${displayName}` : `Benvenuto ${displayName}`}</h1>
           <p className="hint no-top">
             {role === 'store'

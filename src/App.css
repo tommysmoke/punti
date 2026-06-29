@@ -68,16 +68,14 @@
     #fff;
 }
 
-.auth-icon {
+.auth-logo {
   margin: 0.2rem 0;
   width: 2.6rem;
   height: 2.6rem;
   border-radius: 0.8rem;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(145deg, #0f4c5c, #1f7a8c);
+  object-fit: cover;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(15, 76, 92, 0.15);
 }
 
 .customer-view {
