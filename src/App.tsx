@@ -712,7 +712,7 @@ function App() {
         })
 
         if (error || !data) {
-          setLoginError('Controlla username o telefono e riprova con la password corretta')
+          setLoginError('Username non trovato. Controlla e riprova.')
           return
         }
 
@@ -720,7 +720,7 @@ function App() {
       }
 
       if (!emailForLogin) {
-        setLoginError('Controlla username o telefono e riprova con la password corretta')
+        setLoginError('Username non trovato. Controlla e riprova.')
         return
       }
 
@@ -730,7 +730,7 @@ function App() {
       })
 
       if (error) {
-        setLoginError('Controlla username o telefono e riprova con la password corretta')
+        setLoginError('Password errata. Riprova.')
         return
       }
 
@@ -1309,16 +1309,16 @@ function App() {
               alt="Logo Tommy Smoke"
             />
           </div>
-          <p className="hint no-top">Accedi con username o telefono per continuare.</p>
+          <p className="hint no-top">Accedi con il tuo username per continuare.</p>
 
           <form className="stack" onSubmit={login}>
             <label>
-              Username o telefono
+              Username
               <input
                 type="text"
                 value={loginIdentifier}
                 onChange={(event) => setLoginIdentifier(event.target.value)}
-                placeholder="es. MarioRossi80 oppure 3331112223"
+                placeholder="es. MarioRossi80"
               />
             </label>
             <label>

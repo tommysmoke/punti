@@ -270,15 +270,7 @@ begin
     return v_email;
   end if;
 
-  select u.email
-  into v_email
-  from public.customers c
-  join public.profiles p on p.customer_id = c.id
-  join auth.users u on u.id = p.id
-  where c.phone = regexp_replace(v_identifier, '\\D', '', 'g')
-  limit 1;
-
-  return v_email;
+  return null;
 end;
 $$;
 
