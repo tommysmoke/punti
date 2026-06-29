@@ -1189,7 +1189,12 @@ function App() {
       <main className="app-shell auth-layout">
         <section className="card auth-card">
           <p className="eyebrow">Tommy Smoke</p>
-          <h1>Raccolta Punti di Tommy Smoke</h1>
+          <h1 className="auth-hero-title" aria-label="Tommy Smoke Raccolta Punti">
+            <span className="auth-hero-word auth-hero-fill">Tommy</span>
+            <span className="auth-hero-word auth-hero-fill">Smoke</span>
+            <span className="auth-hero-word">Raccolta</span>
+            <span className="auth-hero-word">Punti</span>
+          </h1>
           <p className="error">Mancano SUPABASE_URL e SUPABASE_ANON_KEY nel file .env</p>
         </section>
       </main>
@@ -1216,7 +1221,12 @@ function App() {
             src={`${import.meta.env.BASE_URL}favicon-192x192.png`}
             alt="Logo Tommy Smoke"
           />
-          <h1>Raccolta Punti di Tommy Smoke</h1>
+          <h1 className="auth-hero-title" aria-label="Tommy Smoke Raccolta Punti">
+            <span className="auth-hero-word auth-hero-fill">Tommy</span>
+            <span className="auth-hero-word auth-hero-fill">Smoke</span>
+            <span className="auth-hero-word">Raccolta</span>
+            <span className="auth-hero-word">Punti</span>
+          </h1>
           <p className="hint no-top">Accedi con username o telefono per continuare.</p>
 
           <form className="stack" onSubmit={login}>

@@ -78,6 +78,28 @@
   box-shadow: 0 4px 14px rgba(15, 76, 92, 0.15);
 }
 
+.auth-hero-title {
+  margin: 0.15rem 0 0.55rem;
+  font-family: "Arial Narrow", "Segoe UI", sans-serif;
+  font-size: clamp(2.05rem, 5vw, 2.9rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.auth-hero-word {
+  display: block;
+  color: #0f2f44;
+}
+
+.auth-hero-fill {
+  background: linear-gradient(115deg, #0f6b72, #14a8b8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .customer-view {
   grid-template-columns: 1.2fr 1fr;
 }
