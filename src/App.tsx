@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { createClient } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
@@ -53,6 +53,9 @@ function App() {
   const [selectedStoreCustomerId, setSelectedStoreCustomerId] = useState<number | null>(
     null,
   )
+  const selectedStoreCustomerIdRef = useRef(selectedStoreCustomerId)
+  selectedStoreCustomerIdRef.current = selectedStoreCustomerId
+  const initialBootstrapDone = useRef(false)
   const [customerMovements, setCustomerMovements] = useState<Movement[]>([])
   const [recentNotifications, setRecentNotifications] = useState<{ id: number; title: string; body: string; created_at: string }[]>([])
   const [loadingData, setLoadingData] = useState(false)
@@ -102,6 +105,7 @@ function App() {
   const [editCustomerName, setEditCustomerName] = useState('')
   const [editCustomerPhone, setEditCustomerPhone] = useState('')
   const [editCustomerError, setEditCustomerError] = useState('')
+  const [savingCustomerEdit, setSavingCustomerEdit] = useState(false)
 
   // TODO: Feature #6 - Real-time sync: quando saldo cliente cambia da altro browser, aggiorna automaticamente
   // TODO: Feature #10 - Caricamento ottimizzato: mostrare skeleton/placeholder mentre carichi, non "Sincronizzazione..."
@@ -348,9 +352,11 @@ function App() {
       return
     }
 
+    const currentSelectedId = selectedStoreCustomerIdRef.current
+
     const keepCurrent =
-      selectedStoreCustomerId !== null &&
-      nextCustomers.some((c) => c.id === selectedStoreCustomerId)
+      currentSelectedId !== null &&
+      nextCustomers.some((c) => c.id === currentSelectedId)
 
     if (!keepCurrent) {
       setSelectedStoreCustomerId(null)
@@ -358,7 +364,7 @@ function App() {
       return
     }
 
-    await loadCustomerMovements(selectedStoreCustomerId)
+    await loadCustomerMovements(currentSelectedId)
   }
 
   const loadCustomerHome = async (customerId: number) => {
@@ -455,26 +461,29 @@ function App() {
     const client = supabase
 
     const initialize = async () => {
-      const { data } = await client.auth.getSession()
-      const user = data.session?.user
+      try {
+        const { data } = await client.auth.getSession()
+        const user = data.session?.user
 
-      if (user) {
-        try {
-          const nextProfile = await fetchProfile(user.id)
-          if (nextProfile) {
-            await bootstrapFromProfile(nextProfile)
+        if (user) {
+          try {
+            const nextProfile = await fetchProfile(user.id)
+            if (nextProfile) {
+              await bootstrapFromProfile(nextProfile)
+              initialBootstrapDone.current = true
+            }
+          } catch {
+            await client.auth.signOut()
           }
-        } catch {
-          await client.auth.signOut()
         }
+      } finally {
+        setSessionLoading(false)
       }
-
-      setSessionLoading(false)
     }
 
     void initialize()
 
-    const { data: authListener } = client.auth.onAuthStateChange(async (_event, session) => {
+    const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
       if (!session?.user) {
         setRole(null)
         setProfile(null)
@@ -482,6 +491,10 @@ function App() {
         setCustomerMovements([])
         setSelectedStoreCustomerId(null)
         setSessionLoading(false)
+        return
+      }
+
+      if (event === 'INITIAL_SESSION' && initialBootstrapDone.current) {
         return
       }
 
@@ -626,6 +639,8 @@ function App() {
       setLoginError('Configura prima le variabili Supabase nel file .env')
       return
     }
+
+    if (loginLoading) return
 
     setLoginError('')
     setLoginLoading(true)
@@ -932,7 +947,7 @@ function App() {
   }
 
   const saveCustomerEdit = async () => {
-    if (!supabase || !editingCustomerId) return
+    if (!supabase || !editingCustomerId || savingCustomerEdit) return
 
     const name = editCustomerName.trim()
     const phone = editCustomerPhone.replace(/\D/g, '')
@@ -949,22 +964,30 @@ function App() {
       return
     }
 
-    const { error } = await supabase.rpc('update_customer', {
-      p_customer_id: editingCustomerId,
-      p_name: name,
-      p_phone: phone,
-    })
+    setSavingCustomerEdit(true)
+    try {
+      const { error } = await supabase.rpc('update_customer', {
+        p_customer_id: editingCustomerId,
+        p_name: name,
+        p_phone: phone,
+      })
 
-    if (error) {
-      setEditCustomerError(error.message)
+      if (error) {
+        setEditCustomerError(error.message)
+        pushToast('error', 'Modifica anagrafica non riuscita')
+        return
+      }
+
+      pushToast('success', 'Anagrafica aggiornata')
+      cancelEditCustomer()
+      if (profile?.store_id) {
+        await loadStoreCustomers(profile.store_id)
+      }
+    } catch {
+      setEditCustomerError('Errore di rete. Riprova.')
       pushToast('error', 'Modifica anagrafica non riuscita')
-      return
-    }
-
-    pushToast('success', 'Anagrafica aggiornata')
-    cancelEditCustomer()
-    if (profile?.store_id) {
-      await loadStoreCustomers(profile.store_id)
+    } finally {
+      setSavingCustomerEdit(false)
     }
   }
 
@@ -1499,7 +1522,7 @@ function App() {
                         />
                         {editCustomerError ? <p className="error">{editCustomerError}</p> : null}
                         <div className="customer-edit-actions">
-                          <button className="ghost small" type="button" onClick={saveCustomerEdit}>
+                          <button className="ghost small" type="button" onClick={saveCustomerEdit} disabled={savingCustomerEdit}>
                             Salva
                           </button>
                           <button className="ghost small danger" type="button" onClick={cancelEditCustomer}>
