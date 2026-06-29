@@ -947,7 +947,7 @@ begin
     where id = v_customer_id;
   elsif v_kind = 'adjust' then
     update public.customers
-    set points = points + v_points
+    set points = points - v_points
     where id = v_customer_id;
   else
     raise exception 'Tipo movimento non valido';

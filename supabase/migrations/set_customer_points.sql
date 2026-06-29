@@ -42,7 +42,7 @@ begin
   values (
     p_customer_id,
     'adjust',
-    abs(v_diff),
+    v_diff,
     coalesce(p_note, 'Sovrascrittura: ' || v_old_points || ' → ' || p_new_points)
   );
 

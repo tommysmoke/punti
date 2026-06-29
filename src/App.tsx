@@ -25,7 +25,7 @@ type Customer = {
 type Movement = {
   id: number
   customer_id: number
-  kind: 'earn' | 'redeem'
+  kind: 'earn' | 'redeem' | 'adjust'
   points: number
   note: string | null
   created_at: string
@@ -825,7 +825,7 @@ function App() {
   const askDeleteTransaction = (movement: Movement) => {
     setConfirmModal({
       action: 'delete-transaction',
-      message: `Eliminare il movimento di ${movement.points} punti del ${new Date(movement.created_at).toLocaleDateString('it-IT')}? Il saldo del cliente verrà aggiornato.`,
+      message: `Eliminare il movimento di ${Math.abs(movement.points)} punti del ${new Date(movement.created_at).toLocaleDateString('it-IT')}? Il saldo del cliente verrà aggiornato.`,
       transactionId: movement.id,
     })
   }
@@ -1448,8 +1448,8 @@ function App() {
                           <div className="movement-content">
                             <div>
                               <strong>
-                                {movement.kind === 'earn' ? '+ ' : '- '}
-                                {movement.points} pt
+                                {(movement.kind === 'earn' || (movement.kind === 'adjust' && movement.points > 0)) ? '+ ' : movement.kind === 'adjust' && movement.points < 0 ? '- ' : '  '}
+                                {Math.abs(movement.points)} pt
                               </strong>
                               <p>{movement.note ?? 'Movimento registrato'}</p>
                             </div>
@@ -1879,8 +1879,8 @@ function App() {
                   <li key={movement.id} className={`movement-${movement.kind}`}>
                     <div>
                       <strong>
-                        {movement.kind === 'earn' ? '+ ' : '- '}
-                        {movement.points} pt
+                        {(movement.kind === 'earn' || (movement.kind === 'adjust' && movement.points > 0)) ? '+ ' : movement.kind === 'adjust' && movement.points < 0 ? '- ' : '  '}
+                        {Math.abs(movement.points)} pt
                       </strong>
                       <p>{movement.note ?? 'Movimento registrato'}</p>
                     </div>
