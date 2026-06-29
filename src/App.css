@@ -677,6 +677,8 @@ time {
 .reward-info {
   display: grid;
   gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .reward-info strong {
@@ -685,7 +687,8 @@ time {
 }
 
 .reward-cost {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
   background: var(--accent);
@@ -693,6 +696,8 @@ time {
   font-size: 0.75rem;
   font-weight: 700;
   width: fit-content;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .reward-desc {
