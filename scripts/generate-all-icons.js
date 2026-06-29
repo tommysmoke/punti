@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import pngToIco from 'png-to-ico';
-import { writeFile } from 'fs/promises';
+import { access, writeFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -8,7 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-const sourceImage = path.join(rootDir, '341007890_1169413207083095_7978995066125363840_n.jpg');
+const sourceCandidates = [
+  path.join(rootDir, '341007890_1169413207083095_7978995066125363840_n.jpg'),
+  path.join(rootDir, 'public', 'favicon-512x512.png'),
+  path.join(rootDir, 'public', 'favicon.png'),
+  path.join(rootDir, 'public', 'favicon-192x192.png'),
+];
 
 const sizes = [16, 32, 48, 64, 180, 192, 256, 512];
 
@@ -24,6 +29,23 @@ const outputs = [
 ];
 
 async function main() {
+  let sourceImage = '';
+  for (const candidate of sourceCandidates) {
+    try {
+      await access(candidate);
+      sourceImage = candidate;
+      break;
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  if (!sourceImage) {
+    throw new Error('No source image found for icon generation. Add the JPG logo or an existing favicon PNG in public/.');
+  }
+
+  console.log(`Using source image: ${sourceImage}`);
+
   for (const output of outputs) {
     const buffer = await sharp(sourceImage)
       .resize(output.size, output.size, {

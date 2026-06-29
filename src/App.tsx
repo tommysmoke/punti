@@ -174,6 +174,20 @@ function App() {
       ? 'Team Negozio'
       : customerView?.name.split(' ')[0] ?? 'Cliente'
 
+  useEffect(() => {
+    if (role === 'store') {
+      document.title = 'Tommy Smoke - Punti - Pannello di Controllo'
+      return
+    }
+
+    if (role === 'customer') {
+      document.title = 'Tommy Smoke - Punti - Profilo Cliente'
+      return
+    }
+
+    document.title = 'Tommy Smoke - Punti - Login'
+  }, [role])
+
   const activeRewards = useMemo(
     () => rewards.filter((reward) => reward.active),
     [rewards],
