@@ -1215,18 +1215,19 @@ function App() {
     return (
       <main className="app-shell auth-layout">
         <section className="card auth-card auth-card-polished">
-          <p className="eyebrow">Tommy Smoke</p>
-          <img
-            className="auth-logo"
-            src={`${import.meta.env.BASE_URL}favicon-192x192.png`}
-            alt="Logo Tommy Smoke"
-          />
-          <h1 className="auth-hero-title" aria-label="Tommy Smoke Raccolta Punti">
-            <span className="auth-hero-word auth-hero-fill">Tommy</span>
-            <span className="auth-hero-word auth-hero-fill">Smoke</span>
-            <span className="auth-hero-word">Raccolta</span>
-            <span className="auth-hero-word">Punti</span>
-          </h1>
+          <div className="auth-hero-row">
+            <h1 className="auth-hero-title" aria-label="Tommy Smoke Raccolta Punti">
+              <span className="auth-hero-word auth-hero-fill">Tommy</span>
+              <span className="auth-hero-word auth-hero-fill">Smoke</span>
+              <span className="auth-hero-word">Raccolta</span>
+              <span className="auth-hero-word">Punti</span>
+            </h1>
+            <img
+              className="auth-logo"
+              src={`${import.meta.env.BASE_URL}favicon-192x192.png`}
+              alt="Logo Tommy Smoke"
+            />
+          </div>
           <p className="hint no-top">Accedi con username o telefono per continuare.</p>
 
           <form className="stack" onSubmit={login}>
@@ -1272,7 +1273,7 @@ function App() {
       <header className="topbar">
         <div className="topbar-title">
           <p className="eyebrow">Tommy Smoke's Punti</p>
-          <h1>{role === 'store' ? `Ciao ${displayName}` : `Benvenuto ${displayName}`}</h1>
+          <h1 className="topbar-hero-title">Ciao {displayName}</h1>
           <p className="hint no-top">
             {role === 'store'
               ? 'Gestisci clienti e punti in un unico posto.'
