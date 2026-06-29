@@ -207,6 +207,32 @@
   align-items: flex-start;
 }
 
+.customer-header-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.customer-edit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.customer-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.customer-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .card {
   background: #fff;
   border: 1px solid var(--border);

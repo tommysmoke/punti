@@ -98,6 +98,10 @@ function App() {
   const [rewardError, setRewardError] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [toast, setToast] = useState<Toast | null>(null)
+  const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null)
+  const [editCustomerName, setEditCustomerName] = useState('')
+  const [editCustomerPhone, setEditCustomerPhone] = useState('')
+  const [editCustomerError, setEditCustomerError] = useState('')
 
   // TODO: Feature #6 - Real-time sync: quando saldo cliente cambia da altro browser, aggiorna automaticamente
   // TODO: Feature #10 - Caricamento ottimizzato: mostrare skeleton/placeholder mentre carichi, non "Sincronizzazione..."
@@ -898,6 +902,58 @@ function App() {
     }
   }
 
+  const startEditCustomer = () => {
+    if (!selectedStoreCustomer) return
+    setEditCustomerName(selectedStoreCustomer.name)
+    setEditCustomerPhone(selectedStoreCustomer.phone)
+    setEditCustomerError('')
+    setEditingCustomerId(selectedStoreCustomer.id)
+  }
+
+  const cancelEditCustomer = () => {
+    setEditingCustomerId(null)
+    setEditCustomerName('')
+    setEditCustomerPhone('')
+    setEditCustomerError('')
+  }
+
+  const saveCustomerEdit = async () => {
+    if (!supabase || !editingCustomerId) return
+
+    const name = editCustomerName.trim()
+    const phone = editCustomerPhone.replace(/\D/g, '')
+
+    setEditCustomerError('')
+
+    if (!name) {
+      setEditCustomerError('Il nome non può essere vuoto')
+      return
+    }
+
+    if (phone.length < 8) {
+      setEditCustomerError('Numero di telefono non valido (minimo 8 cifre)')
+      return
+    }
+
+    const { error } = await supabase.rpc('update_customer', {
+      p_customer_id: editingCustomerId,
+      p_name: name,
+      p_phone: phone,
+    })
+
+    if (error) {
+      setEditCustomerError(error.message)
+      pushToast('error', 'Modifica anagrafica non riuscita')
+      return
+    }
+
+    pushToast('success', 'Anagrafica aggiornata')
+    cancelEditCustomer()
+    if (profile?.store_id) {
+      await loadStoreCustomers(profile.store_id)
+    }
+  }
+
   const addCustomer = async (event: FormEvent) => {
     event.preventDefault()
 
@@ -1399,13 +1455,47 @@ function App() {
               ) : selectedStoreCustomer ? (
                 <>
                   <div className="customer-header-row">
-                    <div>
-                      <p className="customer-name">{selectedStoreCustomer.name}</p>
-                      <p className="hint no-top">Telefono: {selectedStoreCustomer.phone}</p>
-                    </div>
-                    <button className="ghost small danger" type="button" onClick={askDeleteCustomer}>
-                      Elimina cliente
-                    </button>
+                    {editingCustomerId === selectedStoreCustomer.id ? (
+                      <div className="customer-edit-fields">
+                        <input
+                          className="customer-edit-input"
+                          value={editCustomerName}
+                          onChange={(e) => setEditCustomerName(e.target.value)}
+                          placeholder="Nome e cognome"
+                        />
+                        <input
+                          className="customer-edit-input"
+                          value={editCustomerPhone}
+                          onChange={(e) => setEditCustomerPhone(e.target.value)}
+                          placeholder="Telefono"
+                          inputMode="tel"
+                        />
+                        {editCustomerError ? <p className="error">{editCustomerError}</p> : null}
+                        <div className="customer-edit-actions">
+                          <button className="ghost small" type="button" onClick={saveCustomerEdit}>
+                            Salva
+                          </button>
+                          <button className="ghost small danger" type="button" onClick={cancelEditCustomer}>
+                            Annulla
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="customer-name">{selectedStoreCustomer.name}</p>
+                        <p className="hint no-top">Telefono: {selectedStoreCustomer.phone}</p>
+                      </div>
+                    )}
+                    {editingCustomerId !== selectedStoreCustomer.id ? (
+                      <div className="customer-header-actions">
+                        <button className="ghost small" type="button" onClick={startEditCustomer}>
+                          Modifica
+                        </button>
+                        <button className="ghost small danger" type="button" onClick={askDeleteCustomer}>
+                          Elimina cliente
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                   <p className="points-balance mini">{selectedStoreCustomer.points} punti</p>
 
