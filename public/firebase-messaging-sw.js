@@ -20,8 +20,8 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'Notifica';
   const notificationOptions = {
     body: payload.notification?.body,
-    icon: '/punti/favicon.svg',
-    badge: '/punti/favicon.svg',
+    icon: '/punti/favicon-192x192.png',
+    badge: '/punti/favicon-64x64.png',
     data: payload.data,
   };
 
