@@ -7,6 +7,43 @@ interface PushRequest {
   body?: string
 }
 
+async function verifyStoreAuth(req: Request): Promise<{ userId: string; storeId: string } | null> {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null
+  }
+
+  const token = authHeader.replace('Bearer ', '')
+  // @ts-ignore
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  // @ts-ignore
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null
+  }
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    if (error || !user) return null
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, store_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile || profile.role !== 'store' || !profile.store_id) {
+      return null
+    }
+
+    return { userId: user.id, storeId: profile.store_id }
+  } catch {
+    return null
+  }
+}
+
 // @ts-ignore - Deno types not available in VS Code (but works on Supabase)
 Deno.serve(async (req: Request) => {
   // Handle CORS
@@ -34,6 +71,15 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: 'Missing customer_id' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Verify auth
+    const auth = await verifyStoreAuth(req)
+    if (!auth) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
@@ -84,7 +130,6 @@ Deno.serve(async (req: Request) => {
     // For now, log the push that would be sent
     console.log('Push notification would be sent:', {
       customer_id,
-      fcm_token: subscription.fcm_token,
       title: title || 'Notifica da Punti Facili',
       body: body || 'Hai nuovi punti!',
     })
@@ -94,7 +139,6 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         message: 'Push notification registered',
-        token: subscription.fcm_token,
         note: 'Full FCM integration requires Firebase Admin SDK setup',
       }),
       {

@@ -1,9 +1,10 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { createClient } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { registerForPushNotifications, setupMessageListener } from './lib/notifications'
-import { StoreNotifications } from './components/StoreNotifications'
+
+const StoreNotifications = lazy(() => import('./components/StoreNotifications').then(m => ({ default: m.StoreNotifications })))
 
 type Role = 'store' | 'customer'
 
@@ -100,22 +101,26 @@ function App() {
   const [newRewardPoints, setNewRewardPoints] = useState('')
   const [rewardError, setRewardError] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [toast, setToast] = useState<Toast | null>(null)
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null)
   const [editCustomerName, setEditCustomerName] = useState('')
   const [editCustomerPhone, setEditCustomerPhone] = useState('')
   const [editCustomerError, setEditCustomerError] = useState('')
   const [savingCustomerEdit, setSavingCustomerEdit] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [initError, setInitError] = useState<string | null>(null)
 
   // TODO: Feature #6 - Real-time sync: quando saldo cliente cambia da altro browser, aggiorna automaticamente
   // TODO: Feature #10 - Caricamento ottimizzato: mostrare skeleton/placeholder mentre carichi, non "Sincronizzazione..."
 
   // Modali di conferma per operazioni critiche
   const [confirmModal, setConfirmModal] = useState<{
-    action: 'redeem' | 'override' | 'reset-customer-pwd' | 'reset-store-pwd' | 'delete-transaction' | 'delete-customer'
+    action: 'redeem' | 'override' | 'reset-customer-pwd' | 'reset-store-pwd' | 'delete-transaction' | 'delete-customer' | 'delete-reward'
     message: string
     transactionId?: number
     customerId?: number
+    rewardId?: number
   } | null>(null)
 
   const pointsPreview = useMemo(() => {
@@ -131,8 +136,13 @@ function App() {
     (customer) => customer.id === selectedStoreCustomerId,
   )
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(customerSearch), 250)
+    return () => clearTimeout(timer)
+  }, [customerSearch])
+
   const filteredCustomers = customers.filter((customer) => {
-    const needle = customerSearch.trim().toLowerCase()
+    const needle = debouncedSearch.trim().toLowerCase()
     if (!needle) {
       return true
     }
@@ -145,6 +155,13 @@ function App() {
 
   const pushToast = (type: Toast['type'], message: string) => {
     setToast({ type, message })
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const safeAsync = (fn: () => Promise<any>) => {
+    fn().catch((err: unknown) => {
+      console.error(err)
+    })
   }
 
   const togglePasswordVisibility = (field: string) => {
@@ -308,10 +325,26 @@ function App() {
     await loadRewards(profile.store_id)
   }
 
-  const deleteReward = async (reward: Reward) => {
-    if (!supabase || !profile?.store_id) return
-    await supabase.from('rewards').delete().eq('id', reward.id)
-    pushToast('success', `Premio "${reward.name}" eliminato`)
+  const askDeleteReward = (reward: Reward) => {
+    setConfirmModal({
+      action: 'delete-reward',
+      message: `Eliminare il premio "${reward.name}"? Non sarà più disponibile per i clienti.`,
+      rewardId: reward.id,
+    })
+  }
+
+  const confirmDeleteReward = async () => {
+    if (!supabase || !profile?.store_id || !confirmModal?.rewardId) return
+
+    const rewardId = confirmModal.rewardId
+    setConfirmModal(null)
+
+    const { error } = await supabase.from('rewards').delete().eq('id', rewardId)
+    if (error) {
+      pushToast('error', 'Eliminazione premio non riuscita')
+      return
+    }
+    pushToast('success', 'Premio eliminato')
     await loadRewards(profile.store_id)
   }
 
@@ -395,15 +428,17 @@ function App() {
       setRole(nextProfile.role)
 
       if (nextProfile.role === 'store' && nextProfile.store_id) {
-        await loadStoreCustomers(nextProfile.store_id)
-        await loadRewards(nextProfile.store_id)
-        await loadRecentNotifications(nextProfile.store_id)
+        await Promise.all([
+          loadStoreCustomers(nextProfile.store_id),
+          loadRewards(nextProfile.store_id),
+          loadRecentNotifications(nextProfile.store_id),
+        ])
       }
 
       if (nextProfile.role === 'customer' && nextProfile.customer_id) {
         await loadCustomerHome(nextProfile.customer_id)
-        // Carica premi: recupera store_id del cliente e poi i premi attivi
-        const { data: custData } = await supabase!
+        if (!supabase) return
+        const { data: custData } = await supabase
           .from('customers')
           .select('store_id')
           .eq('id', nextProfile.customer_id)
@@ -472,8 +507,9 @@ function App() {
               await bootstrapFromProfile(nextProfile)
               initialBootstrapDone.current = true
             }
-          } catch {
-            await client.auth.signOut()
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'Errore nel caricamento del profilo'
+            setInitError(message)
           }
         }
       } finally {
@@ -481,7 +517,7 @@ function App() {
       }
     }
 
-    void initialize()
+    safeAsync(initialize)
 
     const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
       if (!session?.user) {
@@ -503,8 +539,9 @@ function App() {
         if (nextProfile) {
           await bootstrapFromProfile(nextProfile)
         }
-      } catch {
-        await client.auth.signOut()
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Errore nel caricamento del profilo'
+        setInitError(message)
       } finally {
         setSessionLoading(false)
       }
@@ -520,7 +557,7 @@ function App() {
       return
     }
 
-    void loadCustomerMovements(selectedStoreCustomerId)
+    safeAsync(() => loadCustomerMovements(selectedStoreCustomerId))
   }, [role, selectedStoreCustomerId])
 
   useEffect(() => {
@@ -536,6 +573,19 @@ function App() {
       clearTimeout(timeoutId)
     }
   }, [toast])
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   useEffect(() => {
     if (!supabase || !profile) {
@@ -557,7 +607,9 @@ function App() {
             filter: `store_id=eq.${profile.store_id}`,
           },
           () => {
-            void loadStoreCustomers(profile.store_id!)
+            const storeId = profile?.store_id
+            if (!storeId) return
+            safeAsync(() => loadStoreCustomers(storeId))
           },
         )
         .subscribe()
@@ -577,7 +629,9 @@ function App() {
             filter: `id=eq.${profile.customer_id}`,
           },
           () => {
-            void loadCustomerHome(profile.customer_id!)
+            const cid = profile?.customer_id
+            if (!cid) return
+            safeAsync(() => loadCustomerHome(cid))
           },
         )
         .on(
@@ -589,7 +643,9 @@ function App() {
             filter: `customer_id=eq.${profile.customer_id}`,
           },
           () => {
-            void loadCustomerHome(profile.customer_id!)
+            const cid = profile?.customer_id
+            if (!cid) return
+            safeAsync(() => loadCustomerHome(cid))
           },
         )
         .subscribe()
@@ -599,7 +655,7 @@ function App() {
 
     return () => {
       channels.forEach((channel) => {
-        void client.removeChannel(channel)
+        safeAsync(() => client.removeChannel(channel))
       })
     }
   }, [profile, role])
@@ -621,13 +677,15 @@ function App() {
           filter: `customer_id=eq.${selectedStoreCustomerId}`,
         },
         () => {
-          void loadStoreCustomers(profile.store_id!)
+          const storeId = profile?.store_id
+          if (!storeId) return
+          safeAsync(() => loadStoreCustomers(storeId))
         },
       )
       .subscribe()
 
     return () => {
-      void client.removeChannel(movementChannel)
+      safeAsync(() => client.removeChannel(movementChannel))
     }
   }, [profile?.store_id, role, selectedStoreCustomerId])
 
@@ -1323,6 +1381,24 @@ function App() {
 
       {toast ? <p className={`toast ${toast.type}`}>{toast.message}</p> : null}
 
+      {!isOnline ? (
+        <p className="error" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+          <span>⚠️ Connessione assente</span>
+          <button className="ghost small" type="button" onClick={() => window.location.reload()}>
+            Riprova
+          </button>
+        </p>
+      ) : null}
+
+      {initError ? (
+        <p className="error" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+          <span>{initError}</span>
+          <button className="ghost small" type="button" onClick={() => { setInitError(null); window.location.reload() }}>
+            Riprova
+          </button>
+        </p>
+      ) : null}
+
       {confirmModal ? (
         <div className="modal-overlay" onClick={() => setConfirmModal(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1341,6 +1417,7 @@ function App() {
                   else if (confirmModal.action === 'reset-store-pwd') await confirmResetStorePassword()
                   else if (confirmModal.action === 'delete-transaction') await confirmDeleteTransaction()
                   else if (confirmModal.action === 'delete-customer') await confirmDeleteCustomer()
+                  else if (confirmModal.action === 'delete-reward') await confirmDeleteReward()
                 }}
               >
                 Conferma
@@ -1748,7 +1825,9 @@ function App() {
               </article>
             </section>
           ) : storePage === 'communications' ? (
-            <StoreNotifications />
+            <Suspense fallback={null}>
+              <StoreNotifications />
+            </Suspense>
           ) : storePage === 'rewards' ? (
             <section className="store-single-page">
               <article className="card">
@@ -1775,7 +1854,7 @@ function App() {
                           <button
                             type="button"
                             className="ghost small danger"
-                            onClick={() => deleteReward(reward)}
+                            onClick={() => askDeleteReward(reward)}
                           >
                             Elimina
                           </button>

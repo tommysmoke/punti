@@ -143,6 +143,44 @@ function corsHeaders() {
   }
 }
 
+// Helper: verify the caller is an authenticated store user
+async function verifyStoreAuth(req: Request): Promise<{ userId: string; storeId: string } | null> {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null
+  }
+
+  const token = authHeader.replace('Bearer ', '')
+  // @ts-ignore
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  // @ts-ignore
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return null
+  }
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    if (error || !user) return null
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, store_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile || profile.role !== 'store' || !profile.store_id) {
+      return null
+    }
+
+    return { userId: user.id, storeId: profile.store_id }
+  } catch {
+    return null
+  }
+}
+
 // @ts-ignore
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
@@ -167,6 +205,22 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: store_id, title, body' }),
         { status: 400, headers: corsHeaders() }
+      )
+    }
+
+    // Verify auth
+    const auth = await verifyStoreAuth(req)
+    if (!auth) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: corsHeaders() }
+      )
+    }
+
+    if (auth.storeId !== store_id) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: store_id mismatch' }),
+        { status: 403, headers: corsHeaders() }
       )
     }
 
