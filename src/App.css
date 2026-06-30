@@ -547,6 +547,25 @@ select {
   margin-top: 0;
 }
 
+.privacy-note {
+  margin-top: 1.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--text) 65%, transparent);
+  text-align: center;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.privacy-note-icon {
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+
 time {
   color: var(--text);
   font-size: 0.8rem;

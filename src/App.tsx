@@ -1344,6 +1344,11 @@ function App() {
               {loginLoading ? 'Accesso in corso...' : 'Accedi'}
             </button>
           </form>
+
+          <p className="privacy-note">
+            <span className="privacy-note-icon" aria-hidden="true">🛡️</span>
+            I tuoi dati personali non vengono condivisi con nessuno. Utilizziamo i tuoi dati solo per la raccolta punti. Non raccogliamo cookies.
+          </p>
         </section>
       </main>
     )
@@ -2138,6 +2143,11 @@ function App() {
               </ul>
             </article>
           ) : null}
+
+          <p className="privacy-note" style={{gridColumn:'1 / -1'}}>
+            <span className="privacy-note-icon" aria-hidden="true">🛡️</span>
+            I tuoi dati personali non vengono condivisi con nessuno. Utilizziamo i tuoi dati solo per la raccolta punti. Non raccogliamo cookies.
+          </p>
         </section>
       )}
 
