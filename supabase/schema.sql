@@ -22,6 +22,7 @@ create table if not exists public.customers (
   name text not null,
   phone text not null unique,
   points integer not null default 0,
+  birth_day_month text not null default '01/01',
   created_at timestamptz not null default now()
 );
 
@@ -189,8 +190,13 @@ begin
       raise exception 'Username mancante';
     end if;
 
-    insert into public.customers (store_id, name, phone, points)
-    values (v_store_id, v_name, v_phone, 0)
+    insert into public.customers (store_id, name, phone, points, birth_day_month)
+    values (v_store_id, v_name, v_phone, 0,
+      case when v_username ~ '\d{4}$' then
+        regexp_replace(substring(v_username from '\d{4}$'), '(\d{2})(\d{2})', '\1/\2')
+      else
+        '01/01'
+      end)
     returning id into v_customer_id;
 
     insert into public.profiles (id, role, store_id, customer_id, username)

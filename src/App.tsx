@@ -21,6 +21,7 @@ type Customer = {
   name: string
   phone: string
   points: number
+  birth_day_month: string | null
 }
 
 type Movement = {
@@ -106,6 +107,7 @@ function App() {
   const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null)
   const [editCustomerName, setEditCustomerName] = useState('')
   const [editCustomerPhone, setEditCustomerPhone] = useState('')
+  const [editCustomerBirthDayMonth, setEditCustomerBirthDayMonth] = useState('')
   const [editCustomerError, setEditCustomerError] = useState('')
   const [savingCustomerEdit, setSavingCustomerEdit] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -360,7 +362,7 @@ function App() {
     while (true) {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, store_id, name, phone, points')
+        .select('id, store_id, name, phone, points, birth_day_month')
         .eq('store_id', storeId)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .range(page * pageSize, page * pageSize + pageSize - 1)
@@ -1049,6 +1051,7 @@ function App() {
     if (!selectedStoreCustomer) return
     setEditCustomerName(selectedStoreCustomer.name)
     setEditCustomerPhone(selectedStoreCustomer.phone)
+    setEditCustomerBirthDayMonth(selectedStoreCustomer.birth_day_month ?? '')
     setEditCustomerError('')
     setEditingCustomerId(selectedStoreCustomer.id)
   }
@@ -1057,6 +1060,7 @@ function App() {
     setEditingCustomerId(null)
     setEditCustomerName('')
     setEditCustomerPhone('')
+    setEditCustomerBirthDayMonth('')
     setEditCustomerError('')
   }
 
@@ -1065,6 +1069,7 @@ function App() {
 
     const name = editCustomerName.trim()
     const phone = editCustomerPhone.replace(/\D/g, '')
+    const birthDayMonth = editCustomerBirthDayMonth.trim()
 
     setEditCustomerError('')
 
@@ -1078,12 +1083,18 @@ function App() {
       return
     }
 
+    if (birthDayMonth && !/^\d{2}\/\d{2}$/.test(birthDayMonth)) {
+      setEditCustomerError('Formato giorno/mese non valido (usa GG/MM)')
+      return
+    }
+
     setSavingCustomerEdit(true)
     try {
       const { error } = await supabase.rpc('update_customer', {
         p_customer_id: editingCustomerId,
         p_name: name,
         p_phone: phone,
+        p_birth_day_month: birthDayMonth || null,
       })
 
       if (error) {
@@ -1662,6 +1673,20 @@ function App() {
                           placeholder="Telefono"
                           inputMode="tel"
                         />
+                        <input
+                          className="customer-edit-input"
+                          value={editCustomerBirthDayMonth}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
+                            const formatted = digits.length > 2
+                              ? `${digits.slice(0, 2)}/${digits.slice(2)}`
+                              : digits
+                            setEditCustomerBirthDayMonth(formatted)
+                          }}
+                          placeholder="Giorno/Mese (GG/MM)"
+                          inputMode="numeric"
+                          maxLength={5}
+                        />
                         {editCustomerError ? <p className="error">{editCustomerError}</p> : null}
                         <div className="customer-edit-actions">
                           <button className="ghost small" type="button" onClick={saveCustomerEdit} disabled={savingCustomerEdit}>
@@ -1676,6 +1701,9 @@ function App() {
                       <div>
                         <p className="customer-name">{selectedStoreCustomer.name}</p>
                         <p className="hint no-top">Telefono: {selectedStoreCustomer.phone}</p>
+                        {selectedStoreCustomer.birth_day_month ? (
+                          <p className="hint no-top">Nato il: {selectedStoreCustomer.birth_day_month}</p>
+                        ) : null}
                       </div>
                     )}
                     {editingCustomerId !== selectedStoreCustomer.id ? (
