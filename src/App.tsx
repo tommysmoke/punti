@@ -116,7 +116,7 @@ function App() {
 
   // Modali di conferma per operazioni critiche
   const [confirmModal, setConfirmModal] = useState<{
-    action: 'redeem' | 'override' | 'reset-customer-pwd' | 'reset-store-pwd' | 'delete-transaction' | 'delete-customer' | 'delete-reward'
+    action: 'redeem' | 'override' | 'reset-customer-pwd' | 'reset-store-pwd' | 'delete-transaction' | 'delete-customer' | 'delete-reward' | 'create-duplicate-customer'
     message: string
     transactionId?: number
     customerId?: number
@@ -989,6 +989,62 @@ function App() {
     }
   }
 
+  const confirmCreateDuplicateCustomer = async () => {
+    if (!supabase || !profile?.store_id) {
+      return
+    }
+
+    setConfirmModal(null)
+    setNewCustomerError('')
+    setNewCustomerSuccess('')
+
+    const name = newCustomerName.trim()
+    const note = newCustomerNote.trim()
+    const phone = newCustomerPhone.replace(/\D/g, '')
+    const password = phone
+    const birthDayMonth = newCustomerBirthDayMonth.trim()
+    const username = buildUsername(name, birthDayMonth)
+    const displayName = note ? `${name} (${note})` : name
+
+    const tempClient = createClient(
+      import.meta.env.VITE_SUPABASE_URL as string,
+      import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      { auth: { storageKey: 'sb-temp-reg', autoRefreshToken: false, persistSession: false } }
+    )
+
+    const email = `${username}@emailnonesiste.it`
+
+    const { error } = await tempClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          role: 'customer',
+          name: displayName,
+          phone,
+          username,
+          store_id: profile.store_id,
+        },
+      },
+    })
+
+    await tempClient.auth.signOut()
+
+    if (error) {
+      setNewCustomerError('Non sono riuscito a creare il cliente. Riprova tra qualche secondo.')
+      pushToast('error', 'Creazione cliente non riuscita')
+      return
+    }
+
+    setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
+    pushToast('success', `Cliente creato: ${username}`)
+    setNewCustomerName('')
+    setNewCustomerNote('')
+    setNewCustomerPhone('')
+    setNewCustomerBirthDayMonth('')
+    await loadStoreCustomers(profile.store_id)
+  }
+
   const startEditCustomer = () => {
     if (!selectedStoreCustomer) return
     setEditCustomerName(selectedStoreCustomer.name)
@@ -1092,7 +1148,10 @@ function App() {
     }
 
     if (!isAvailable) {
-      setNewCustomerError(`Esiste già un cliente con questo codice utente: ${username}`)
+      setConfirmModal({
+        action: 'create-duplicate-customer',
+        message: `Esiste già un cliente con il codice utente "${username}" (${displayName}). Vuoi crearlo comunque?`,
+      })
       return
     }
 
@@ -1423,6 +1482,7 @@ function App() {
                   else if (confirmModal.action === 'delete-transaction') await confirmDeleteTransaction()
                   else if (confirmModal.action === 'delete-customer') await confirmDeleteCustomer()
                   else if (confirmModal.action === 'delete-reward') await confirmDeleteReward()
+                  else if (confirmModal.action === 'create-duplicate-customer') await confirmCreateDuplicateCustomer()
                 }}
               >
                 Conferma
