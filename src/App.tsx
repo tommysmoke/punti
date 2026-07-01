@@ -2053,7 +2053,7 @@ function App() {
               <article className="card">
                 <h2>Reset password socio</h2>
                 <p className="hint" style={{marginBottom:'0.7rem'}}>Usa questa funzione se un socio ha dimenticato la password. Puoi mostrare la password mentre la inserisci.</p>
-                <form className="stack" onSubmit={resetStoreUserPassword}>
+                <form className="stack split" onSubmit={resetStoreUserPassword}>
                   <label>
                     Username socio
                     <input
