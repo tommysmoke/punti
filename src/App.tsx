@@ -1789,8 +1789,9 @@ function App() {
             <article className="card">
               <h2>Gestione punti</h2>
               <form onSubmit={addPoints} className="stack split no-top-border">
+                <h3>Carica Punti</h3>
                 <label>
-                  Spesa in EUR
+                  <small>Inserisci la spesa in €</small>
                   <input
                     type="number"
                     min="0"
@@ -1807,8 +1808,9 @@ function App() {
               </form>
 
               <form onSubmit={redeemPoints} className="stack split">
+                <h3>Scarica Punti</h3>
                 <label>
-                  Punti da redimere
+                  <small>Inserisci la quantità di punti da redimere</small>
                   <input
                     type="number"
                     min="1"
@@ -1824,8 +1826,9 @@ function App() {
               </form>
 
               <form onSubmit={overridePoints} className="stack split">
+                <h3>Rettifica Punti</h3>
                 <label>
-                  Sovrascrittura punti
+                  <small>Inserisci il nuovo valore punti desiderato finale</small>
                   <input
                     type="number"
                     min="0"

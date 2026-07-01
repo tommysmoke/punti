@@ -29,3 +29,5 @@ dist-ssr
 FIREBASE_SETUP.md
 scripts/test-rate-limit.js
 341007890_1169413207083095_7978995066125363840_n.jpg
+scripts/export_clienti_mypushop.py
+scripts/__pycache__/export_clienti_mypushop.cpython-314.pyc
