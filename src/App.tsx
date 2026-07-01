@@ -1803,7 +1803,7 @@ function App() {
                 </label>
                 <p className="preview">Punti da aggiungere: {pointsPreview}</p>
                 <button className="cta" type="submit" disabled={!selectedStoreCustomer}>
-                  Registra spesa
+                  Aggiungi punti
                 </button>
               </form>
 
@@ -1821,7 +1821,7 @@ function App() {
                   />
                 </label>
                 <button className="ghost" type="submit" disabled={!selectedStoreCustomer}>
-                  Redimi punti
+                  Scarica punti
                 </button>
               </form>
 
@@ -1840,7 +1840,7 @@ function App() {
                   />
                 </label>
                 <button className="ghost small" type="submit" disabled={!selectedStoreCustomer}>
-                  Sovrascrivi punti
+                  Rettifica punti
                 </button>
               </form>
             </article>

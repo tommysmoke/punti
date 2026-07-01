@@ -295,15 +295,21 @@
   font-size: 1.05rem;
 }
 
+.card h3 {
+  margin: 0 0 0.15rem;
+  font-size: 0.95rem;
+  color: var(--text-h);
+}
+
 .stack {
   display: grid;
   gap: 0.8rem;
 }
 
 .stack.split {
-  margin-top: 0.9rem;
-  padding-top: 0.9rem;
-  border-top: 1px dashed var(--border);
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
 }
 
 .stack.split.no-top-border {
