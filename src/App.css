@@ -308,20 +308,20 @@
 
 .stack.split {
   margin-top: 0.55rem;
-  padding: 0.55rem 0 0 0.8rem;
-  border-top: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 0 0.6rem 0.6rem 0;
-  background: #f4f7f1;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #cdd9d5;
+  border-radius: 0.8rem;
+  background: #e8f0ed;
+  box-shadow: 0 1px 3px rgba(16,36,42,0.04);
 }
 
 .stack.split.no-top-border {
   margin-top: 0;
-  padding: 0;
-  border-top: 0;
-  border-left: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #cdd9d5;
+  border-radius: 0.8rem;
+  background: #e8f0ed;
+  box-shadow: 0 1px 3px rgba(16,36,42,0.04);
 }
 
 label {
@@ -384,8 +384,8 @@ select {
   margin: 0;
   padding: 0.55rem 0.75rem;
   border-radius: 0.7rem;
-  background: #f9f4ea;
-  color: #704f1f;
+  background: #fff;
+  color: #1a4a5c;
   font-weight: 700;
 }
 
