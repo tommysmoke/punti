@@ -308,14 +308,20 @@
 
 .stack.split {
   margin-top: 0.55rem;
-  padding-top: 0.55rem;
+  padding: 0.55rem 0 0 0.8rem;
   border-top: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 0.6rem 0.6rem 0;
+  background: #f4f7f1;
 }
 
 .stack.split.no-top-border {
   margin-top: 0;
-  padding-top: 0;
+  padding: 0;
   border-top: 0;
+  border-left: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 label {
