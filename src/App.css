@@ -434,10 +434,7 @@ select {
 
 .hero-card {
   min-height: 260px;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(200, 238, 255, 0.6), transparent 45%),
-    radial-gradient(circle at 100% 0, rgba(255, 226, 172, 0.6), transparent 30%),
-    #fff;
+  background: #fff;
 }
 
 .welcome {
