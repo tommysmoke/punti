@@ -15,7 +15,6 @@ dist-ssr
 .env.*
 .code-workspace
 *.code-workspace
-*.code-workspaces
 
 # Editor directories and files
 .vscode/*
