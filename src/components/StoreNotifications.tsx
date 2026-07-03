@@ -255,6 +255,10 @@ export function StoreNotifications() {
             placeholder="es: Attenzione, Promozione, Auguri..."
             maxLength={50}
             disabled={sending}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
           <small>{title.length}/50</small>
         </div>
@@ -265,10 +269,14 @@ export function StoreNotifications() {
             id="message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="es: Oggi Tommy Smoke Castenaso sarà chiuso tutto il giorno. Puoi trovarci regolarmente a Quarto, Bologna..."
+            placeholder="es: Oggi Tommy Smoke Castenaso sarà chiuso tutto il giorno..."
             rows={5}
             maxLength={500}
             disabled={sending}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
           <small>{message.length}/500</small>
         </div>
