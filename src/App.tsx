@@ -1822,7 +1822,6 @@ function App() {
             <div className="comms-hero-list">
               {visibleNotifications.map((n) => (
                 <div key={n.id} className="comms-hero-item">
-                  <span className="comms-hero-item-emoji">📌</span>
                   <div className="comms-hero-item-text">
                     <span className="comms-hero-item-title">{n.title}</span>
                     <span className="comms-hero-item-body">{n.body}</span>

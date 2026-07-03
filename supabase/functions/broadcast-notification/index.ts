@@ -150,7 +150,6 @@ async function verifyStoreAuth(req: Request): Promise<{ userId: string; storeId:
     return null
   }
 
-  const token = authHeader.replace('Bearer ', '')
   // @ts-ignore
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   // @ts-ignore
@@ -161,9 +160,17 @@ async function verifyStoreAuth(req: Request): Promise<{ userId: string; storeId:
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey)
-    const { data: { user }, error } = await supabase.auth.getUser(token)
-    if (error || !user) return null
+    // Standard Supabase Edge Function pattern: pass Auth header to client
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: authHeader },
+      },
+    })
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('Auth verification failed:', error?.message ?? 'no user')
+      return null
+    }
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -176,7 +183,8 @@ async function verifyStoreAuth(req: Request): Promise<{ userId: string; storeId:
     }
 
     return { userId: user.id, storeId: profile.store_id }
-  } catch {
+  } catch (err) {
+    console.error('verifyStoreAuth error:', err instanceof Error ? err.message : String(err))
     return null
   }
 }
