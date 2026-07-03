@@ -74,28 +74,13 @@ function App() {
   const [redeemAmount, setRedeemAmount] = useState('')
   const [overrideAmount, setOverrideAmount] = useState('')
 
-  const [showChangePassword, setShowChangePassword] = useState(false)
-  const [changePasswordCurrent, setChangePasswordCurrent] = useState('')
-  const [changePasswordNew, setChangePasswordNew] = useState('')
-  const [changePasswordConfirm, setChangePasswordConfirm] = useState('')
-  const [changePasswordError, setChangePasswordError] = useState('')
-  const [changePasswordSuccess, setChangePasswordSuccess] = useState('')
-  const [resetCustomerPassword, setResetCustomerPassword] = useState('')
-  const [resetCustomerSuccess, setResetCustomerSuccess] = useState('')
-  const [resetCustomerError, setResetCustomerError] = useState('')
-  const [resetStoreUsername, setResetStoreUsername] = useState('')
-  const [resetStorePassword, setResetStorePassword] = useState('')
-  const [resetStoreConfirm, setResetStoreConfirm] = useState('')
-  const [resetStoreError, setResetStoreError] = useState('')
-  const [resetStoreSuccess, setResetStoreSuccess] = useState('')
-
   const [loginIdentifier, setLoginIdentifier] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
   const [actionError, setActionError] = useState('')
-  const [storePage, setStorePage] = useState<'operations' | 'new-customer' | 'rewards' | 'security' | 'communications'>('operations')
+  const [storePage, setStorePage] = useState<'operations' | 'new-customer' | 'rewards' | 'communications'>('operations')
   const [rewards, setRewards] = useState<Reward[]>([])
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardDescription, setNewRewardDescription] = useState('')
@@ -120,7 +105,7 @@ function App() {
 
   // Modali di conferma per operazioni critiche
   const [confirmModal, setConfirmModal] = useState<{
-    action: 'redeem' | 'override' | 'reset-customer-pwd' | 'reset-store-pwd' | 'delete-transaction' | 'delete-customer' | 'delete-reward' | 'create-duplicate-customer'
+    action: 'redeem' | 'override' | 'delete-transaction' | 'delete-customer' | 'delete-reward' | 'create-duplicate-customer'
     message: string
     transactionId?: number
     customerId?: number
@@ -759,170 +744,6 @@ function App() {
     await supabase.auth.signOut()
   }
 
-  const changePassword = async (event: FormEvent) => {
-    event.preventDefault()
-
-    if (!supabase) {
-      return
-    }
-
-    setChangePasswordError('')
-    setChangePasswordSuccess('')
-
-    if (!changePasswordCurrent) {
-      setChangePasswordError('Inserisci la password attuale')
-      return
-    }
-
-    if (!changePasswordNew) {
-      setChangePasswordError('Inserisci la nuova password')
-      return
-    }
-
-    if (changePasswordNew !== changePasswordConfirm) {
-      setChangePasswordError('Le password non coincidono')
-      return
-    }
-
-    // Verifica la password attuale ri-autenticando prima di cambiare
-    const { data: sessionData } = await supabase.auth.getSession()
-    const currentEmail = sessionData.session?.user?.email
-    if (!currentEmail) {
-      setChangePasswordError('Sessione non valida, rieffettua il login')
-      return
-    }
-
-    const { error: reAuthError } = await supabase.auth.signInWithPassword({
-      email: currentEmail,
-      password: changePasswordCurrent,
-    })
-
-    if (reAuthError) {
-      setChangePasswordError('Password attuale non corretta')
-      return
-    }
-
-    const { error } = await supabase.auth.updateUser({ password: changePasswordNew })
-
-    if (error) {
-      setChangePasswordError(error.message)
-      pushToast('error', 'Password non aggiornata')
-      return
-    }
-
-    setChangePasswordSuccess('Password aggiornata con successo')
-    pushToast('success', 'Password aggiornata')
-    setChangePasswordCurrent('')
-    setChangePasswordNew('')
-    setChangePasswordConfirm('')
-  }
-
-  const resetStoreUserPassword = async (event: FormEvent) => {
-    event.preventDefault()
-
-    if (!supabase) {
-      return
-    }
-
-    setResetStoreError('')
-    setResetStoreSuccess('')
-
-    const username = resetStoreUsername.trim()
-    if (!username) {
-      setResetStoreError('Inserisci il codice utente del socio')
-      return
-    }
-
-    if (!resetStorePassword) {
-      setResetStoreError('Inserisci la nuova password')
-      return
-    }
-
-    if (resetStorePassword !== resetStoreConfirm) {
-      setResetStoreError('Le password non coincidono')
-      return
-    }
-
-    // Apri modale di conferma
-    setConfirmModal({
-      action: 'reset-store-pwd',
-      message: `Resettare password di ${username}? Usa la nuova password inserita.`,
-    })
-  }
-
-  const confirmResetStorePassword = async () => {
-    if (!supabase) {
-      return
-    }
-
-    const username = resetStoreUsername.trim()
-    setConfirmModal(null)
-    setResetStoreError('')
-    setResetStoreSuccess('')
-
-    const { error } = await supabase.rpc('admin_reset_store_password', {
-      p_username: username,
-      p_new_password: resetStorePassword,
-    })
-
-    if (error) {
-      setResetStoreError(error.message)
-      pushToast('error', 'Reset password socio non riuscito')
-      return
-    }
-
-    setResetStoreSuccess(`Password di ${username} aggiornata`)
-    pushToast('success', `Password socio aggiornata: ${username}`)
-    setResetStoreUsername('')
-    setResetStorePassword('')
-    setResetStoreConfirm('')
-  }
-
-  const resetCustomerPasswordFn = async (event: FormEvent) => {
-    event.preventDefault()
-
-    if (!supabase || !selectedStoreCustomer) {
-      return
-    }
-
-    if (!resetCustomerPassword.trim()) {
-      setResetCustomerError('Inserisci una nuova password per il cliente')
-      return
-    }
-
-    // Apri modale di conferma
-    setConfirmModal({
-      action: 'reset-customer-pwd',
-      message: `Resettare password di ${selectedStoreCustomer.name}? Usa la nuova password inserita.`,
-    })
-  }
-
-  const confirmResetCustomerPassword = async () => {
-    if (!supabase || !selectedStoreCustomer) {
-      return
-    }
-
-    const newPwd = resetCustomerPassword.trim()
-    setConfirmModal(null)
-    setResetCustomerError('')
-    setResetCustomerSuccess('')
-
-    const { error } = await supabase.rpc('admin_reset_customer_password', {
-      p_customer_id: selectedStoreCustomer.id,
-      p_new_password: newPwd,
-    })
-
-    if (error) {
-      setResetCustomerError(error.message)
-      pushToast('error', 'Reset password cliente non riuscito')
-      return
-    }
-
-    setResetCustomerSuccess(`Password di ${selectedStoreCustomer.name} aggiornata`)
-    pushToast('success', `Password cliente aggiornata: ${selectedStoreCustomer.name}`)
-    setResetCustomerPassword('')
-  }
-
   const askDeleteTransaction = (movement: Movement) => {
     setConfirmModal({
       action: 'delete-transaction',
@@ -977,8 +798,6 @@ function App() {
     const deletedCustomerName = selectedStoreCustomer?.name ?? 'Cliente'
     setConfirmModal(null)
     setActionError('')
-    setResetCustomerError('')
-    setResetCustomerSuccess('')
 
     const { error } = await supabase.rpc('delete_customer_account', {
       p_customer_id: customerId,
@@ -992,7 +811,6 @@ function App() {
 
     setSelectedStoreCustomerId(null)
     setCustomerMovements([])
-    setResetCustomerPassword('')
     pushToast('success', `Cliente eliminato: ${deletedCustomerName}`)
     if (profile?.store_id) {
       await loadStoreCustomers(profile.store_id)
@@ -1454,11 +1272,6 @@ function App() {
               <p>{profile.store_id}</p>
             </details>
           ) : null}
-          {role !== 'store' ? (
-            <button className="ghost small" type="button" onClick={() => setShowChangePassword(v => !v)}>
-              {showChangePassword ? 'Chiudi sicurezza' : 'Sicurezza'}
-            </button>
-          ) : null}
           <button className="ghost small" type="button" onClick={logout}>
             Logout
           </button>
@@ -1499,8 +1312,6 @@ function App() {
                 onClick={async () => {
                   if (confirmModal.action === 'redeem') await confirmRedeem()
                   else if (confirmModal.action === 'override') await confirmOverride()
-                  else if (confirmModal.action === 'reset-customer-pwd') await confirmResetCustomerPassword()
-                  else if (confirmModal.action === 'reset-store-pwd') await confirmResetStorePassword()
                   else if (confirmModal.action === 'delete-transaction') await confirmDeleteTransaction()
                   else if (confirmModal.action === 'delete-customer') await confirmDeleteCustomer()
                   else if (confirmModal.action === 'delete-reward') await confirmDeleteReward()
@@ -1515,60 +1326,6 @@ function App() {
       ) : null}
 
       {actionError ? <p className="error">{actionError}</p> : null}
-
-      {role !== 'store' && showChangePassword ? (
-        <article className="card" style={{marginBottom:'1rem'}}>
-          <h2>Cambia password</h2>
-          <p className="hint no-top">Usa Mostra per controllare la password prima di salvarla.</p>
-          <form className="stack" onSubmit={changePassword}>
-            <label>
-              Password attuale
-              <div className="password-row">
-                <input
-                  type={visiblePasswords.changeCurrent ? 'text' : 'password'}
-                  value={changePasswordCurrent}
-                  onChange={(event) => setChangePasswordCurrent(event.target.value)}
-                  placeholder="Inserisci la password attuale"
-                />
-                <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeCurrent')}>
-                  {visiblePasswords.changeCurrent ? 'Nascondi' : 'Mostra'}
-                </button>
-              </div>
-            </label>
-            <label>
-              Nuova password
-              <div className="password-row">
-                <input
-                  type={visiblePasswords.changeNew ? 'text' : 'password'}
-                  value={changePasswordNew}
-                  onChange={(event) => setChangePasswordNew(event.target.value)}
-                  placeholder="Inserisci nuova password"
-                />
-                <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeNew')}>
-                  {visiblePasswords.changeNew ? 'Nascondi' : 'Mostra'}
-                </button>
-              </div>
-            </label>
-            <label>
-              Conferma nuova password
-              <div className="password-row">
-                <input
-                  type={visiblePasswords.changeConfirm ? 'text' : 'password'}
-                  value={changePasswordConfirm}
-                  onChange={(event) => setChangePasswordConfirm(event.target.value)}
-                  placeholder="Ripeti la nuova password"
-                />
-                <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeConfirm')}>
-                  {visiblePasswords.changeConfirm ? 'Nascondi' : 'Mostra'}
-                </button>
-              </div>
-            </label>
-            {changePasswordError ? <p className="error">{changePasswordError}</p> : null}
-            {changePasswordSuccess ? <p className="success">{changePasswordSuccess}</p> : null}
-            <button className="cta" type="submit">Aggiorna password</button>
-          </form>
-        </article>
-      ) : null}
 
       {role === 'store' ? (
         <>
@@ -1593,13 +1350,6 @@ function App() {
               onClick={() => setStorePage('rewards')}
             >
               Premi
-            </button>
-            <button
-              type="button"
-              className={`ghost small ${storePage === 'security' ? 'active-tab' : ''}`}
-              onClick={() => setStorePage('security')}
-            >
-              Sicurezza
             </button>
             <button
               type="button"
@@ -2024,140 +1774,7 @@ function App() {
                 </form>
               </article>
             </section>
-          ) : (
-            <section className="grid two-cols" style={{marginBottom:'1rem'}}>
-              <article className="card">
-                <h2>Cambia mia password</h2>
-                <p className="hint no-top">Puoi mostrare i campi password prima di confermare il salvataggio.</p>
-                <form className="stack" onSubmit={changePassword}>
-                  <label>
-                    Password attuale
-                    <div className="password-row">
-                      <input
-                        type={visiblePasswords.changeCurrent ? 'text' : 'password'}
-                        value={changePasswordCurrent}
-                        onChange={(event) => setChangePasswordCurrent(event.target.value)}
-                        placeholder="Inserisci la password attuale"
-                      />
-                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeCurrent')}>
-                        {visiblePasswords.changeCurrent ? 'Nascondi' : 'Mostra'}
-                      </button>
-                    </div>
-                  </label>
-                  <label>
-                    Nuova password
-                    <div className="password-row">
-                      <input
-                        type={visiblePasswords.changeNew ? 'text' : 'password'}
-                        value={changePasswordNew}
-                        onChange={(event) => setChangePasswordNew(event.target.value)}
-                        placeholder="Inserisci nuova password"
-                      />
-                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeNew')}>
-                        {visiblePasswords.changeNew ? 'Nascondi' : 'Mostra'}
-                      </button>
-                    </div>
-                  </label>
-                  <label>
-                    Conferma nuova password
-                    <div className="password-row">
-                      <input
-                        type={visiblePasswords.changeConfirm ? 'text' : 'password'}
-                        value={changePasswordConfirm}
-                        onChange={(event) => setChangePasswordConfirm(event.target.value)}
-                        placeholder="Ripeti la nuova password"
-                      />
-                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('changeConfirm')}>
-                        {visiblePasswords.changeConfirm ? 'Nascondi' : 'Mostra'}
-                      </button>
-                    </div>
-                  </label>
-                  {changePasswordError ? <p className="error">{changePasswordError}</p> : null}
-                  {changePasswordSuccess ? <p className="success">{changePasswordSuccess}</p> : null}
-                  <button className="cta" type="submit">Aggiorna password</button>
-                </form>
-              </article>
-
-              <article className="card">
-                <h2>Reset password socio</h2>
-                <p className="hint" style={{marginBottom:'0.7rem'}}>Usa questa funzione se un socio ha dimenticato la password. Puoi mostrare la password mentre la inserisci.</p>
-                <form className="stack split" onSubmit={resetStoreUserPassword}>
-                  <label>
-                    Username socio
-                    <input
-                      type="text"
-                      value={resetStoreUsername}
-                      onChange={(event) => setResetStoreUsername(event.target.value)}
-                      placeholder="Es: TommySmoke01"
-                    />
-                  </label>
-                  <label>
-                    Nuova password
-                    <div className="password-row">
-                      <input
-                        type={visiblePasswords.resetStore ? 'text' : 'password'}
-                        value={resetStorePassword}
-                        onChange={(event) => setResetStorePassword(event.target.value)}
-                        placeholder="Inserisci nuova password"
-                      />
-                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('resetStore')}>
-                        {visiblePasswords.resetStore ? 'Nascondi' : 'Mostra'}
-                      </button>
-                    </div>
-                  </label>
-                  <label>
-                    Conferma password
-                    <div className="password-row">
-                      <input
-                        type={visiblePasswords.resetStoreConfirm ? 'text' : 'password'}
-                        value={resetStoreConfirm}
-                        onChange={(event) => setResetStoreConfirm(event.target.value)}
-                        placeholder="Ripeti la password"
-                      />
-                      <button className="ghost small" type="button" onClick={() => togglePasswordVisibility('resetStoreConfirm')}>
-                        {visiblePasswords.resetStoreConfirm ? 'Nascondi' : 'Mostra'}
-                      </button>
-                    </div>
-                  </label>
-                  {resetStoreError ? <p className="error">{resetStoreError}</p> : null}
-                  {resetStoreSuccess ? <p className="success">{resetStoreSuccess}</p> : null}
-                  <button className="cta" type="submit">Reimposta password socio</button>
-                </form>
-
-                <form onSubmit={resetCustomerPasswordFn} className="stack split">
-                  <label>
-                    Reset password cliente
-                    <div className="password-row">
-                      <input
-                        type={visiblePasswords.resetCustomer ? 'text' : 'password'}
-                        value={resetCustomerPassword}
-                        onChange={(event) => setResetCustomerPassword(event.target.value)}
-                        placeholder={
-                          selectedStoreCustomer
-                            ? `Nuova password per ${selectedStoreCustomer.name}`
-                            : 'Seleziona un cliente dalla barra laterale'
-                        }
-                        disabled={!selectedStoreCustomer}
-                      />
-                      <button
-                        className="ghost small"
-                        type="button"
-                        onClick={() => togglePasswordVisibility('resetCustomer')}
-                        disabled={!selectedStoreCustomer}
-                      >
-                        {visiblePasswords.resetCustomer ? 'Nascondi' : 'Mostra'}
-                      </button>
-                    </div>
-                  </label>
-                  {resetCustomerError ? <p className="error">{resetCustomerError}</p> : null}
-                  {resetCustomerSuccess ? <p className="success">{resetCustomerSuccess}</p> : null}
-                  <button className="ghost" type="submit" disabled={!selectedStoreCustomer}>
-                    Reimposta password cliente
-                  </button>
-                </form>
-              </article>
-            </section>
-          )}
+          ) : null}
         </>
       ) : (
         <section className="grid customer-view">
