@@ -249,6 +249,14 @@ function App() {
     [customerMovements],
   )
 
+  const customerStoreId = useMemo(() => {
+    if (role !== 'customer' || !profile?.customer_id) {
+      return null
+    }
+
+    return customers.find((customer) => customer.id === profile.customer_id)?.store_id ?? null
+  }, [customers, profile?.customer_id, role])
+
   const previewDisplayName = newCustomerNote.trim()
     ? `${newCustomerName.trim()} (${newCustomerNote.trim()})`
     : newCustomerName.trim()
@@ -763,8 +771,7 @@ function App() {
   }, [profile, role])
 
   useEffect(() => {
-    if (!supabase || role !== 'customer' || !profile?.customer_id) return
-    const customerStoreId = customers[0]?.store_id
+    if (!supabase || role !== 'customer') return
     if (!customerStoreId) return
 
     const client = supabase
@@ -795,7 +802,7 @@ function App() {
         safeAsync(() => client.removeChannel(channel))
       })
     }
-  }, [supabase, role, profile?.customer_id, customers[0]?.store_id])
+  }, [supabase, role, customerStoreId])
 
   useEffect(() => {
     if (!supabase || role !== 'store' || !selectedStoreCustomerId || !profile?.store_id) {
