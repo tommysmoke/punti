@@ -1392,6 +1392,11 @@ function App() {
               <span className="comms-banner-body">{visibleNotifications[0].body}</span>
             </div>
             <span className="comms-banner-arrow">→</span>
+            <button
+              className="comms-banner-dismiss"
+              onClick={(e) => { e.stopPropagation(); handleDismissNotification(visibleNotifications[0].id) }}
+              title="Nascondi"
+            >✕</button>
           </div>
         ) : null}
         <section className="store-shell">

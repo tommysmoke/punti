@@ -972,6 +972,29 @@ time {
   flex-shrink: 0;
 }
 
+.comms-banner-dismiss {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: .72rem;
+  color: var(--text);
+  line-height: 1;
+  transition: background .15s, color .15s, border-color .15s;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.comms-banner-dismiss:hover {
+  background: rgba(15, 76, 92, .08);
+  color: var(--text-h);
+  border-color: var(--border);
+}
+
 /* Card comunicazioni cliente (homepage) */
 .comms-hero {
   margin-bottom: .9rem;
