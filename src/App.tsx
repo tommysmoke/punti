@@ -108,6 +108,7 @@ function App() {
   const [editCustomerName, setEditCustomerName] = useState('')
   const [editCustomerPhone, setEditCustomerPhone] = useState('')
   const [editCustomerBirthDayMonth, setEditCustomerBirthDayMonth] = useState('')
+  const [editCustomerOriginalPhone, setEditCustomerOriginalPhone] = useState('')
   const [editCustomerError, setEditCustomerError] = useState('')
   const [savingCustomerEdit, setSavingCustomerEdit] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -175,7 +176,8 @@ function App() {
   }
 
   function buildUsername(fullName: string, birthDayMonth: string) {
-    const base = fullName
+    const nameWithoutParentheses = fullName.replace(/\s*\([^)]*\)/g, ' ')
+    const base = nameWithoutParentheses
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9]/g, '')
@@ -1053,6 +1055,7 @@ function App() {
     setEditCustomerName(selectedStoreCustomer.name)
     setEditCustomerPhone(selectedStoreCustomer.phone)
     setEditCustomerBirthDayMonth(selectedStoreCustomer.birth_day_month ?? '')
+    setEditCustomerOriginalPhone(selectedStoreCustomer.phone)
     setEditCustomerError('')
     setEditingCustomerId(selectedStoreCustomer.id)
   }
@@ -1062,6 +1065,7 @@ function App() {
     setEditCustomerName('')
     setEditCustomerPhone('')
     setEditCustomerBirthDayMonth('')
+    setEditCustomerOriginalPhone('')
     setEditCustomerError('')
   }
 
@@ -1091,11 +1095,12 @@ function App() {
 
     setSavingCustomerEdit(true)
     try {
-      const { error } = await supabase.rpc('update_customer', {
+      const { error } = await supabase.rpc('update_customer_profile_credentials', {
         p_customer_id: editingCustomerId,
         p_name: name,
         p_phone: phone,
         p_birth_day_month: birthDayMonth || null,
+        p_old_phone: editCustomerOriginalPhone,
       })
 
       if (error) {
