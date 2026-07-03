@@ -231,6 +231,17 @@
     #fff;
 }
 
+.selected-customer-separator {
+  height: 2px;
+  margin: 0.85rem 0 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(15, 76, 92, 0.08), rgba(15, 76, 92, 0.28), rgba(15, 76, 92, 0.08));
+}
+
+.selected-customer-rewards {
+  margin-top: 0;
+}
+
 .selected-customer-card .movements {
   max-height: 18rem;
   overflow-y: auto;

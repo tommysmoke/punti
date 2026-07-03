@@ -1720,7 +1720,9 @@ function App() {
                   </div>
                   <p className="points-balance mini">{selectedStoreCustomer.points} punti</p>
 
-                  <div className="stack split no-top-border">
+                  <div className="selected-customer-separator" aria-hidden="true"></div>
+
+                  <div className="stack split no-top-border selected-customer-rewards">
                     <h3>Premi raggiungibili
                     {selectedCustomerReachableRewards.length > 0 ? (
                       <span className="badge">{selectedCustomerReachableRewards.length}</span>
