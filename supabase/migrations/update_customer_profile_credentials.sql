@@ -14,7 +14,7 @@ create or replace function public.update_customer_profile_credentials(
 returns void
 language plpgsql
 security definer
-set search_path = public, auth
+set search_path = public, auth, extensions
 as $$
 declare
   v_store_id uuid;
@@ -122,7 +122,7 @@ begin
   end if;
 
   update auth.users
-  set encrypted_password = crypt(v_new_phone, gen_salt('bf'))
+  set encrypted_password = extensions.crypt(v_new_phone, extensions.gen_salt('bf'))
   where id = v_user_id;
 end;
 $$;
