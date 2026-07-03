@@ -47,6 +47,8 @@ type Reward = {
   active: boolean
 }
 
+const HARD_REFRESH_INTERVAL_MS = 10 * 60 * 1000
+
 function App() {
   const [sessionLoading, setSessionLoading] = useState(true)
   const [role, setRole] = useState<Role | null>(null)
@@ -605,6 +607,63 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!supabase || !profile || !role || !isOnline) {
+      return
+    }
+
+    const client = supabase
+
+    const hardRefresh = async () => {
+      if (document.visibilityState !== 'visible') {
+        return
+      }
+
+      if (role === 'store' && profile.store_id) {
+        await Promise.all([
+          loadStoreCustomers(profile.store_id),
+          loadRewards(profile.store_id),
+          loadRecentNotifications(profile.store_id),
+        ])
+        return
+      }
+
+      if (role === 'customer' && profile.customer_id) {
+        await loadCustomerHome(profile.customer_id)
+
+        const { data: custData } = await client
+          .from('customers')
+          .select('store_id')
+          .eq('id', profile.customer_id)
+          .single()
+
+        if (custData?.store_id) {
+          await Promise.all([
+            loadCustomerRewards(custData.store_id),
+            loadRecentNotifications(custData.store_id),
+          ])
+        }
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      safeAsync(hardRefresh)
+    }, HARD_REFRESH_INTERVAL_MS)
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        safeAsync(hardRefresh)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [isOnline, profile, role])
+
+  useEffect(() => {
     if (!supabase || !profile) {
       return
     }
@@ -631,7 +690,33 @@ function App() {
         )
         .subscribe()
 
-      channels.push(customerChannel)
+      const rewardsChannel = client
+        .channel(`store-rewards-${profile.store_id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'rewards', filter: `store_id=eq.${profile.store_id}` },
+          () => {
+            const storeId = profile?.store_id
+            if (!storeId) return
+            safeAsync(() => loadRewards(storeId))
+          },
+        )
+        .subscribe()
+
+      const notificationsChannel = client
+        .channel(`store-notifications-${profile.store_id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'store_notifications', filter: `store_id=eq.${profile.store_id}` },
+          () => {
+            const storeId = profile?.store_id
+            if (!storeId) return
+            safeAsync(() => loadRecentNotifications(storeId))
+          },
+        )
+        .subscribe()
+
+      channels.push(customerChannel, rewardsChannel, notificationsChannel)
     }
 
     if (role === 'customer' && profile.customer_id) {
@@ -676,6 +761,41 @@ function App() {
       })
     }
   }, [profile, role])
+
+  useEffect(() => {
+    if (!supabase || role !== 'customer' || !profile?.customer_id) return
+    const customerStoreId = customers[0]?.store_id
+    if (!customerStoreId) return
+
+    const client = supabase
+    const channels: ReturnType<typeof client.channel>[] = []
+
+    const rewardsChannel = client
+      .channel(`customer-rewards-${customerStoreId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rewards', filter: `store_id=eq.${customerStoreId}` },
+        () => { safeAsync(() => loadCustomerRewards(customerStoreId)) },
+      )
+      .subscribe()
+
+    const notificationsChannel = client
+      .channel(`customer-notifications-${customerStoreId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'store_notifications', filter: `store_id=eq.${customerStoreId}` },
+        () => { safeAsync(() => loadRecentNotifications(customerStoreId)) },
+      )
+      .subscribe()
+
+    channels.push(rewardsChannel, notificationsChannel)
+
+    return () => {
+      channels.forEach((channel) => {
+        safeAsync(() => client.removeChannel(channel))
+      })
+    }
+  }, [supabase, role, profile?.customer_id, customers[0]?.store_id])
 
   useEffect(() => {
     if (!supabase || role !== 'store' || !selectedStoreCustomerId || !profile?.store_id) {
