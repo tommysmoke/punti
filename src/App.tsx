@@ -112,6 +112,7 @@ function App() {
   const [savingCustomerEdit, setSavingCustomerEdit] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [initError, setInitError] = useState<string | null>(null)
+  const [showOverride, setShowOverride] = useState(false)
 
   // TODO: Feature #6 - Real-time sync: quando saldo cliente cambia da altro browser, aggiorna automaticamente
   // TODO: Feature #10 - Caricamento ottimizzato: mostrare skeleton/placeholder mentre carichi, non "Sincronizzazione..."
@@ -1825,24 +1826,37 @@ function App() {
                 </button>
               </form>
 
-              <form onSubmit={overridePoints} className="stack split">
-                <h3>Rettifica Punti</h3>
-                <label>
-                  <small>Inserisci il nuovo valore punti desiderato finale</small>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={overrideAmount}
-                    onChange={(event) => setOverrideAmount(event.target.value)}
-                    placeholder={selectedStoreCustomer ? `Nuovo valore (attuali: ${selectedStoreCustomer.points})` : 'Seleziona un cliente'}
-                    disabled={!selectedStoreCustomer}
-                  />
-                </label>
-                <button className="ghost small" type="submit" disabled={!selectedStoreCustomer}>
-                  Rettifica punti
-                </button>
-              </form>
+              <div className="stack split">
+                <h3
+                  role="button"
+                  tabIndex={0}
+                  className="collapse-header"
+                  onClick={() => setShowOverride(v => !v)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setShowOverride(v => !v) }}
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Rettifica Punti {showOverride ? '▾' : '▸'}
+                </h3>
+                {showOverride ? (
+                  <form onSubmit={overridePoints} className="stack" style={{ marginTop: 0 }}>
+                    <label>
+                      <small>Inserisci il nuovo valore punti desiderato finale</small>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={overrideAmount}
+                        onChange={(event) => setOverrideAmount(event.target.value)}
+                        placeholder={selectedStoreCustomer ? `Nuovo valore (attuali: ${selectedStoreCustomer.points})` : 'Seleziona un cliente'}
+                        disabled={!selectedStoreCustomer}
+                      />
+                    </label>
+                    <button className="ghost small" type="submit" disabled={!selectedStoreCustomer}>
+                      Rettifica punti
+                    </button>
+                  </form>
+                ) : null}
+              </div>
             </article>
           </div>
         </section>
