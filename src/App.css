@@ -911,3 +911,223 @@ time {
     grid-column: auto;
   }
 }
+
+/* Banner comunicazioni store (homepage Operazioni) */
+.comms-banner {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: .65rem .85rem;
+  border-radius: .75rem;
+  background: #e8f0ed;
+  border: 1px solid #cdd9d5;
+  box-shadow: 0 1px 3px rgba(16, 36, 42, .04);
+  margin-bottom: .9rem;
+  cursor: pointer;
+  transition: box-shadow .15s ease;
+  position: relative;
+}
+
+.comms-banner:hover {
+  box-shadow: var(--shadow);
+}
+
+.comms-banner-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: dot-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: .35; }
+  50% { opacity: 1; }
+}
+
+.comms-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.comms-banner-title {
+  font-weight: 700;
+  color: var(--text-h);
+  font-size: .9rem;
+}
+
+.comms-banner-body {
+  font-size: .82rem;
+  color: var(--text);
+  margin-top: .1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comms-banner-arrow {
+  font-size: .85rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Card comunicazioni cliente (homepage) */
+.comms-hero {
+  margin-bottom: .9rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 1rem;
+  border: 1px solid #cdd9d5;
+  background: #e8f0ed;
+  box-shadow: 0 1px 3px rgba(16, 36, 42, .04);
+  cursor: pointer;
+  transition: box-shadow .2s ease, transform .18s ease;
+  animation: comms-hero-in .4s ease-out;
+}
+
+.comms-hero:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+@keyframes comms-hero-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.comms-hero-head {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  margin-bottom: .65rem;
+}
+
+.comms-hero-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: .8rem;
+  background: linear-gradient(125deg, #0f6b72, #14a8b8);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-size: 1.4rem;
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(15, 76, 92, .2);
+  animation: icon-float 2.4s ease-in-out infinite;
+}
+
+@keyframes icon-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.comms-hero-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.comms-hero-head-label {
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  color: var(--text-h);
+  font-weight: 700;
+}
+
+.comms-hero-head-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .25rem .6rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-left: auto;
+  animation: badge-glow 2s ease-in-out infinite;
+}
+
+@keyframes badge-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(15, 76, 92, .25); }
+  50% { box-shadow: 0 0 0 6px rgba(15, 76, 92, 0); }
+}
+
+.comms-hero-list {
+  display: grid;
+  gap: .45rem;
+}
+
+.comms-hero-item {
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+  padding: .55rem .6rem;
+  border-radius: .7rem;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+
+.comms-hero-item-emoji {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: .05rem;
+  width: 1.3rem;
+  text-align: center;
+}
+
+.comms-hero-item-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.comms-hero-item-title {
+  font-weight: 700;
+  color: var(--text-h);
+  font-size: .86rem;
+}
+
+.comms-hero-item-body {
+  font-size: .8rem;
+  color: var(--text);
+  margin-top: .08rem;
+  line-height: 1.35;
+}
+
+.comms-item-right {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-shrink: 0;
+  margin-top: .05rem;
+}
+
+.comms-hero-item-time {
+  font-size: .72rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.comms-item-dismiss {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: .72rem;
+  color: var(--text);
+  line-height: 1;
+  transition: background .15s, color .15s, border-color .15s;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.comms-item-dismiss:hover {
+  background: rgba(15, 76, 92, .08);
+  color: var(--text-h);
+  border-color: var(--border);
+}

@@ -99,6 +99,28 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [initError, setInitError] = useState<string | null>(null)
   const [showOverride, setShowOverride] = useState(false)
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<number[]>(() => {
+    try {
+      const raw = localStorage.getItem('comms_dismissed')
+      return raw ? (JSON.parse(raw) as number[]) : []
+    } catch {
+      return []
+    }
+  })
+
+  const visibleNotifications = useMemo(() => {
+    return recentNotifications
+      .filter((n) => !dismissedNotificationIds.includes(n.id))
+      .slice(0, 3)
+  }, [recentNotifications, dismissedNotificationIds])
+
+  const handleDismissNotification = (id: number) => {
+    setDismissedNotificationIds((prev) => {
+      const next = [...prev, id]
+      localStorage.setItem('comms_dismissed', JSON.stringify(next))
+      return next
+    })
+  }
 
   // TODO: Feature #6 - Real-time sync: quando saldo cliente cambia da altro browser, aggiorna automaticamente
   // TODO: Feature #10 - Caricamento ottimizzato: mostrare skeleton/placeholder mentre carichi, non "Sincronizzazione..."
@@ -272,12 +294,10 @@ function App() {
 
   const loadRecentNotifications = async (storeId: string) => {
     if (!supabase) return
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data } = await supabase
       .from('store_notifications')
       .select('id, title, body, created_at')
       .eq('store_id', storeId)
-      .gte('created_at', oneDayAgo)
       .order('created_at', { ascending: false })
       .limit(10)
     setRecentNotifications((data ?? []) as { id: number; title: string; body: string; created_at: string }[])
@@ -1362,6 +1382,16 @@ function App() {
 
           {storePage === 'operations' ? (
         <>
+        {visibleNotifications.length > 0 ? (
+          <div className="comms-banner" onClick={() => setStorePage('communications')}>
+            <span className="comms-banner-dot"></span>
+            <div className="comms-banner-text">
+              <span className="comms-banner-title">{visibleNotifications[0].title}</span>
+              <span className="comms-banner-body">{visibleNotifications[0].body}</span>
+            </div>
+            <span className="comms-banner-arrow">→</span>
+          </div>
+        ) : null}
         <section className="store-shell">
           <article className="card customers-sidebar">
             <h2>Clienti <span className="badge">{filteredCustomers.length}</span></h2>
@@ -1777,6 +1807,39 @@ function App() {
           ) : null}
         </>
       ) : (
+        <>
+        {visibleNotifications.length > 0 ? (
+          <div className="comms-hero">
+            <div className="comms-hero-head">
+              <div className="comms-hero-icon">📢</div>
+              <div className="comms-hero-head-text">
+                <span className="comms-hero-head-label">Comunicazioni dal negozio</span>
+              </div>
+              <span className="comms-hero-head-badge">{visibleNotifications.length} nuove</span>
+            </div>
+            <div className="comms-hero-list">
+              {visibleNotifications.map((n) => (
+                <div key={n.id} className="comms-hero-item">
+                  <span className="comms-hero-item-emoji">📌</span>
+                  <div className="comms-hero-item-text">
+                    <span className="comms-hero-item-title">{n.title}</span>
+                    <span className="comms-hero-item-body">{n.body}</span>
+                  </div>
+                  <div className="comms-item-right">
+                    <span className="comms-hero-item-time">
+                      {new Date(n.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <button
+                      className="comms-item-dismiss"
+                      onClick={(e) => { e.stopPropagation(); handleDismissNotification(n.id) }}
+                      title="Nascondi"
+                    >✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <section className="grid customer-view">
           <article className="card hero-card">
             <h2>I tuoi punti</h2>
@@ -1797,23 +1860,6 @@ function App() {
               <p className="hint no-top">Scheda cliente non disponibile</p>
             )}
           </article>
-
-          {recentNotifications.length > 0 ? (
-            <article className="card customer-rewards-card">
-              <h2>Comunicazioni recenti</h2>
-              <ul className="movements">
-                {recentNotifications.map((n) => (
-                  <li key={n.id} className="movement-earn">
-                    <div>
-                      <strong>{n.title}</strong>
-                      <p>{n.body}</p>
-                    </div>
-                    <time>{new Date(n.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ) : null}
 
           <article className="card">
             <h2>
@@ -1885,6 +1931,7 @@ function App() {
             I tuoi dati personali non vengono condivisi con nessuno. Utilizziamo i tuoi dati solo per la raccolta punti. Non raccogliamo cookies.
           </p>
         </section>
+      </>
       )}
 
     </main>
