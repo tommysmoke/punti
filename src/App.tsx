@@ -235,6 +235,11 @@ function App() {
     return activeRewards.find((reward) => reward.points_cost > selectedStoreCustomer.points) ?? null
   }, [activeRewards, selectedStoreCustomer])
 
+  const customerVisibleMovements = useMemo(
+    () => customerMovements.filter((movement) => !(movement.kind === 'adjust' && /sovrascrittura/i.test(movement.note ?? ''))),
+    [customerMovements],
+  )
+
   const previewDisplayName = newCustomerNote.trim()
     ? `${newCustomerName.trim()} (${newCustomerNote.trim()})`
     : newCustomerName.trim()
@@ -2196,12 +2201,12 @@ function App() {
           <article className="card">
             <h2>
               Ultimi movimenti
-              {customerMovements.length > 7 ? (
-                <span className="badge" style={{marginLeft:'0.5rem'}} title={`${customerMovements.length} movimenti totali`}>
+              {customerVisibleMovements.length > 7 ? (
+                <span className="badge" style={{marginLeft:'0.5rem'}} title={`${customerVisibleMovements.length} movimenti visibili`}>
                   e molti altri...
                 </span>
-              ) : customerMovements.length > 0 ? (
-                <span className="badge" style={{marginLeft:'0.5rem'}}>{customerMovements.length}</span>
+              ) : customerVisibleMovements.length > 0 ? (
+                <span className="badge" style={{marginLeft:'0.5rem'}}>{customerVisibleMovements.length}</span>
               ) : null}
             </h2>
             {loadingData ? (
@@ -2212,8 +2217,8 @@ function App() {
               </div>
             ) : (
             <ul className="movements">
-              {customerMovements.length ? (
-                customerMovements.slice(0, 7).map((movement) => (
+              {customerVisibleMovements.length ? (
+                customerVisibleMovements.slice(0, 7).map((movement) => (
                   <li key={movement.id} className={`movement-${movement.kind}`}>
                     <div>
                       <strong>
