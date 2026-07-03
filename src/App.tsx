@@ -294,10 +294,12 @@ function App() {
 
   const loadRecentNotifications = async (storeId: string) => {
     if (!supabase) return
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data } = await supabase
       .from('store_notifications')
       .select('id, title, body, created_at')
       .eq('store_id', storeId)
+      .gte('created_at', oneDayAgo)
       .order('created_at', { ascending: false })
       .limit(10)
     setRecentNotifications((data ?? []) as { id: number; title: string; body: string; created_at: string }[])
