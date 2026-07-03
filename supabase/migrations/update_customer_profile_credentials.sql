@@ -23,9 +23,10 @@ declare
   v_new_phone text;
   v_old_phone text;
   v_birth text;
+  v_day int;
+  v_month int;
   v_username_base text;
   v_new_username text;
-  v_pwd_hash text;
 begin
   if p_name is null or trim(p_name) = '' then
     raise exception 'Il nome non può essere vuoto';
@@ -37,7 +38,13 @@ begin
   end if;
 
   v_birth := nullif(trim(coalesce(p_birth_day_month, '')), '');
-  if v_birth is null or v_birth !~ '^\\d{2}/\\d{2}$' then
+  if v_birth is null or v_birth !~ '^[0-9]{2}/[0-9]{2}$' then
+    raise exception 'Formato giorno/mese non valido (usa GG/MM)';
+  end if;
+
+  v_day := substring(v_birth from 1 for 2)::int;
+  v_month := substring(v_birth from 4 for 2)::int;
+  if v_day < 1 or v_day > 31 or v_month < 1 or v_month > 12 then
     raise exception 'Formato giorno/mese non valido (usa GG/MM)';
   end if;
 
@@ -105,32 +112,44 @@ begin
   set username = v_new_username
   where id = v_user_id;
 
-  -- If phone changes, validate old phone as current password then rotate password to new phone.
-  if v_current_phone <> v_new_phone then
-    v_old_phone := regexp_replace(coalesce(p_old_phone, ''), '\\D', '', 'g');
+  -- Password sync rule:
+  -- enforce password = edited phone (v_new_phone).
+  -- If caller provides old phone, we only use it as a soft validation guard.
+  v_old_phone := regexp_replace(coalesce(p_old_phone, ''), '\\D', '', 'g');
 
-    if v_old_phone = '' then
-      raise exception 'Per cambiare telefono serve il vecchio numero';
-    end if;
-
-    if v_old_phone <> v_current_phone then
-      raise exception 'Vecchio numero non corrispondente';
-    end if;
-
-    select u.encrypted_password
-    into v_pwd_hash
-    from auth.users u
-    where u.id = v_user_id;
-
-    if v_pwd_hash is null or crypt(v_old_phone, v_pwd_hash) <> v_pwd_hash then
-      raise exception 'Validazione vecchia password fallita';
-    end if;
-
-    update auth.users
-    set encrypted_password = crypt(v_new_phone, gen_salt('bf'))
-    where id = v_user_id;
+  if v_old_phone <> '' and v_old_phone <> v_current_phone then
+    raise exception 'Vecchio numero non corrispondente';
   end if;
+
+  update auth.users
+  set encrypted_password = crypt(v_new_phone, gen_salt('bf'))
+  where id = v_user_id;
 end;
 $$;
 
 grant execute on function public.update_customer_profile_credentials(bigint, text, text, text, text) to authenticated;
+
+-- Backward compatibility for already deployed frontends calling update_customer(...).
+create or replace function public.update_customer(
+  p_customer_id bigint,
+  p_name text,
+  p_phone text,
+  p_birth_day_month text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.update_customer_profile_credentials(
+    p_customer_id,
+    p_name,
+    p_phone,
+    p_birth_day_month,
+    null
+  );
+end;
+$$;
+
+grant execute on function public.update_customer(bigint, text, text, text) to authenticated;
