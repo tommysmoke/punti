@@ -1720,67 +1720,69 @@ function App() {
                   </div>
                   <p className="points-balance mini">{selectedStoreCustomer.points} punti</p>
 
-                  <h3 className="subsection-title">
-                    Premi raggiungibili
+                  <div className="stack split no-top-border">
+                    <h3>Premi raggiungibili
                     {selectedCustomerReachableRewards.length > 0 ? (
                       <span className="badge">{selectedCustomerReachableRewards.length}</span>
                     ) : null}
-                  </h3>
-                  {selectedCustomerReachableRewards.length > 0 ? (
-                    <ul className="rewards-list rewards-list-compact">
-                      {selectedCustomerReachableRewards.map((reward) => (
-                        <li key={reward.id} className="reward-item reward-reachable">
-                          <div className="reward-info">
-                            <strong>{reward.name}</strong>
-                            {reward.description ? <p className="reward-desc">{reward.description}</p> : null}
-                          </div>
-                          <span className="reward-cost">{reward.points_cost} pt</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : selectedCustomerNextReward ? (
-                    <p className="hint no-top">
-                      Nessun premio riscattabile ora. Prossimo premio: <strong>{selectedCustomerNextReward.name}</strong> a {selectedCustomerNextReward.points_cost} punti.
-                    </p>
-                  ) : (
-                    <p className="hint no-top">Nessun premio attivo configurato per questo negozio.</p>
-                  )}
+                    </h3>
+                    {selectedCustomerReachableRewards.length > 0 ? (
+                      <ul className="rewards-list rewards-list-compact">
+                        {selectedCustomerReachableRewards.map((reward) => (
+                          <li key={reward.id} className="reward-item reward-reachable">
+                            <div className="reward-info">
+                              <strong>{reward.name}</strong>
+                              {reward.description ? <p className="reward-desc">{reward.description}</p> : null}
+                            </div>
+                            <span className="reward-cost">{reward.points_cost} pt</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : selectedCustomerNextReward ? (
+                      <p className="hint no-top">
+                        Nessun premio riscattabile ora. Prossimo premio: <strong>{selectedCustomerNextReward.name}</strong> a {selectedCustomerNextReward.points_cost} punti.
+                      </p>
+                    ) : (
+                      <p className="hint no-top">Nessun premio attivo configurato per questo negozio.</p>
+                    )}
+                  </div>
 
-                  <h3 className="subsection-title">
-                    Movimenti cliente
+                  <div className="stack split">
+                    <h3>Movimenti cliente
                     {customerMovements.length > 0 ? (
                       <span className="badge">{customerMovements.length}</span>
                     ) : null}
-                  </h3>
-                  <ul className="movements">
-                    {customerMovements.length ? (
-                      customerMovements.map((movement) => (
-                        <li key={movement.id} className={`movement-${movement.kind}`}>
-                          <div className="movement-content">
-                            <div>
-                              <strong>
-                                {(movement.kind === 'earn' || (movement.kind === 'adjust' && movement.points > 0)) ? '+ ' : movement.kind === 'adjust' && movement.points < 0 ? '- ' : '  '}
-                                {Math.abs(movement.points)} pt
-                              </strong>
-                              <p>{movement.note ?? 'Movimento registrato'}</p>
+                    </h3>
+                    <ul className="movements">
+                      {customerMovements.length ? (
+                        customerMovements.map((movement) => (
+                          <li key={movement.id} className={`movement-${movement.kind}`}>
+                            <div className="movement-content">
+                              <div>
+                                <strong>
+                                  {(movement.kind === 'earn' || (movement.kind === 'adjust' && movement.points > 0)) ? '+ ' : movement.kind === 'adjust' && movement.points < 0 ? '- ' : '  '}
+                                  {Math.abs(movement.points)} pt
+                                </strong>
+                                <p>{movement.note ?? 'Movimento registrato'}</p>
+                              </div>
+                              <div className="movement-actions">
+                                <time>{new Date(movement.created_at).toLocaleDateString('it-IT')}</time>
+                                <button
+                                  className="ghost small danger"
+                                  type="button"
+                                  onClick={() => askDeleteTransaction(movement)}
+                                >
+                                  Elimina
+                                </button>
+                              </div>
                             </div>
-                            <div className="movement-actions">
-                              <time>{new Date(movement.created_at).toLocaleDateString('it-IT')}</time>
-                              <button
-                                className="ghost small danger"
-                                type="button"
-                                onClick={() => askDeleteTransaction(movement)}
-                              >
-                                Elimina
-                              </button>
-                            </div>
-                          </div>
-                        </li>
-                      ))
-                    ) : (
-                      <li>Nessun movimento registrato per questo cliente</li>
-                    )}
-                  </ul>
+                          </li>
+                        ))
+                      ) : (
+                        <li>Nessun movimento registrato per questo cliente</li>
+                      )}
+                    </ul>
+                  </div>
                 </>
               ) : (
                 <p className="hint no-top">Seleziona un cliente dalla lista.</p>
