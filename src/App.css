@@ -1086,6 +1086,7 @@ time {
   font-weight: 700;
   color: var(--text-h);
   font-size: .86rem;
+  display: block;
 }
 
 .comms-hero-item-body {
@@ -1093,6 +1094,7 @@ time {
   color: var(--text);
   margin-top: .25rem;
   line-height: 1.35;
+  display: block;
 }
 
 .comms-item-right {
