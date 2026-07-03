@@ -1091,7 +1091,7 @@ time {
 .comms-hero-item-body {
   font-size: .8rem;
   color: var(--text);
-  margin-top: .08rem;
+  margin-top: .25rem;
   line-height: 1.35;
 }
 
