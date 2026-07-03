@@ -16,7 +16,6 @@ dist-ssr
 .code-workspace
 *.code-workspace
 
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
