@@ -70,7 +70,19 @@ function App() {
     debouncedSearch, setDebouncedSearch,
   } = state
 
-  const { route: storePage, navigate: setStorePage } = useHashRoute('operations')
+  const { route: storePage, navigate: setStorePage } = useHashRoute()
+
+  useEffect(() => {
+    if (!role) {
+      setStorePage(null)
+    } else if (role === 'customer') {
+      setStorePage('cliente')
+    } else if (role === 'store' && !storePage) {
+      setStorePage('operations')
+    }
+  }, [role, storePage, setStorePage])
+
+  const tab = storePage ?? 'operations'
 
   const selectedStoreCustomerIdRef = useRef(selectedStoreCustomerId)
   selectedStoreCustomerIdRef.current = selectedStoreCustomerId
@@ -1395,35 +1407,35 @@ function App() {
           <section className="store-nav">
             <button
               type="button"
-              className={`ghost small ${storePage === 'operations' ? 'active-tab' : ''}`}
+              className={`ghost small ${tab === 'operations' ? 'active-tab' : ''}`}
               onClick={() => setStorePage('operations')}
             >
               Operazioni
             </button>
             <button
               type="button"
-              className={`ghost small ${storePage === 'new-customer' ? 'active-tab' : ''}`}
+              className={`ghost small ${tab === 'new-customer' ? 'active-tab' : ''}`}
               onClick={() => setStorePage('new-customer')}
             >
               Nuovo cliente
             </button>
             <button
               type="button"
-              className={`ghost small ${storePage === 'rewards' ? 'active-tab' : ''}`}
+              className={`ghost small ${tab === 'rewards' ? 'active-tab' : ''}`}
               onClick={() => setStorePage('rewards')}
             >
               Premi
             </button>
             <button
               type="button"
-              className={`ghost small ${storePage === 'communications' ? 'active-tab' : ''}`}
+              className={`ghost small ${tab === 'communications' ? 'active-tab' : ''}`}
               onClick={() => setStorePage('communications')}
             >
               <span aria-hidden="true">📢</span> Comunicazioni
             </button>
           </section>
 
-          {storePage === 'operations' ? (
+          {tab === 'operations' ? (
         <>
           {visibleNotifications.length > 0 ? (
           <div className="comms-banner" onClick={() => setStorePage('communications')} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') setStorePage('communications') }}>
@@ -1682,7 +1694,7 @@ function App() {
         </section>
         </>
 
-          ) : storePage === 'new-customer' ? (
+          ) : tab === 'new-customer' ? (
             <section className="store-single-page">
               <article className="card">
                 <h2>Nuovo cliente</h2>
@@ -1754,11 +1766,11 @@ function App() {
                 </form>
               </article>
             </section>
-          ) : storePage === 'communications' ? (
+          ) : tab === 'communications' ? (
             <Suspense fallback={null}>
               <StoreNotifications />
             </Suspense>
-          ) : storePage === 'rewards' ? (
+          ) : tab === 'rewards' ? (
             <section className="store-single-page">
               <article className="card">
                 <h2>Gestione premi</h2>

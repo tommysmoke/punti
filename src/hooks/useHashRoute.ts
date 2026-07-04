@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const STORE_PAGE_VALUES = ['operations', 'new-customer', 'rewards', 'communications'] as const
+const STORE_PAGE_VALUES = ['operations', 'new-customer', 'rewards', 'communications', 'cliente'] as const
 type StorePage = (typeof STORE_PAGE_VALUES)[number]
 
 function isValidStorePage(value: string): value is StorePage {
@@ -17,26 +17,26 @@ function getHashValue(): StorePage | null {
   return null
 }
 
-export function useHashRoute(defaultRoute: StorePage) {
-  const [route, setRoute] = useState<StorePage>(() => {
-    return getHashValue() ?? defaultRoute
-  })
+export function useHashRoute() {
+  const [route, setRoute] = useState<StorePage | null>(() => getHashValue())
 
   useEffect(() => {
     const handleHashChange = () => {
       const fromHash = getHashValue()
-      if (fromHash) {
-        setRoute(fromHash)
-      }
+      setRoute(fromHash)
     }
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
-  const navigate = (next: StorePage) => {
+  const navigate = (next: StorePage | null) => {
     setRoute(next)
     try {
-      if (`#${next}` !== window.location.hash) {
+      if (next === null) {
+        if (window.location.hash) {
+          history.replaceState(null, '', window.location.pathname + window.location.search)
+        }
+      } else if (`#${next}` !== window.location.hash) {
         window.location.hash = next
       }
     } catch {
