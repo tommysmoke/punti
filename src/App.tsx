@@ -1,119 +1,85 @@
-import { type FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import type { FormEvent} from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef } from 'react'
 import './App.css'
 import { createClient } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { registerForPushNotifications, setupMessageListener } from './lib/notifications'
+import { CUSTOMERS_PAGE_SIZE, DEBOUNCE_SEARCH_MS, MAX_CUSTOMER_MOVEMENTS_VISIBLE, MAX_VISIBLE_NOTIFICATIONS, NOTIFICATIONS_MAX_COUNT, NOTIFICATIONS_RECENT_HOURS, POINTS_DIVISOR, TOAST_DURATION_MS } from './lib/constants'
+import { buildUsername } from './lib/username'
+import { useAppState } from './hooks/useAppState'
+import { useHashRoute } from './hooks/useHashRoute'
+import type { Customer, Movement, Profile, Reward, Toast } from './hooks/useAppState'
 
 const StoreNotifications = lazy(() => import('./components/StoreNotifications').then(m => ({ default: m.StoreNotifications })))
-
-type Role = 'store' | 'customer'
-
-type Profile = {
-  id: string
-  role: Role
-  store_id: string | null
-  customer_id: number | null
-}
-
-type Customer = {
-  id: number
-  store_id: string
-  name: string
-  phone: string
-  points: number
-  birth_day_month: string | null
-}
-
-type Movement = {
-  id: number
-  customer_id: number
-  kind: 'earn' | 'redeem' | 'adjust'
-  points: number
-  note: string | null
-  created_at: string
-}
-
-type Toast = {
-  type: 'success' | 'error'
-  message: string
-}
-
-type Reward = {
-  id: number
-  store_id: string
-  name: string
-  description: string | null
-  points_cost: number
-  active: boolean
-}
-
-const HARD_REFRESH_INTERVAL_MS = 10 * 60 * 1000
+import { LoginPage } from './components/LoginPage'
+import { CustomerSidebar } from './components/CustomerSidebar'
+import { ConfirmModal } from './components/ConfirmModal'
 
 function App() {
-  const [sessionLoading, setSessionLoading] = useState(true)
-  const [role, setRole] = useState<Role | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [selectedStoreCustomerId, setSelectedStoreCustomerId] = useState<number | null>(
-    null,
-  )
+  const state = useAppState()
+  const {
+    sessionLoading, setSessionLoading,
+    role, setRole,
+    profile, setProfile,
+    initError, setInitError,
+    customers, setCustomers,
+    selectedStoreCustomerId, setSelectedStoreCustomerId,
+    customerMovements, setCustomerMovements,
+    rewards, setRewards,
+    recentNotifications, setRecentNotifications,
+    loadingData, setLoadingData,
+    notificationPermissionRequested, setNotificationPermissionRequested,
+    pushStatus, setPushStatus,
+    dismissedNotificationIds, setDismissedNotificationIds,
+    loginIdentifier, setLoginIdentifier,
+    loginPassword, setLoginPassword,
+    loginError, setLoginError,
+    loginLoading, setLoginLoading,
+    visiblePasswords, setVisiblePasswords,
+    actionError, setActionError,
+    toast, setToast,
+    confirmModal, setConfirmModal,
+    isOnline, setIsOnline,
+    showOverride, setShowOverride,
+    newCustomerName, setNewCustomerName,
+    newCustomerPhone, setNewCustomerPhone,
+    newCustomerBirthDayMonth, setNewCustomerBirthDayMonth,
+    newCustomerNote, setNewCustomerNote,
+    newCustomerSuccess, setNewCustomerSuccess,
+    newCustomerError, setNewCustomerError,
+    expenseAmount, setExpenseAmount,
+    redeemAmount, setRedeemAmount,
+    overrideAmount, setOverrideAmount,
+    newRewardName, setNewRewardName,
+    newRewardDescription, setNewRewardDescription,
+    newRewardPoints, setNewRewardPoints,
+    rewardError, setRewardError,
+    editingCustomerId, setEditingCustomerId,
+    editCustomerName, setEditCustomerName,
+    editCustomerPhone, setEditCustomerPhone,
+    editCustomerBirthDayMonth, setEditCustomerBirthDayMonth,
+    editCustomerOriginalPhone, setEditCustomerOriginalPhone,
+    editCustomerError, setEditCustomerError,
+    savingCustomerEdit, setSavingCustomerEdit,
+    addingPoints, setAddingPoints,
+    redeemingPoints, setRedeemingPoints,
+    overridingPoints, setOverridingPoints,
+    creatingCustomer, setCreatingCustomer,
+    addingReward, setAddingReward,
+    customerSearch, setCustomerSearch,
+    debouncedSearch, setDebouncedSearch,
+  } = state
+
+  const { route: storePage, navigate: setStorePage } = useHashRoute('operations')
+
   const selectedStoreCustomerIdRef = useRef(selectedStoreCustomerId)
   selectedStoreCustomerIdRef.current = selectedStoreCustomerId
   const initialBootstrapDone = useRef(false)
-  const [customerMovements, setCustomerMovements] = useState<Movement[]>([])
-  const [recentNotifications, setRecentNotifications] = useState<{ id: number; title: string; body: string; created_at: string }[]>([])
-  const [loadingData, setLoadingData] = useState(false)
-  const [notificationPermissionRequested, setNotificationPermissionRequested] = useState(false)
-  const [pushStatus, setPushStatus] = useState<string | null>(null)
-
-  const [newCustomerName, setNewCustomerName] = useState('')
-  const [newCustomerPhone, setNewCustomerPhone] = useState('')
-  const [newCustomerBirthDayMonth, setNewCustomerBirthDayMonth] = useState('')
-  const [newCustomerNote, setNewCustomerNote] = useState('')
-  const [newCustomerSuccess, setNewCustomerSuccess] = useState('')
-  const [newCustomerError, setNewCustomerError] = useState('')
-  const [expenseAmount, setExpenseAmount] = useState('')
-  const [redeemAmount, setRedeemAmount] = useState('')
-  const [overrideAmount, setOverrideAmount] = useState('')
-
-  const [loginIdentifier, setLoginIdentifier] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
-  const [loginError, setLoginError] = useState('')
-  const [loginLoading, setLoginLoading] = useState(false)
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({})
-  const [actionError, setActionError] = useState('')
-  const [storePage, setStorePage] = useState<'operations' | 'new-customer' | 'rewards' | 'communications'>('operations')
-  const [rewards, setRewards] = useState<Reward[]>([])
-  const [newRewardName, setNewRewardName] = useState('')
-  const [newRewardDescription, setNewRewardDescription] = useState('')
-  const [newRewardPoints, setNewRewardPoints] = useState('')
-  const [rewardError, setRewardError] = useState('')
-  const [customerSearch, setCustomerSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [toast, setToast] = useState<Toast | null>(null)
-  const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null)
-  const [editCustomerName, setEditCustomerName] = useState('')
-  const [editCustomerPhone, setEditCustomerPhone] = useState('')
-  const [editCustomerBirthDayMonth, setEditCustomerBirthDayMonth] = useState('')
-  const [editCustomerOriginalPhone, setEditCustomerOriginalPhone] = useState('')
-  const [editCustomerError, setEditCustomerError] = useState('')
-  const [savingCustomerEdit, setSavingCustomerEdit] = useState(false)
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [initError, setInitError] = useState<string | null>(null)
-  const [showOverride, setShowOverride] = useState(false)
-  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<number[]>(() => {
-    try {
-      const raw = localStorage.getItem('comms_dismissed')
-      return raw ? (JSON.parse(raw) as number[]) : []
-    } catch {
-      return []
-    }
-  })
 
   const visibleNotifications = useMemo(() => {
     return recentNotifications
       .filter((n) => !dismissedNotificationIds.includes(n.id))
-      .slice(0, 3)
+      .slice(0, MAX_VISIBLE_NOTIFICATIONS)
   }, [recentNotifications, dismissedNotificationIds])
 
   const handleDismissNotification = (id: number) => {
@@ -124,25 +90,13 @@ function App() {
     })
   }
 
-  // TODO: Feature #6 - Real-time sync: quando saldo cliente cambia da altro browser, aggiorna automaticamente
-  // TODO: Feature #10 - Caricamento ottimizzato: mostrare skeleton/placeholder mentre carichi, non "Sincronizzazione..."
-
-  // Modali di conferma per operazioni critiche
-  const [confirmModal, setConfirmModal] = useState<{
-    action: 'redeem' | 'override' | 'delete-transaction' | 'delete-customer' | 'delete-reward' | 'create-duplicate-customer'
-    message: string
-    transactionId?: number
-    customerId?: number
-    rewardId?: number
-  } | null>(null)
-
   const pointsPreview = useMemo(() => {
     const amount = Number(expenseAmount)
     if (!Number.isFinite(amount) || amount <= 0) {
       return 0
     }
 
-    return Math.floor(amount / 7)
+    return Math.floor(amount / POINTS_DIVISOR)
   }, [expenseAmount])
 
   const selectedStoreCustomer = customers.find(
@@ -150,7 +104,7 @@ function App() {
   )
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(customerSearch), 250)
+    const timer = setTimeout(() => setDebouncedSearch(customerSearch), DEBOUNCE_SEARCH_MS)
     return () => clearTimeout(timer)
   }, [customerSearch])
 
@@ -170,10 +124,10 @@ function App() {
     setToast({ type, message })
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const safeAsync = (fn: () => Promise<any>) => {
+  const safeAsync = (fn: () => Promise<unknown>, errorCtx?: string) => {
     fn().catch((err: unknown) => {
-      console.error(err)
+      console.error(errorCtx ?? 'safeAsync error', err)
+      if (errorCtx) pushToast('error', errorCtx)
     })
   }
 
@@ -182,21 +136,6 @@ function App() {
       ...current,
       [field]: !current[field],
     }))
-  }
-
-  function buildUsername(fullName: string, birthDayMonth: string) {
-    const nameWithoutParentheses = fullName.replace(/\s*\([^)]*\)/g, ' ')
-    const base = nameWithoutParentheses
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .toLowerCase()
-    const match = birthDayMonth.replace(/\s/g, '').match(/^(\d{2})\/(\d{2})$/)
-    const day = match ? Number(match[1]) : 0
-    const month = match ? Number(match[2]) : 0
-    const valid = day >= 1 && day <= 31 && month >= 1 && month <= 12
-    const suffix = valid && match ? `${match[1]}${match[2]}` : '0000'
-    return `${base}${suffix}`
   }
 
   const customerView =
@@ -304,20 +243,20 @@ function App() {
 
   const loadRecentNotifications = async (storeId: string) => {
     if (!supabase) return
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const oneDayAgo = new Date(Date.now() - NOTIFICATIONS_RECENT_HOURS * 60 * 60 * 1000).toISOString()
     const { data } = await supabase
       .from('store_notifications')
       .select('id, title, body, created_at')
       .eq('store_id', storeId)
       .gte('created_at', oneDayAgo)
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(NOTIFICATIONS_MAX_COUNT)
     setRecentNotifications((data ?? []) as { id: number; title: string; body: string; created_at: string }[])
   }
 
   const addReward = async (event: FormEvent) => {
     event.preventDefault()
-    if (!supabase || !profile?.store_id) return
+    if (!supabase || !profile?.store_id || addingReward) return
 
     const name = newRewardName.trim()
     const cost = Number(newRewardPoints)
@@ -327,23 +266,28 @@ function App() {
     }
 
     setRewardError('')
-    const { error } = await supabase.from('rewards').insert({
-      store_id: profile.store_id,
-      name,
-      description: newRewardDescription.trim() || null,
-      points_cost: cost,
-    })
+    setAddingReward(true)
+    try {
+      const { error } = await supabase.from('rewards').insert({
+        store_id: profile.store_id,
+        name,
+        description: newRewardDescription.trim() || null,
+        points_cost: cost,
+      })
 
-    if (error) {
-      setRewardError(error.message)
-      return
+      if (error) {
+        setRewardError(error.message)
+        return
+      }
+
+      setNewRewardName('')
+      setNewRewardDescription('')
+      setNewRewardPoints('')
+      pushToast('success', `Premio "${name}" aggiunto`)
+      await loadRewards(profile.store_id)
+    } finally {
+      setAddingReward(false)
     }
-
-    setNewRewardName('')
-    setNewRewardDescription('')
-    setNewRewardPoints('')
-    pushToast('success', `Premio "${name}" aggiunto`)
-    await loadRewards(profile.store_id)
   }
 
   const toggleReward = async (reward: Reward) => {
@@ -382,7 +326,7 @@ function App() {
 
     const all: Customer[] = []
     let page = 0
-    const pageSize = 1000
+    const pageSize = CUSTOMERS_PAGE_SIZE
 
     while (true) {
       const { data, error } = await supabase
@@ -594,7 +538,7 @@ function App() {
 
     const timeoutId = setTimeout(() => {
       setToast(null)
-    }, 2600)
+    }, TOAST_DURATION_MS)
 
     return () => {
       clearTimeout(timeoutId)
@@ -619,54 +563,37 @@ function App() {
       return
     }
 
-    const client = supabase
-
-    const hardRefresh = async () => {
-      if (document.visibilityState !== 'visible') {
-        return
-      }
-
-      if (role === 'store' && profile.store_id) {
-        await Promise.all([
-          loadStoreCustomers(profile.store_id),
-          loadRewards(profile.store_id),
-          loadRecentNotifications(profile.store_id),
-        ])
-        return
-      }
-
-      if (role === 'customer' && profile.customer_id) {
-        await loadCustomerHome(profile.customer_id)
-
-        const { data: custData } = await client
-          .from('customers')
-          .select('store_id')
-          .eq('id', profile.customer_id)
-          .single()
-
-        if (custData?.store_id) {
-          await Promise.all([
-            loadCustomerRewards(custData.store_id),
-            loadRecentNotifications(custData.store_id),
-          ])
-        }
-      }
-    }
-
-    const intervalId = window.setInterval(() => {
-      safeAsync(hardRefresh)
-    }, HARD_REFRESH_INTERVAL_MS)
-
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        safeAsync(hardRefresh)
+        if (role === 'store' && profile.store_id) {
+          safeAsync(() => Promise.all([
+            loadStoreCustomers(profile.store_id!),
+            loadRewards(profile.store_id!),
+            loadRecentNotifications(profile.store_id!),
+          ]), 'Sincronizzazione dati fallita')
+        }
+        if (role === 'customer' && profile.customer_id) {
+          safeAsync(async () => {
+            await loadCustomerHome(profile.customer_id!)
+            const { data: custData } = await supabase!
+              .from('customers')
+              .select('store_id')
+              .eq('id', profile.customer_id!)
+              .single()
+            if (custData?.store_id) {
+              await Promise.all([
+                loadCustomerRewards(custData.store_id),
+                loadRecentNotifications(custData.store_id),
+              ])
+            }
+          }, 'Sincronizzazione dati fallita')
+        }
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
-      window.clearInterval(intervalId)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [isOnline, profile, role])
@@ -967,7 +894,7 @@ function App() {
   }
 
   const confirmCreateDuplicateCustomer = async () => {
-    if (!supabase || !profile?.store_id) {
+    if (!supabase || !profile?.store_id || creatingCustomer) {
       return
     }
 
@@ -991,35 +918,40 @@ function App() {
 
     const email = `${username}@emailnonesiste.it`
 
-    const { error } = await tempClient.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          role: 'customer',
-          name: displayName,
-          phone,
-          username,
-          store_id: profile.store_id,
+    setCreatingCustomer(true)
+    try {
+      const { error } = await tempClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            role: 'customer',
+            name: displayName,
+            phone,
+            username,
+            store_id: profile.store_id,
+          },
         },
-      },
-    })
+      })
 
-    await tempClient.auth.signOut()
+      await tempClient.auth.signOut()
 
-    if (error) {
-      setNewCustomerError('Non sono riuscito a creare il cliente. Riprova tra qualche secondo.')
-      pushToast('error', 'Creazione cliente non riuscita')
-      return
+      if (error) {
+        setNewCustomerError('Non sono riuscito a creare il cliente. Riprova tra qualche secondo.')
+        pushToast('error', 'Creazione cliente non riuscita')
+        return
+      }
+
+      setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
+      pushToast('success', `Cliente creato: ${username}`)
+      setNewCustomerName('')
+      setNewCustomerNote('')
+      setNewCustomerPhone('')
+      setNewCustomerBirthDayMonth('')
+      await loadStoreCustomers(profile.store_id)
+    } finally {
+      setCreatingCustomer(false)
     }
-
-    setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
-    pushToast('success', `Cliente creato: ${username}`)
-    setNewCustomerName('')
-    setNewCustomerNote('')
-    setNewCustomerPhone('')
-    setNewCustomerBirthDayMonth('')
-    await loadStoreCustomers(profile.store_id)
   }
 
   const startEditCustomer = () => {
@@ -1097,7 +1029,7 @@ function App() {
   const addCustomer = async (event: FormEvent) => {
     event.preventDefault()
 
-    if (!supabase || !profile?.store_id) {
+    if (!supabase || !profile?.store_id || creatingCustomer) {
       return
     }
 
@@ -1153,63 +1085,73 @@ function App() {
 
     const email = `${username}@emailnonesiste.it`
 
-    const { error } = await tempClient.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          role: 'customer',
-          name: displayName,
-          phone,
-          username,
-          store_id: profile.store_id,
+    setCreatingCustomer(true)
+    try {
+      const { error } = await tempClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            role: 'customer',
+            name: displayName,
+            phone,
+            username,
+            store_id: profile.store_id,
+          },
         },
-      },
-    })
+      })
 
-    await tempClient.auth.signOut()
+      await tempClient.auth.signOut()
 
-    if (error) {
-      setNewCustomerError('Non sono riuscito a creare il cliente. Riprova tra qualche secondo.')
-      pushToast('error', 'Creazione cliente non riuscita')
-      return
+      if (error) {
+        setNewCustomerError('Non sono riuscito a creare il cliente. Riprova tra qualche secondo.')
+        pushToast('error', 'Creazione cliente non riuscita')
+        return
+      }
+
+      setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
+      pushToast('success', `Cliente creato: ${username}`)
+      setNewCustomerName('')
+      setNewCustomerNote('')
+      setNewCustomerPhone('')
+      setNewCustomerBirthDayMonth('')
+      await loadStoreCustomers(profile.store_id)
+    } finally {
+      setCreatingCustomer(false)
     }
-
-    setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
-    pushToast('success', `Cliente creato: ${username}`)
-    setNewCustomerName('')
-    setNewCustomerNote('')
-    setNewCustomerPhone('')
-    setNewCustomerBirthDayMonth('')
-    await loadStoreCustomers(profile.store_id)
   }
 
   const addPoints = async (event: FormEvent) => {
     event.preventDefault()
 
-    if (!supabase || !selectedStoreCustomer || pointsPreview <= 0) {
+    if (!supabase || !selectedStoreCustomer || pointsPreview <= 0 || addingPoints) {
       return
     }
 
     const amount = Number(expenseAmount)
     setActionError('')
+    setAddingPoints(true)
 
-    const { error } = await supabase.rpc('record_earn', {
-      p_customer_id: selectedStoreCustomer.id,
-      p_amount_eur: amount,
-      p_note: `Spesa ${amount.toFixed(2)} EUR`,
-    })
+    try {
+      const { error } = await supabase.rpc('record_earn', {
+        p_customer_id: selectedStoreCustomer.id,
+        p_amount_eur: amount,
+        p_note: `Spesa ${amount.toFixed(2)} EUR`,
+      })
 
-    if (error) {
-      setActionError(error.message)
-      pushToast('error', 'Registrazione spesa non riuscita')
-      return
-    }
+      if (error) {
+        setActionError(error.message)
+        pushToast('error', 'Registrazione spesa non riuscita')
+        return
+      }
 
-    setExpenseAmount('')
-    pushToast('success', `${pointsPreview} punti aggiunti`)
-    if (profile?.store_id) {
-      await loadStoreCustomers(profile.store_id)
+      setExpenseAmount('')
+      pushToast('success', `${pointsPreview} punti aggiunti`)
+      if (profile?.store_id) {
+        await loadStoreCustomers(profile.store_id)
+      }
+    } finally {
+      setAddingPoints(false)
     }
   }
 
@@ -1233,7 +1175,7 @@ function App() {
   }
 
   const confirmRedeem = async () => {
-    if (!supabase || !selectedStoreCustomer) {
+    if (!supabase || !selectedStoreCustomer || redeemingPoints) {
       return
     }
 
@@ -1244,23 +1186,28 @@ function App() {
 
     setConfirmModal(null)
     setActionError('')
+    setRedeemingPoints(true)
 
-    const { error } = await supabase.rpc('record_redeem', {
-      p_customer_id: selectedStoreCustomer.id,
-      p_points: redeem,
-      p_note: 'Redemption manuale',
-    })
+    try {
+      const { error } = await supabase.rpc('record_redeem', {
+        p_customer_id: selectedStoreCustomer.id,
+        p_points: redeem,
+        p_note: 'Redemption manuale',
+      })
 
-    if (error) {
-      setActionError(error.message)
-      pushToast('error', 'Redenzione non riuscita')
-      return
-    }
+      if (error) {
+        setActionError(error.message)
+        pushToast('error', 'Redenzione non riuscita')
+        return
+      }
 
-    setRedeemAmount('')
-    pushToast('success', `${redeem} punti redenti`)
-    if (profile?.store_id) {
-      await loadStoreCustomers(profile.store_id)
+      setRedeemAmount('')
+      pushToast('success', `${redeem} punti redenti`)
+      if (profile?.store_id) {
+        await loadStoreCustomers(profile.store_id)
+      }
+    } finally {
+      setRedeemingPoints(false)
     }
   }
 
@@ -1283,7 +1230,7 @@ function App() {
   }
 
   const confirmOverride = async () => {
-    if (!supabase || !selectedStoreCustomer) {
+    if (!supabase || !selectedStoreCustomer || overridingPoints) {
       return
     }
 
@@ -1294,22 +1241,27 @@ function App() {
 
     setConfirmModal(null)
     setActionError('')
+    setOverridingPoints(true)
 
-    const { error } = await supabase.rpc('set_customer_points', {
-      p_customer_id: selectedStoreCustomer.id,
-      p_new_points: points,
-    })
+    try {
+      const { error } = await supabase.rpc('set_customer_points', {
+        p_customer_id: selectedStoreCustomer.id,
+        p_new_points: points,
+      })
 
-    if (error) {
-      setActionError(error.message)
-      pushToast('error', 'Sovrascrittura punti non riuscita')
-      return
-    }
+      if (error) {
+        setActionError(error.message)
+        pushToast('error', 'Sovrascrittura punti non riuscita')
+        return
+      }
 
-    setOverrideAmount('')
-    pushToast('success', `Punti sovrascritti a ${points}`)
-    if (profile?.store_id) {
-      await loadStoreCustomers(profile.store_id)
+      setOverrideAmount('')
+      pushToast('success', `Punti sovrascritti a ${points}`)
+      if (profile?.store_id) {
+        await loadStoreCustomers(profile.store_id)
+      }
+    } finally {
+      setOverridingPoints(false)
     }
   }
 
@@ -1342,63 +1294,17 @@ function App() {
 
   if (!role) {
     return (
-      <main className="app-shell auth-layout">
-        <section className="card auth-card auth-card-polished">
-          <div className="auth-hero-row">
-            <h1 className="auth-hero-title" aria-label="Tommy Smoke Raccolta Punti">
-              <span className="auth-hero-word auth-hero-fill">Tommy</span>
-              <span className="auth-hero-word auth-hero-fill">Smoke</span>
-              <span className="auth-hero-word">Raccolta</span>
-              <span className="auth-hero-word">Punti</span>
-            </h1>
-            <img
-              className="auth-logo"
-              src={`${import.meta.env.BASE_URL}favicon-192x192.png`}
-              alt="Logo Tommy Smoke"
-            />
-          </div>
-          <p className="hint no-top">Accedi con il tuo username per continuare.</p>
-
-          <form className="stack" onSubmit={login}>
-            <label>
-              Username
-              <input
-                type="text"
-                value={loginIdentifier}
-                onChange={(event) => setLoginIdentifier(event.target.value)}
-                placeholder="es. MarioRossi80"
-              />
-            </label>
-            <label>
-              Password
-              <div className="password-row">
-                <input
-                  type={visiblePasswords.login ? 'text' : 'password'}
-                  value={loginPassword}
-                  onChange={(event) => setLoginPassword(event.target.value)}
-                  placeholder="Inserisci password"
-                />
-                <button
-                  className="ghost small"
-                  type="button"
-                  onClick={() => togglePasswordVisibility('login')}
-                >
-                  {visiblePasswords.login ? 'Nascondi' : 'Mostra'}
-                </button>
-              </div>
-            </label>
-            {loginError ? <p className="error">{loginError}</p> : null}
-            <button className="cta" type="submit" disabled={loginLoading}>
-              {loginLoading ? 'Accesso in corso...' : 'Accedi'}
-            </button>
-          </form>
-
-          <p className="privacy-note">
-            <span className="privacy-note-icon" aria-hidden="true">🛡️</span>
-            I tuoi dati personali non vengono condivisi con nessuno. Utilizziamo i tuoi dati solo per la raccolta punti. Non raccogliamo cookies.
-          </p>
-        </section>
-      </main>
+      <LoginPage
+        loginIdentifier={loginIdentifier}
+        onLoginIdentifierChange={setLoginIdentifier}
+        loginPassword={loginPassword}
+        onLoginPasswordChange={setLoginPassword}
+        loginError={loginError}
+        loginLoading={loginLoading}
+        visiblePasswords={visiblePasswords}
+        onTogglePasswordVisibility={togglePasswordVisibility}
+        onLogin={login}
+      />
     )
   }
 
@@ -1431,47 +1337,49 @@ function App() {
 
       {!isOnline ? (
         <p className="error" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-          <span>⚠️ Connessione assente</span>
-          <button className="ghost small" type="button" onClick={() => window.location.reload()}>
-            Riprova
-          </button>
+          <span>Connessione assente. I dati si aggiorneranno al ripristino della connessione.</span>
         </p>
       ) : null}
 
       {initError ? (
         <p className="error" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
           <span>{initError}</span>
-          <button className="ghost small" type="button" onClick={() => { setInitError(null); window.location.reload() }}>
+          <button className="ghost small" type="button" onClick={async () => {
+            setInitError(null)
+            setSessionLoading(true)
+            try {
+              if (!supabase) return
+              const { data } = await supabase.auth.getSession()
+              if (data.session?.user) {
+                const nextProfile = await fetchProfile(data.session.user.id)
+                if (nextProfile) await bootstrapFromProfile(nextProfile)
+              }
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'Errore nel caricamento del profilo'
+              setInitError(message)
+            } finally {
+              setSessionLoading(false)
+            }
+          }}>
             Riprova
           </button>
         </p>
       ) : null}
 
       {confirmModal ? (
-        <div className="modal-overlay" onClick={() => setConfirmModal(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Conferma operazione</h3>
-            <p>{confirmModal.message}</p>
-            <div className="modal-actions">
-              <button className="ghost" onClick={() => setConfirmModal(null)}>
-                Annulla
-              </button>
-              <button
-                className="cta"
-                onClick={async () => {
-                  if (confirmModal.action === 'redeem') await confirmRedeem()
-                  else if (confirmModal.action === 'override') await confirmOverride()
-                  else if (confirmModal.action === 'delete-transaction') await confirmDeleteTransaction()
-                  else if (confirmModal.action === 'delete-customer') await confirmDeleteCustomer()
-                  else if (confirmModal.action === 'delete-reward') await confirmDeleteReward()
-                  else if (confirmModal.action === 'create-duplicate-customer') await confirmCreateDuplicateCustomer()
-                }}
-              >
-                Conferma
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          modal={confirmModal}
+          isProcessing={addingPoints || redeemingPoints || overridingPoints || creatingCustomer || addingReward}
+          onClose={() => setConfirmModal(null)}
+          onConfirm={async (action) => {
+            if (action === 'redeem') await confirmRedeem()
+            else if (action === 'override') await confirmOverride()
+            else if (action === 'delete-transaction') await confirmDeleteTransaction()
+            else if (action === 'delete-customer') await confirmDeleteCustomer()
+            else if (action === 'delete-reward') await confirmDeleteReward()
+            else if (action === 'create-duplicate-customer') await confirmCreateDuplicateCustomer()
+          }}
+        />
       ) : null}
 
       {actionError ? <p className="error">{actionError}</p> : null}
@@ -1505,67 +1413,36 @@ function App() {
               className={`ghost small ${storePage === 'communications' ? 'active-tab' : ''}`}
               onClick={() => setStorePage('communications')}
             >
-              📢 Comunicazioni
+              <span aria-hidden="true">📢</span> Comunicazioni
             </button>
           </section>
 
           {storePage === 'operations' ? (
         <>
-        {visibleNotifications.length > 0 ? (
-          <div className="comms-banner" onClick={() => setStorePage('communications')}>
-            <span className="comms-banner-dot"></span>
+          {visibleNotifications.length > 0 ? (
+          <div className="comms-banner" onClick={() => setStorePage('communications')} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') setStorePage('communications') }}>
+            <span className="comms-banner-dot" aria-hidden="true"></span>
             <div className="comms-banner-text">
               <span className="comms-banner-title">{visibleNotifications[0].title}</span>
               <span className="comms-banner-body">{visibleNotifications[0].body}</span>
             </div>
-            <span className="comms-banner-arrow">→</span>
+            <span className="comms-banner-arrow" aria-hidden="true">→</span>
             <button
               className="comms-banner-dismiss"
               onClick={(e) => { e.stopPropagation(); handleDismissNotification(visibleNotifications[0].id) }}
-              title="Nascondi"
-            >✕</button>
+              aria-label="Nascondi notifica"
+            >&#10005;</button>
           </div>
         ) : null}
         <section className="store-shell">
-          <article className="card customers-sidebar">
-            <h2>Clienti <span className="badge">{filteredCustomers.length}</span></h2>
-            <label>
-              Cerca cliente
-              <input
-                type="text"
-                value={customerSearch}
-                onChange={(event) => setCustomerSearch(event.target.value)}
-                placeholder="Nome o telefono"
-              />
-            </label>
-            {loadingData ? (
-              <div className="skeleton-list" aria-hidden="true">
-                <div className="skeleton-box skeleton-customer"></div>
-                <div className="skeleton-box skeleton-customer"></div>
-                <div className="skeleton-box skeleton-customer"></div>
-                <div className="skeleton-box skeleton-customer"></div>
-              </div>
-            ) : (
-            <ul className="customer-list">
-              {filteredCustomers.length ? (
-                filteredCustomers.map((customer) => (
-                  <li key={customer.id}>
-                    <button
-                      type="button"
-                      className={`customer-item ${selectedStoreCustomerId === customer.id ? 'active' : ''}`}
-                      onClick={() => { setSelectedStoreCustomerId(customer.id) }}
-                    >
-                      <span>{customer.name}</span>
-                      <strong>{customer.points} pt</strong>
-                    </button>
-                  </li>
-                ))
-              ) : (
-                <li className="hint no-top">Nessun cliente corrisponde alla ricerca</li>
-              )}
-            </ul>
-            )}
-          </article>
+          <CustomerSidebar
+            customers={filteredCustomers}
+            customerSearch={customerSearch}
+            onCustomerSearchChange={setCustomerSearch}
+            selectedStoreCustomerId={selectedStoreCustomerId}
+            onSelectCustomer={setSelectedStoreCustomerId}
+            loadingData={loadingData}
+          />
 
           <div className="grid store-main">
             <article className="card selected-customer-card">
@@ -1731,8 +1608,8 @@ function App() {
                   />
                 </label>
                 <p className="preview">Punti da aggiungere: {pointsPreview}</p>
-                <button className="cta" type="submit" disabled={!selectedStoreCustomer}>
-                  Aggiungi punti
+                <button className="cta" type="submit" disabled={!selectedStoreCustomer || addingPoints}>
+                  {addingPoints ? 'Aggiunta punti...' : 'Aggiungi punti'}
                 </button>
               </form>
 
@@ -1749,8 +1626,8 @@ function App() {
                     placeholder="Es: 10"
                   />
                 </label>
-                <button className="ghost" type="submit" disabled={!selectedStoreCustomer}>
-                  Scarica punti
+                <button className="ghost" type="submit" disabled={!selectedStoreCustomer || redeemingPoints}>
+                  {redeemingPoints ? 'Redenzione in corso...' : 'Scarica punti'}
                 </button>
               </form>
 
@@ -1779,8 +1656,8 @@ function App() {
                         disabled={!selectedStoreCustomer}
                       />
                     </label>
-                    <button className="ghost small" type="submit" disabled={!selectedStoreCustomer}>
-                      Rettifica punti
+                    <button className="ghost small" type="submit" disabled={!selectedStoreCustomer || overridingPoints}>
+                      {overridingPoints ? 'Rettifica in corso...' : 'Rettifica punti'}
                     </button>
                   </form>
                 ) : null}
@@ -1856,8 +1733,8 @@ function App() {
                   ) : null}
                   {newCustomerError ? <p className="error">{newCustomerError}</p> : null}
                   {newCustomerSuccess ? <p className="success">{newCustomerSuccess}</p> : null}
-                  <button className="cta" type="submit">
-                    Crea cliente
+                  <button className="cta" type="submit" disabled={creatingCustomer}>
+                    {creatingCustomer ? 'Creazione cliente...' : 'Crea cliente'}
                   </button>
                 </form>
               </article>
@@ -1872,7 +1749,13 @@ function App() {
                 <h2>Gestione premi</h2>
                 <p className="hint no-top" style={{marginBottom:'1rem'}}>I premi attivi sono visibili ai clienti nella loro home.</p>
 
-                {rewards.length > 0 ? (
+                {loadingData ? (
+                  <div className="skeleton-stack" aria-hidden="true">
+                    <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+                    <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+                    <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+                  </div>
+                ) : rewards.length > 0 ? (
                   <ul className="rewards-list">
                     {rewards.map((reward) => (
                       <li key={reward.id} className={`reward-item ${reward.active ? '' : 'reward-inactive'}`}>
@@ -1934,7 +1817,7 @@ function App() {
                     />
                   </label>
                   {rewardError ? <p className="error">{rewardError}</p> : null}
-                  <button className="cta" type="submit">Aggiungi premio</button>
+                  <button className="cta" type="submit" disabled={addingReward}>{addingReward ? 'Aggiunta premio...' : 'Aggiungi premio'}</button>
                 </form>
               </article>
             </section>
@@ -1965,8 +1848,8 @@ function App() {
                     <button
                       className="comms-item-dismiss"
                       onClick={(e) => { e.stopPropagation(); handleDismissNotification(n.id) }}
-                      title="Nascondi"
-                    >✕</button>
+                      aria-label="Nascondi notifica"
+                    >&#10005;</button>
                   </div>
                 </div>
               ))}
@@ -1997,7 +1880,7 @@ function App() {
           <article className="card">
             <h2>
               Ultimi movimenti
-              {customerVisibleMovements.length > 7 ? (
+              {customerVisibleMovements.length > MAX_CUSTOMER_MOVEMENTS_VISIBLE ? (
                 <span className="badge" style={{marginLeft:'0.5rem'}} title={`${customerVisibleMovements.length} movimenti visibili`}>
                   e molti altri...
                 </span>
@@ -2014,7 +1897,7 @@ function App() {
             ) : (
             <ul className="movements">
               {customerVisibleMovements.length ? (
-                customerVisibleMovements.slice(0, 7).map((movement) => (
+                customerVisibleMovements.slice(0, MAX_CUSTOMER_MOVEMENTS_VISIBLE).map((movement) => (
                   <li key={movement.id} className={`movement-${movement.kind}`}>
                     <div>
                       <strong>
@@ -2033,7 +1916,16 @@ function App() {
             )}
           </article>
 
-          {rewards.length > 0 ? (
+          {loadingData ? (
+            <article className="card customer-rewards-card">
+              <h2>Premi disponibili</h2>
+              <div className="skeleton-stack" aria-hidden="true">
+                <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+                <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+                <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+              </div>
+            </article>
+          ) : rewards.length > 0 ? (
             <article className="card customer-rewards-card">
               <h2>Premi disponibili</h2>
               <p className="hint no-top" style={{marginBottom:'0.8rem'}}>

@@ -5,7 +5,16 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
-registerSW({ immediate: true })
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if (window.confirm('Nuova versione disponibile. Aggiornare?')) {
+      updateSW()
+    }
+  },
+  onOfflineReady() {
+    console.log('App pronta per uso offline')
+  },
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
