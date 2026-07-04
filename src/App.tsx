@@ -1600,6 +1600,13 @@ function App() {
 
             <article className="card">
               <h2>Gestione punti</h2>
+              {loadingData ? (
+                <div className="skeleton-stack" aria-hidden="true">
+                  <div className="skeleton-box" style={{height:'6rem'}}></div>
+                  <div className="skeleton-box" style={{height:'5rem'}}></div>
+                </div>
+              ) : (
+                <>
               <form onSubmit={addPoints} className="stack split no-top-border">
                 <h3>Carica Punti</h3>
                 <label>
@@ -1668,6 +1675,8 @@ function App() {
                   </form>
                 ) : null}
               </div>
+                </>
+              )}
             </article>
           </div>
         </section>
