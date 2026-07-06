@@ -7,6 +7,7 @@ type Customer = {
   phone: string
   points: number
   birth_day_month: string | null
+  username: string | null
 }
 
 type CustomerSidebarProps = {

@@ -343,7 +343,7 @@ function App() {
     while (true) {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, store_id, name, phone, points, birth_day_month')
+        .select('id, store_id, name, phone, points, birth_day_month, profiles!profiles_customer_fk(username)')
         .eq('store_id', storeId)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .range(page * pageSize, page * pageSize + pageSize - 1)
@@ -352,7 +352,17 @@ function App() {
         throw error
       }
 
-      const chunk = (data ?? []) as Customer[]
+      const rawChunk = (data ?? []) as Array<Record<string, unknown>>
+      const chunk = rawChunk.map((row) => {
+        const profiles = row.profiles
+        let username: string | null = null
+        if (Array.isArray(profiles) && profiles.length > 0 && typeof (profiles[0] as Record<string, unknown>).username === 'string') {
+          username = (profiles[0] as Record<string, string>).username
+        } else if (profiles && typeof (profiles as Record<string, unknown>).username === 'string') {
+          username = (profiles as Record<string, string>).username
+        }
+        return { ...row, username } as unknown as Customer
+      })
       all.push(...chunk)
 
       if (chunk.length < pageSize) break
@@ -1461,6 +1471,9 @@ function App() {
                         <p className="hint no-top">Telefono: {selectedStoreCustomer.phone}</p>
                         {selectedStoreCustomer.birth_day_month ? (
                           <p className="hint no-top">Nato il: {selectedStoreCustomer.birth_day_month}</p>
+                        ) : null}
+                        {selectedStoreCustomer.username ? (
+                          <p className="hint no-top">Username: {selectedStoreCustomer.username}</p>
                         ) : null}
                       </div>
                     )}

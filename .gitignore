@@ -45,3 +45,5 @@ scripts/find-dup-points.js
 scripts/sync-mypushop.js
 supabase_customers.csv
 clienti_mypushop.csv
+scripts/find-qui-dups.js
+scripts/cleanup-qui.js
