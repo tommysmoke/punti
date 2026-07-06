@@ -905,67 +905,6 @@ function App() {
     }
   }
 
-  const confirmCreateDuplicateCustomer = async () => {
-    if (!supabase || !profile?.store_id || creatingCustomer) {
-      return
-    }
-
-    setConfirmModal(null)
-    setNewCustomerError('')
-    setNewCustomerSuccess('')
-
-    const name = newCustomerName.trim()
-    const note = newCustomerNote.trim()
-    const phone = newCustomerPhone.replace(/\D/g, '')
-    const password = phone
-    const birthDayMonth = newCustomerBirthDayMonth.trim()
-    const username = buildUsername(name, birthDayMonth)
-    const displayName = note ? `${name} (${note})` : name
-
-    const tempClient = createClient(
-      import.meta.env.VITE_SUPABASE_URL as string,
-      import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-      { auth: { storageKey: 'sb-temp-reg', autoRefreshToken: false, persistSession: false } }
-    )
-
-    const email = `${username}@emailnonesiste.it`
-
-    setCreatingCustomer(true)
-    try {
-      const { error } = await tempClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            role: 'customer',
-            name: displayName,
-            phone,
-            username,
-            store_id: profile.store_id,
-          },
-        },
-      })
-
-      await tempClient.auth.signOut()
-
-      if (error) {
-        setNewCustomerError('Non sono riuscito a creare il cliente. Riprova tra qualche secondo.')
-        pushToast('error', 'Creazione cliente non riuscita')
-        return
-      }
-
-      setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
-      pushToast('success', `Cliente creato: ${username}`)
-      setNewCustomerName('')
-      setNewCustomerNote('')
-      setNewCustomerPhone('')
-      setNewCustomerBirthDayMonth('')
-      await loadStoreCustomers(profile.store_id)
-    } finally {
-      setCreatingCustomer(false)
-    }
-  }
-
   const startEditCustomer = () => {
     if (!selectedStoreCustomer) return
     setEditCustomerName(selectedStoreCustomer.name)
@@ -1081,10 +1020,10 @@ function App() {
     }
 
     if (!isAvailable) {
-      setConfirmModal({
-        action: 'create-duplicate-customer',
-        message: `Esiste già un cliente con il codice utente "${username}" (${displayName}). Vuoi crearlo comunque?`,
-      })
+      setNewCustomerError(
+        `Username già in uso: "${username}". Differenzia il nome del cliente ` +
+        `aggiungendo un soprannome (es. "${displayName} Bologna" o "${displayName} del centro")`,
+      )
       return
     }
 
@@ -1395,7 +1334,6 @@ function App() {
             else if (action === 'delete-transaction') await confirmDeleteTransaction()
             else if (action === 'delete-customer') await confirmDeleteCustomer()
             else if (action === 'delete-reward') await confirmDeleteReward()
-            else if (action === 'create-duplicate-customer') await confirmCreateDuplicateCustomer()
           }}
         />
       ) : null}

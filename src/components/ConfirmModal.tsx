@@ -6,7 +6,6 @@ type ConfirmAction =
   | 'delete-transaction'
   | 'delete-customer'
   | 'delete-reward'
-  | 'create-duplicate-customer'
 
 type ConfirmModalState = {
   action: ConfirmAction

@@ -32,3 +32,16 @@ scripts/test-rate-limit.js
 341007890_1169413207083095_7978995066125363840_n.jpg
 scripts/export_clienti_mypushop.py
 scripts/__pycache__/export_clienti_mypushop.cpython-314.pyc
+scripts/explore_mypushop_api.py
+dup_movements.json
+dup_with_points.json
+scripts/analyze-zerodups.js
+scripts/check-duplicates.js
+scripts/cleanup-pairs.js
+scripts/cleanup-zerodups.js
+scripts/export-supabase.js
+scripts/fetch_dup_movements.py
+scripts/find-dup-points.js
+scripts/sync-mypushop.js
+supabase_customers.csv
+clienti_mypushop.csv
