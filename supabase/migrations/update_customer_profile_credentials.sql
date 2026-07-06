@@ -1,4 +1,4 @@
--- Update customer anagrafica and keep profile username/password aligned
+-- Update customer anagrafica, notes, and keep profile username/password aligned
 -- Rules:
 -- - username = lowercase {nomecognome}{giorno}{mese}
 -- - ignore parenthesized notes in name for username generation
@@ -9,7 +9,8 @@ create or replace function public.update_customer_profile_credentials(
   p_name text,
   p_phone text,
   p_birth_day_month text default null,
-  p_old_phone text default null
+  p_old_phone text default null,
+  p_notes text default null
 )
 returns void
 language plpgsql
@@ -105,7 +106,8 @@ begin
   update public.customers
   set name = trim(p_name),
       phone = v_new_phone,
-      birth_day_month = v_birth
+      birth_day_month = v_birth,
+      notes = p_notes
   where id = p_customer_id;
 
   update public.profiles

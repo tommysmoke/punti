@@ -72,6 +72,15 @@ function App() {
 
   const { route: storePage, navigate: setStorePage } = useHashRoute()
 
+  const [isEditingNotes, setIsEditingNotes] = useState(false)
+  const [notesDraft, setNotesDraft] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
+
+  useEffect(() => {
+    setIsEditingNotes(false)
+    setNotesDraft('')
+  }, [selectedStoreCustomerId])
+
   useEffect(() => {
     if (!role) {
       setStorePage(null)
@@ -343,7 +352,7 @@ function App() {
     while (true) {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, store_id, name, phone, points, birth_day_month')
+        .select('id, store_id, name, phone, points, birth_day_month, notes')
         .eq('store_id', storeId)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .range(page * pageSize, page * pageSize + pageSize - 1)
@@ -1021,6 +1030,37 @@ function App() {
     }
   }
 
+  const startEditNotes = () => {
+    if (!selectedStoreCustomer) return
+    setNotesDraft(selectedStoreCustomer.notes ?? '')
+    setIsEditingNotes(true)
+  }
+
+  const cancelEditNotes = () => {
+    setIsEditingNotes(false)
+    setNotesDraft('')
+  }
+
+  const saveNotes = async () => {
+    if (!supabase || !selectedStoreCustomer || !profile?.store_id || savingNotes) return
+    setSavingNotes(true)
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({ notes: notesDraft.trim() || null })
+        .eq('id', selectedStoreCustomer.id)
+      if (error) throw error
+      setIsEditingNotes(false)
+      pushToast('success', 'Note salvate')
+      await loadStoreCustomers(profile.store_id)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Errore nel salvataggio note'
+      pushToast('error', message)
+    } finally {
+      setSavingNotes(false)
+    }
+  }
+
   const addCustomer = async (event: FormEvent) => {
     event.preventDefault()
 
@@ -1593,6 +1633,39 @@ function App() {
                 </>
               ) : (
                 <p className="hint no-top">Seleziona un cliente dalla lista.</p>
+              )}
+            </article>
+
+            <article className="card notes-card">
+              <div className="notes-header">
+                <h2>Note</h2>
+                {selectedStoreCustomer && !isEditingNotes ? (
+                  <button className="ghost small" type="button" onClick={startEditNotes}>
+                    Modifica
+                  </button>
+                ) : null}
+              </div>
+              {isEditingNotes ? (
+                <>
+                  <textarea
+                    className="notes-edit-textarea"
+                    value={notesDraft}
+                    onChange={(e) => setNotesDraft(e.target.value)}
+                    placeholder="Note sul cliente..."
+                  />
+                  <div className="notes-actions">
+                    <button className="ghost small" type="button" onClick={saveNotes} disabled={savingNotes}>
+                      Salva
+                    </button>
+                    <button className="ghost small danger" type="button" onClick={cancelEditNotes}>
+                      Annulla
+                    </button>
+                  </div>
+                </>
+              ) : selectedStoreCustomer?.notes ? (
+                <div className="notes-area">{selectedStoreCustomer.notes}</div>
+              ) : (
+                <div className="notes-empty">NESSUNA NOTA</div>
               )}
             </article>
 

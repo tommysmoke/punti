@@ -18,6 +18,7 @@ type Customer = {
   points: number
   birth_day_month: string | null
   username: string | null
+  notes: string | null
 }
 
 type Movement = {

@@ -23,6 +23,7 @@ create table if not exists public.customers (
   phone text not null unique,
   points integer not null default 0,
   birth_day_month text not null default '01/01',
+  notes text,
   created_at timestamptz not null default now()
 );
 
