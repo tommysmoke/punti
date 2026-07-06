@@ -405,8 +405,7 @@ function App() {
     setCustomers(nextCustomers)
     console.log('5) setCustomers called')
 
-    if (nextCustomers.length === 0) {
-      setSelectedStoreCustomerId(null)
+    if (nextCustomers.length === 0) {      setSelectedStoreCustomerId(null)
       setCustomerMovements([])
       return
     }
