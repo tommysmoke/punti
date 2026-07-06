@@ -363,17 +363,23 @@ function App() {
     if (all.length > 0) {
       const customerIds = all.map((c) => c.id)
       const usernameMap = new Map<number, string>()
-      const { data: profiles, error: profErr } = await supabase
-        .rpc('get_customer_usernames', { p_customer_ids: customerIds })
-      console.log('1) RPC error:', profErr, 'rows:', profiles?.length)
-      if (!profErr && profiles) {
-        for (const prof of profiles as { customer_id: number; username: string }[]) {
-          if (prof.customer_id && prof.username) {
-            usernameMap.set(prof.customer_id, prof.username)
+      let p = 0
+      while (true) {
+        const chunk = customerIds.slice(p * 1000, p * 1000 + 1000)
+        if (chunk.length === 0) break
+        const { data: profiles, error: profErr } = await supabase
+          .rpc('get_customer_usernames', { p_customer_ids: chunk })
+        console.log('1) batch', p, 'RPC error:', profErr, 'rows:', profiles?.length)
+        if (!profErr && profiles) {
+          for (const prof of profiles as { customer_id: number; username: string }[]) {
+            if (prof.customer_id && prof.username) {
+              usernameMap.set(prof.customer_id, prof.username)
+            }
           }
         }
+        p++
       }
-      console.log('2) usernameMap size:', usernameMap.size)
+      console.log('2) usernameMap size:', usernameMap.size, 'of', customerIds.length, 'customers')
       for (let i = 0; i < all.length; i++) {
         all[i] = { ...all[i], username: usernameMap.get(all[i].id) ?? null }
       }
