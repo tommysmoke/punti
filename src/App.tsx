@@ -365,27 +365,19 @@ function App() {
       const usernameMap = new Map<number, string>()
       const { data: profiles, error: profErr } = await supabase
         .rpc('get_customer_usernames', { p_customer_ids: customerIds })
-      if (profErr) {
-        console.error('get_customer_usernames error:', profErr)
-      } else if (!profiles || profiles.length === 0) {
-        console.warn('get_customer_usernames returned 0 rows', { customerIds })
-      } else {
-        console.log('get_customer_usernames returned', profiles.length, 'rows')
-        if (profiles.length > 0) {
-          console.log('sample:', JSON.stringify(profiles.slice(0, 3)))
-        }
-        let nameCount = 0
+      console.log('1) RPC error:', profErr, 'rows:', profiles?.length)
+      if (!profErr && profiles) {
         for (const prof of profiles as { customer_id: number; username: string }[]) {
           if (prof.customer_id && prof.username) {
             usernameMap.set(prof.customer_id, prof.username)
-            nameCount++
           }
         }
-        console.log('usernameMap size:', usernameMap.size, 'valid names:', nameCount)
       }
-      for (const c of all) {
-        c.username = usernameMap.get(c.id) ?? null
+      console.log('2) usernameMap size:', usernameMap.size)
+      for (let i = 0; i < all.length; i++) {
+        all[i] = { ...all[i], username: usernameMap.get(all[i].id) ?? null }
       }
+      console.log('3) first all item:', all[0]?.id, all[0]?.username, 'last:', all[all.length-1]?.username)
     }
 
     // Deduplicate in case of pagination drift
@@ -394,7 +386,9 @@ function App() {
       if (!unique.has(c.id)) unique.set(c.id, c)
     }
     const nextCustomers = Array.from(unique.values())
+    console.log('4) nextCustomers[0]:', nextCustomers[0]?.id, nextCustomers[0]?.username)
     setCustomers(nextCustomers)
+    console.log('5) setCustomers called')
 
     if (nextCustomers.length === 0) {
       setSelectedStoreCustomerId(null)
@@ -416,6 +410,16 @@ function App() {
 
     await loadCustomerMovements(currentSelectedId)
   }
+
+  useEffect(() => {
+    console.log('6) customers state updated:', customers.length, 'items')
+    if (customers.length > 0) {
+      console.log('6a) first:', customers[0].id, customers[0].username)
+      const sel = customers.find(c => c.id === selectedStoreCustomerId)
+      if (sel) console.log('6b) selected:', sel.id, sel.username, 'name:', sel.name)
+      else console.log('6b) no selected customer (selectedStoreCustomerId:', selectedStoreCustomerId, ')')
+    }
+  }, [customers, selectedStoreCustomerId])
 
   const loadCustomerHome = async (customerId: number) => {
     if (!supabase) {
