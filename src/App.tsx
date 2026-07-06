@@ -1488,6 +1488,7 @@ function App() {
                         {selectedStoreCustomer.birth_day_month ? (
                           <p className="hint no-top">Nato il: {selectedStoreCustomer.birth_day_month}</p>
                         ) : null}
+
                         {selectedStoreCustomer.username ? (
                           <p className="hint no-top">Username: {selectedStoreCustomer.username}</p>
                         ) : null}
