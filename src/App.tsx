@@ -343,7 +343,7 @@ function App() {
     while (true) {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, store_id, name, phone, points, birth_day_month, profiles!profiles_customer_fk(username)')
+        .select('id, store_id, name, phone, points, birth_day_month')
         .eq('store_id', storeId)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .range(page * pageSize, page * pageSize + pageSize - 1)
@@ -352,21 +352,37 @@ function App() {
         throw error
       }
 
-      const rawChunk = (data ?? []) as Array<Record<string, unknown>>
-      const chunk = rawChunk.map((row) => {
-        const profiles = row.profiles
-        let username: string | null = null
-        if (Array.isArray(profiles) && profiles.length > 0 && typeof (profiles[0] as Record<string, unknown>).username === 'string') {
-          username = (profiles[0] as Record<string, string>).username
-        } else if (profiles && typeof (profiles as Record<string, unknown>).username === 'string') {
-          username = (profiles as Record<string, string>).username
-        }
-        return { ...row, username } as unknown as Customer
-      })
+      const chunk = (data ?? []) as Customer[]
       all.push(...chunk)
 
       if (chunk.length < pageSize) break
       page++
+    }
+
+    // Fetch all usernames for these customers
+    if (all.length > 0) {
+      const customerIds = all.map((c) => c.id)
+      const usernameMap = new Map<number, string>()
+      let p = 0
+      while (true) {
+        const { data: profiles, error: profErr } = await supabase
+          .from('profiles')
+          .select('customer_id, username')
+          .in('customer_id', customerIds)
+          .range(p * 1000, p * 1000 + 999)
+        if (profErr) break
+        if (!profiles || profiles.length === 0) break
+        for (const prof of profiles) {
+          if (prof.customer_id && prof.username) {
+            usernameMap.set(prof.customer_id, prof.username)
+          }
+        }
+        if (profiles.length < 1000) break
+        p++
+      }
+      for (const c of all) {
+        c.username = usernameMap.get(c.id) ?? null
+      }
     }
 
     const nextCustomers = all
