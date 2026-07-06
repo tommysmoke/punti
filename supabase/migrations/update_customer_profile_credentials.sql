@@ -80,7 +80,7 @@ begin
   -- Username from cleaned name (without parenthesized notes) + birth day/month suffix.
   v_username_base := lower(
     regexp_replace(
-      regexp_replace(trim(p_name), '\s*\\([^)]*\\)', ' ', 'g'),
+      regexp_replace(trim(p_name), '[[:space:]]*[(][^)]*[)]', ' ', 'g'),
       '[^a-zA-Z0-9]',
       '',
       'g'
