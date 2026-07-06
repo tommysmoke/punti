@@ -1612,7 +1612,7 @@ function App() {
                                 <p>{movement.note ?? 'Movimento registrato'}</p>
                               </div>
                               <div className="movement-actions">
-                                <time>{new Date(movement.created_at).toLocaleDateString('it-IT')}</time>
+                                <time>{new Date(movement.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
                                 <button
                                   className="ghost small danger"
                                   type="button"
@@ -1990,7 +1990,7 @@ function App() {
                       </strong>
                       <p>{movement.note ?? 'Movimento registrato'}</p>
                     </div>
-                    <time>{new Date(movement.created_at).toLocaleDateString('it-IT')}</time>
+                    <time>{new Date(movement.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
                   </li>
                 ))
               ) : (
