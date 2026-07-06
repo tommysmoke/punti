@@ -1483,8 +1483,7 @@ function App() {
             loadingData={loadingData}
           />
 
-          <div className="grid store-main">
-            <article className="card selected-customer-card">
+          <article className="card selected-customer-card">
               <h2>Cliente selezionato</h2>
               {loadingData ? (
                 <div className="skeleton-stack" aria-hidden="true">
@@ -1748,7 +1747,6 @@ function App() {
                 </>
               )}
             </article>
-          </div>
         </section>
         </>
 

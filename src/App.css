@@ -135,8 +135,9 @@
 
 .store-shell {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) 190px minmax(0, 1fr);
   gap: 1rem;
+  align-items: start;
 }
 
 .store-nav {
@@ -173,11 +174,6 @@
 
 .store-single-page {
   width: min(760px, 100%);
-}
-
-.store-main {
-  grid-template-columns: 1fr 190px 1fr;
-  align-items: start;
 }
 
 .customers-sidebar {
@@ -598,10 +594,6 @@ time {
 
   .customers-sidebar {
     position: static;
-  }
-
-  .store-main {
-    grid-template-columns: 1fr;
   }
 
   .store-single-page {
