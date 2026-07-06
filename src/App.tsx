@@ -409,7 +409,6 @@ function App() {
     }
 
     await loadCustomerMovements(currentSelectedId)
-
   }
 
   useEffect(() => {
