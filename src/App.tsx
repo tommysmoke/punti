@@ -365,7 +365,12 @@ function App() {
       const usernameMap = new Map<number, string>()
       const { data: profiles, error: profErr } = await supabase
         .rpc('get_customer_usernames', { p_customer_ids: customerIds })
-      if (!profErr && profiles) {
+      if (profErr) {
+        console.error('get_customer_usernames error:', profErr)
+      } else if (!profiles || profiles.length === 0) {
+        console.warn('get_customer_usernames returned 0 rows', { customerIds })
+      } else {
+        console.log('get_customer_usernames returned', profiles.length, 'rows')
         for (const prof of profiles as { customer_id: number; username: string }[]) {
           if (prof.customer_id && prof.username) {
             usernameMap.set(prof.customer_id, prof.username)
