@@ -371,11 +371,17 @@ function App() {
         console.warn('get_customer_usernames returned 0 rows', { customerIds })
       } else {
         console.log('get_customer_usernames returned', profiles.length, 'rows')
+        if (profiles.length > 0) {
+          console.log('sample:', JSON.stringify(profiles.slice(0, 3)))
+        }
+        let nameCount = 0
         for (const prof of profiles as { customer_id: number; username: string }[]) {
           if (prof.customer_id && prof.username) {
             usernameMap.set(prof.customer_id, prof.username)
+            nameCount++
           }
         }
+        console.log('usernameMap size:', usernameMap.size, 'valid names:', nameCount)
       }
       for (const c of all) {
         c.username = usernameMap.get(c.id) ?? null
