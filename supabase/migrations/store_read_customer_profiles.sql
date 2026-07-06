@@ -1,24 +1,21 @@
--- Helper: get authenticated user's store_id (bypasses RLS)
-create or replace function public.get_auth_store_id()
-returns uuid
-language sql
+-- RPC: store owners can fetch usernames for all customers (bypasses RLS)
+create or replace function public.get_customer_usernames(p_customer_ids bigint[])
+returns table(customer_id bigint, username text)
+language plpgsql
 security definer
-stable
 set search_path = public
 as $$
-  select store_id from public.profiles
-  where id = auth.uid() and role = 'store';
-$$;
+begin
+  if not exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'store'
+  ) then
+    return;
+  end if;
 
--- Allow store owners to read customer profiles for their store
-drop policy if exists "profiles_store_read_customer" on public.profiles;
-create policy "profiles_store_read_customer" on public.profiles
-for select using (
-  public.get_auth_store_id() = profiles.store_id
-  or
-  exists (
-    select 1 from public.customers c
-    where c.id = profiles.customer_id
-      and c.store_id = public.get_auth_store_id()
-  )
-);
+  return query
+  select p.customer_id, p.username
+  from public.profiles p
+  where p.customer_id = any(p_customer_ids);
+end;
+$$;

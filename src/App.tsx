@@ -359,33 +359,30 @@ function App() {
       page++
     }
 
-    // Fetch all usernames for these customers
+    // Fetch all usernames for these customers via RPC (bypasses RLS)
     if (all.length > 0) {
       const customerIds = all.map((c) => c.id)
       const usernameMap = new Map<number, string>()
-      let p = 0
-      while (true) {
-        const { data: profiles, error: profErr } = await supabase
-          .from('profiles')
-          .select('customer_id, username')
-          .in('customer_id', customerIds)
-          .range(p * 1000, p * 1000 + 999)
-        if (profErr) break
-        if (!profiles || profiles.length === 0) break
-        for (const prof of profiles) {
+      const { data: profiles, error: profErr } = await supabase
+        .rpc('get_customer_usernames', { p_customer_ids: customerIds })
+      if (!profErr && profiles) {
+        for (const prof of profiles as { customer_id: number; username: string }[]) {
           if (prof.customer_id && prof.username) {
             usernameMap.set(prof.customer_id, prof.username)
           }
         }
-        if (profiles.length < 1000) break
-        p++
       }
       for (const c of all) {
         c.username = usernameMap.get(c.id) ?? null
       }
     }
 
-    const nextCustomers = all
+    // Deduplicate in case of pagination drift
+    const unique = new Map<number, Customer>()
+    for (const c of all) {
+      if (!unique.has(c.id)) unique.set(c.id, c)
+    }
+    const nextCustomers = Array.from(unique.values())
     setCustomers(nextCustomers)
 
     if (nextCustomers.length === 0) {
