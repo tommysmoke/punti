@@ -1008,6 +1008,7 @@ function App() {
         p_phone: phone,
         p_birth_day_month: birthDayMonth || null,
         p_old_phone: editCustomerOriginalPhone,
+        p_notes: selectedStoreCustomer?.notes ?? null,
       })
 
       if (error) {

@@ -129,7 +129,7 @@ begin
 end;
 $$;
 
-grant execute on function public.update_customer_profile_credentials(bigint, text, text, text, text) to authenticated;
+grant execute on function public.update_customer_profile_credentials(bigint, text, text, text, text, text) to authenticated;
 
 -- Backward compatibility for already deployed frontends calling update_customer(...).
 create or replace function public.update_customer(
