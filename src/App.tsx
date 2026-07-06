@@ -369,7 +369,7 @@ function App() {
         if (chunk.length === 0) break
         const { data: profiles, error: profErr } = await supabase
           .rpc('get_customer_usernames', { p_customer_ids: chunk })
-        console.log('1) batch', p, 'RPC error:', profErr, 'rows:', profiles?.length)
+        console.log('1) batch', p, 'err:', profErr, 'rows:', profiles?.length)
         if (!profErr && profiles) {
           for (const prof of profiles as { customer_id: number; username: string }[]) {
             if (prof.customer_id && prof.username) {
