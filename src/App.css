@@ -1,7 +1,7 @@
 .app-shell {
-  width: min(1200px, 100% - 2rem);
+  width: min(100%, 100vw - 2rem);
   margin: 0 auto;
-  padding: 1.4rem 0 3rem;
+  padding: 1.4rem 1rem 3rem;
 }
 
 .topbar {
@@ -135,7 +135,7 @@
 
 .store-shell {
   display: grid;
-  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) 190px minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) 190px minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
@@ -607,8 +607,8 @@ time {
   }
 
   .app-shell {
-    width: min(1200px, 100% - 1rem);
-    padding-top: 1rem;
+    width: 100%;
+    padding: 1rem 0.5rem 2rem 0.5rem;
   }
 
   .topbar {
