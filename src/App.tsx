@@ -6,9 +6,11 @@ import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { registerForPushNotifications, setupMessageListener } from './lib/notifications'
 import { CUSTOMERS_PAGE_SIZE, DEBOUNCE_SEARCH_MS, MAX_CUSTOMER_MOVEMENTS_VISIBLE, MAX_VISIBLE_NOTIFICATIONS, NOTIFICATIONS_MAX_COUNT, NOTIFICATIONS_RECENT_HOURS, POINTS_DIVISOR, TOAST_DURATION_MS } from './lib/constants'
 import { buildUsername } from './lib/username'
+import { loadSoundPreference, playEarnSound, playRedeemSound, saveSoundPreference, setSoundEnabled } from './lib/sounds'
 import { useAppState } from './hooks/useAppState'
 import { useHashRoute } from './hooks/useHashRoute'
 import type { Customer, Movement, Profile, Reward, Toast } from './hooks/useAppState'
+import { Sparkline } from './components/Sparkline'
 
 const StoreNotifications = lazy(() => import('./components/StoreNotifications').then(m => ({ default: m.StoreNotifications })))
 import { LoginPage } from './components/LoginPage'
@@ -100,6 +102,31 @@ function App() {
   const selectedStoreCustomerIdRef = useRef(selectedStoreCustomerId)
   selectedStoreCustomerIdRef.current = selectedStoreCustomerId
   const initialBootstrapDone = useRef(false)
+
+  const [soundEnabled, setSoundEnabledState] = useState(() => loadSoundPreference())
+  const [floatingPoints, setFloatingPoints] = useState<{ id: number; delta: number; kind: string }[]>([])
+  const floatIdRef = useRef(0)
+  const [balancePop, setBalancePop] = useState(false)
+
+  const triggerFloatingPoints = (delta: number, kind: string) => {
+    const id = ++floatIdRef.current
+    setFloatingPoints((prev) => [...prev, { id, delta, kind }])
+    setTimeout(() => {
+      setFloatingPoints((prev) => prev.filter((f) => f.id !== id))
+    }, 1500)
+  }
+
+  const triggerBalancePop = () => {
+    setBalancePop(true)
+    setTimeout(() => setBalancePop(false), 400)
+  }
+
+  const toggleSound = () => {
+    const next = !soundEnabled
+    setSoundEnabledState(next)
+    setSoundEnabled(next)
+    saveSoundPreference(next)
+  }
 
   const visibleNotifications = useMemo(() => {
     return recentNotifications
@@ -1185,6 +1212,9 @@ function App() {
       }
 
       setExpenseAmount('')
+      playEarnSound()
+      triggerFloatingPoints(pointsPreview, 'earn')
+      triggerBalancePop()
       pushToast('success', `${pointsPreview} punti aggiunti`)
       if (profile?.store_id) {
         await loadStoreCustomers(profile.store_id)
@@ -1241,6 +1271,9 @@ function App() {
       }
 
       setRedeemAmount('')
+      playRedeemSound()
+      triggerFloatingPoints(-redeem, 'redeem')
+      triggerBalancePop()
       pushToast('success', `${redeem} punti redenti`)
       if (profile?.store_id) {
         await loadStoreCustomers(profile.store_id)
@@ -1295,6 +1328,15 @@ function App() {
       }
 
       setOverrideAmount('')
+      const delta = points - selectedStoreCustomer.points
+      if (delta > 0) {
+        playEarnSound()
+        triggerFloatingPoints(delta, 'earn')
+      } else if (delta < 0) {
+        playRedeemSound()
+        triggerFloatingPoints(delta, 'redeem')
+      }
+      triggerBalancePop()
       pushToast('success', `Punti sovrascritti a ${points}`)
       if (profile?.store_id) {
         await loadStoreCustomers(profile.store_id)
@@ -1372,6 +1414,15 @@ function App() {
               <p>{import.meta.env.VITE_GIT_SHA.slice(0, 7)}</p>
             </details>
           ) : null}
+          <span
+            className={`sound-toggle${soundEnabled ? ' on' : ''}`}
+            onClick={toggleSound}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter') toggleSound() }}
+          >
+            {soundEnabled ? '🔊' : '🔇'}
+          </span>
           <button className="ghost small" type="button" onClick={logout}>
             Logout
           </button>
@@ -1567,7 +1618,14 @@ function App() {
                       </div>
                     ) : null}
                   </div>
-                  <p className="points-balance mini">{selectedStoreCustomer.points} punti</p>
+                  <div className="punti-zone">
+                    <p className={`points-balance mini${balancePop ? ' pop' : ''}`}>{selectedStoreCustomer.points} punti</p>
+                    {floatingPoints.map((f) => (
+                      <span key={f.id} className={`float-points ${f.kind}`}>
+                        {f.delta > 0 ? '+' : ''}{f.delta} pt
+                      </span>
+                    ))}
+                  </div>
 
                   <div className="selected-customer-separator" aria-hidden="true"></div>
 
@@ -1633,6 +1691,7 @@ function App() {
                         <li>Nessun movimento registrato per questo cliente</li>
                       )}
                     </ul>
+                    <Sparkline movements={customerMovements} />
                   </div>
                 </>
               ) : (
@@ -1985,6 +2044,7 @@ function App() {
                 <div className="skeleton-box skeleton-movement"></div>
               </div>
             ) : (
+            <>
             <ul className="movements">
               {customerVisibleMovements.length ? (
                 customerVisibleMovements.slice(0, MAX_CUSTOMER_MOVEMENTS_VISIBLE).map((movement) => (
@@ -2003,6 +2063,8 @@ function App() {
                 <li>Nessun movimento registrato per ora</li>
               )}
             </ul>
+            <Sparkline movements={customerMovements} />
+            </>
             )}
           </article>
 
