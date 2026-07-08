@@ -244,8 +244,7 @@
 
 .selected-customer-card .movements {
   max-height: 18rem;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
+  overflow-y: scroll;
 }
 
 .subsection-title {

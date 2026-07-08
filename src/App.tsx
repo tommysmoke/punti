@@ -106,7 +106,79 @@ function App() {
     setIsEditingNotes(false)
     setNotesDraft('')
     setShowSparkline(false)
+    if (selectedStoreCustomerId) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const els: Record<string, Element | null> = {
+            shell: document.querySelector('.store-shell'),
+            sidebar: document.querySelector('.customers-sidebar'),
+            list: document.querySelector('.customer-list'),
+            card: document.querySelector('.selected-customer-card'),
+            movements: document.querySelector('.selected-customer-card .movements'),
+            split: document.querySelector('.selected-customer-card .stack.split'),
+            notes: document.querySelector('.notes-card'),
+          }
+          const rects: Record<string, string> = {}
+          for (const [key, el] of Object.entries(els)) {
+            if (!el) { rects[key] = 'NOT FOUND'; continue }
+            const r = el.getBoundingClientRect()
+            rects[key] = `w:${Math.round(r.width)} h:${Math.round(r.height)} x:${Math.round(r.x)}`
+            if (key === 'movements') {
+              rects[key] += ` scrollH:${(el as HTMLElement).scrollHeight} clientH:${(el as HTMLElement).clientHeight} hasScroll:${(el as HTMLElement).scrollHeight > (el as HTMLElement).clientHeight}`
+            }
+          }
+          console.log(`[LAYOUT] cliente #${selectedStoreCustomerId}:`, rects)
+        })
+      })
+    }
   }, [selectedStoreCustomerId])
+
+  useEffect(() => {
+    if (role !== 'store') return
+    const shell = document.querySelector('.store-shell')
+    if (!shell) return
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const el = entry.target as HTMLElement
+        const id = el.className.split(' ').slice(0, 2).join('.') || el.tagName
+        console.log(`[RESIZE] .${id}:`, {
+          w: Math.round(entry.contentRect.width),
+          h: Math.round(entry.contentRect.height),
+          prevW: prevSizes.get(el)?.w,
+          prevH: prevSizes.get(el)?.h,
+        })
+        prevSizes.set(el, { w: Math.round(entry.contentRect.width), h: Math.round(entry.contentRect.height) })
+      }
+    })
+
+    const prevSizes = new Map<Element, { w: number; h: number }>()
+
+    const targets = [
+      '.store-shell',
+      '.customers-sidebar',
+      '.customer-list',
+      '.selected-customer-card',
+      '.selected-customer-card .movements',
+      '.selected-customer-card .stack.split',
+      '.notes-card',
+    ]
+
+    const elements: Element[] = []
+    for (const sel of targets) {
+      const el = document.querySelector(sel)
+      if (el) {
+        observer.observe(el)
+        elements.push(el)
+        const r = el.getBoundingClientRect()
+        prevSizes.set(el, { w: Math.round(r.width), h: Math.round(r.height) })
+      }
+    }
+
+    console.log(`[RESIZE] Osservando ${elements.length} elementi`)
+
+    return () => observer.disconnect()
+  }, [role])
 
   useEffect(() => {
     if (!role) {
