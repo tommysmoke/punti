@@ -174,6 +174,18 @@ function App() {
     )
   })
 
+  useEffect(() => {
+    const needle = debouncedSearch.trim().toLowerCase()
+    if (needle) {
+      console.debug(`[SIDEBAR] Ricerca "${needle}": ${filteredCustomers.length} di ${customers.length} clienti visibili`)
+      if (filteredCustomers.length > 0 && filteredCustomers.length <= 10) {
+        console.debug(`[SIDEBAR] Match:`, filteredCustomers.map(c => `${c.name} (id:${c.id})`))
+      }
+    } else {
+      console.debug(`[SIDEBAR] ${customers.length} clienti totali in elenco`)
+    }
+  }, [customers, debouncedSearch, filteredCustomers])
+
   const pushToast = (type: Toast['type'], message: string) => {
     setToast({ type, message })
   }
@@ -381,6 +393,7 @@ function App() {
 
     const all: Customer[] = []
     let page = 0
+    let totalPages = 0
     const pageSize = CUSTOMERS_PAGE_SIZE
 
     while (true) {
@@ -398,6 +411,7 @@ function App() {
 
       const chunk = (data ?? []) as Customer[]
       all.push(...chunk)
+      totalPages++
 
       if (chunk.length < pageSize) break
       page++
@@ -433,6 +447,11 @@ function App() {
       if (!unique.has(c.id)) unique.set(c.id, c)
     }
     const nextCustomers = Array.from(unique.values())
+    console.debug(`[CARICAMENTO] ${nextCustomers.length} clienti totali, ${all.length} raw (${totalPages} pagine), ${all.length - nextCustomers.length} duplicati rimossi`)
+    if (nextCustomers.length > 0) {
+      console.debug(`[CARICAMENTO] Primi 5:`, nextCustomers.slice(0, 5).map(c => `${c.name} (id:${c.id}, pt:${c.points})`))
+      console.debug(`[CARICAMENTO] Ultimi 5:`, nextCustomers.slice(-5).map(c => `${c.name} (id:${c.id}, pt:${c.points})`))
+    }
     setCustomers(nextCustomers)
 
     if (nextCustomers.length === 0) {      setSelectedStoreCustomerId(null)
