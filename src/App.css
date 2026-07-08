@@ -191,6 +191,7 @@
   gap: 0.45rem;
   max-height: 28rem;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .customer-item {
@@ -244,6 +245,7 @@
 .selected-customer-card .movements {
   max-height: 18rem;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .subsection-title {
