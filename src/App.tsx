@@ -15,6 +15,10 @@ import { LoginPage } from './components/LoginPage'
 import { CustomerSidebar } from './components/CustomerSidebar'
 import { ConfirmModal } from './components/ConfirmModal'
 
+function capitalizeWords(str: string): string {
+  return str.replace(/\S+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+}
+
 function App() {
   const state = useAppState()
   const {
@@ -218,8 +222,8 @@ function App() {
   }, [customers, profile?.customer_id, role])
 
   const previewDisplayName = newCustomerNote.trim()
-    ? `${newCustomerName.trim()} (${newCustomerNote.trim()})`
-    : newCustomerName.trim()
+    ? `${capitalizeWords(newCustomerName.trim())} (${newCustomerNote.trim()})`
+    : capitalizeWords(newCustomerName.trim())
 
   const previewUsername = buildUsername(newCustomerName, newCustomerBirthDayMonth)
 
@@ -979,7 +983,7 @@ function App() {
   const saveCustomerEdit = async () => {
     if (!supabase || !editingCustomerId || savingCustomerEdit) return
 
-    const name = editCustomerName.trim()
+    const name = capitalizeWords(editCustomerName.trim())
     const phone = editCustomerPhone.replace(/\D/g, '')
     const birthDayMonth = editCustomerBirthDayMonth.trim()
 
@@ -1068,7 +1072,7 @@ function App() {
       return
     }
 
-    const name = newCustomerName.trim()
+    const name = capitalizeWords(newCustomerName.trim())
     const note = newCustomerNote.trim()
     const phone = newCustomerPhone.replace(/\D/g, '')
     const password = phone
@@ -1503,6 +1507,7 @@ function App() {
                       <div className="customer-edit-fields">
                         <input
                           className="customer-edit-input"
+                          style={{ textTransform: 'capitalize' }}
                           value={editCustomerName}
                           onChange={(e) => setEditCustomerName(e.target.value)}
                           placeholder="Nome e cognome"
@@ -1759,6 +1764,7 @@ function App() {
                   <label>
                     Nome e cognome
                     <input
+                      style={{ textTransform: 'capitalize' }}
                       value={newCustomerName}
                       onChange={(event) => setNewCustomerName(event.target.value)}
                       placeholder="Es: Luca Verdi"
