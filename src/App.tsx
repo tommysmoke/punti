@@ -18,7 +18,27 @@ import { CustomerSidebar } from './components/CustomerSidebar'
 import { ConfirmModal } from './components/ConfirmModal'
 
 function capitalizeWords(str: string): string {
-  return str.replace(/\S+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+  const protectedWords: string[] = []
+
+  let result = str.replace(/\([^)]+\)/g, (parenMatch) => {
+    const inner = parenMatch.slice(1, -1)
+    const processed = inner.replace(/[a-zA-Z]+/g, (word) => {
+      if (word === word.toUpperCase()) {
+        protectedWords.push(word)
+        return `\uE000${protectedWords.length - 1}\uE000`
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    })
+    return `(${processed})`
+  })
+
+  result = result.replace(/[a-zA-Z]+/g, (word) =>
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+  )
+
+  result = result.replace(/\uE000(\d+)\uE000/g, (_, i) => protectedWords[Number(i)])
+
+  return result
 }
 
 function App() {
