@@ -3,6 +3,7 @@ import type { Movement } from '../hooks/useAppState'
 
 type Props = {
   movements: Movement[]
+  embedded?: boolean
 }
 
 function computeCumulative(movements: Movement[], limitDays: number | null): number[] {
@@ -24,7 +25,7 @@ function computeCumulative(movements: Movement[], limitDays: number | null): num
   })
 }
 
-export function Sparkline({ movements }: Props) {
+export function Sparkline({ movements, embedded }: Props) {
   const [range, setRange] = useState<'7' | '30' | 'all'>('7')
 
   const limitDays = range === '7' ? 7 : range === '30' ? 30 : null
@@ -55,56 +56,73 @@ export function Sparkline({ movements }: Props) {
   const lastX = padding + ((data.length - 1) / (data.length - 1)) * (width - padding * 2)
   const lastY = height - padding - ((data[data.length - 1] - min) / rangeVal) * (height - padding * 2)
 
+  const header = (
+    <div className="sparkline-header">
+      {!embedded ? <h3>Andamento punti</h3> : null}
+      <div className="sparkline-range">
+        <button
+          type="button"
+          className={range === '7' ? 'active' : ''}
+          onClick={() => setRange('7')}
+        >
+          7gg
+        </button>
+        <button
+          type="button"
+          className={range === '30' ? 'active' : ''}
+          onClick={() => setRange('30')}
+        >
+          30gg
+        </button>
+        <button
+          type="button"
+          className={range === 'all' ? 'active' : ''}
+          onClick={() => setRange('all')}
+        >
+          Tutto
+        </button>
+      </div>
+    </div>
+  )
+
+  const svgChart = (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="sparkline-canvas"
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <linearGradient id="sparkline-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(15,76,92,0.18)" />
+          <stop offset="100%" stopColor="rgba(15,76,92,0.0)" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill="url(#sparkline-grad)" />
+      <path
+        d={linePath}
+        fill="none"
+        stroke="#0f4c5c"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <circle cx={lastX} cy={lastY} r="3.5" fill="#0f4c5c" stroke="#fff" strokeWidth="1.5" />
+    </svg>
+  )
+
+  if (embedded) {
+    return (
+      <div className="sparkline-section" style={{ borderTop: 'none', marginTop: 0, paddingTop: '0.35rem' }}>
+        {header}
+        {svgChart}
+      </div>
+    )
+  }
+
   return (
     <div className="sparkline-section">
-      <div className="sparkline-header">
-        <h3>Andamento punti</h3>
-        <div className="sparkline-range">
-          <button
-            type="button"
-            className={range === '7' ? 'active' : ''}
-            onClick={() => setRange('7')}
-          >
-            7gg
-          </button>
-          <button
-            type="button"
-            className={range === '30' ? 'active' : ''}
-            onClick={() => setRange('30')}
-          >
-            30gg
-          </button>
-          <button
-            type="button"
-            className={range === 'all' ? 'active' : ''}
-            onClick={() => setRange('all')}
-          >
-            Tutto
-          </button>
-        </div>
-      </div>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="sparkline-canvas"
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <linearGradient id="sparkline-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(15,76,92,0.18)" />
-            <stop offset="100%" stopColor="rgba(15,76,92,0.0)" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill="url(#sparkline-grad)" />
-        <path
-          d={linePath}
-          fill="none"
-          stroke="#0f4c5c"
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        <circle cx={lastX} cy={lastY} r="3.5" fill="#0f4c5c" stroke="#fff" strokeWidth="1.5" />
-      </svg>
+      {header}
+      {svgChart}
     </div>
   )
 }

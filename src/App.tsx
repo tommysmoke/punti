@@ -85,6 +85,7 @@ function App() {
   useEffect(() => {
     setIsEditingNotes(false)
     setNotesDraft('')
+    setShowSparkline(false)
   }, [selectedStoreCustomerId])
 
   useEffect(() => {
@@ -104,6 +105,7 @@ function App() {
   const initialBootstrapDone = useRef(false)
 
   const [soundEnabled, setSoundEnabledState] = useState(() => loadSoundPreference())
+  const [showSparkline, setShowSparkline] = useState(false)
   const [floatingPoints, setFloatingPoints] = useState<{ id: number; delta: number; kind: string }[]>([])
   const floatIdRef = useRef(0)
   const [balancePop, setBalancePop] = useState(false)
@@ -387,6 +389,7 @@ function App() {
         .select('id, store_id, name, phone, points, birth_day_month, notes')
         .eq('store_id', storeId)
         .order('updated_at', { ascending: false, nullsFirst: false })
+        .order('id', { ascending: false })
         .range(page * pageSize, page * pageSize + pageSize - 1)
 
       if (error) {
@@ -410,7 +413,6 @@ function App() {
         if (chunk.length === 0) break
         const { data: profiles, error: profErr } = await supabase
           .rpc('get_customer_usernames', { p_customer_ids: chunk })
-        console.log('1) batch', p, 'err:', profErr, 'rows:', profiles?.length)
         if (!profErr && profiles) {
           for (const prof of profiles as { customer_id: number; username: string }[]) {
             if (prof.customer_id && prof.username) {
@@ -420,11 +422,9 @@ function App() {
         }
         p++
       }
-      console.log('2) usernameMap size:', usernameMap.size, 'of', customerIds.length, 'customers')
       for (let i = 0; i < all.length; i++) {
         all[i] = { ...all[i], username: usernameMap.get(all[i].id) ?? null }
       }
-      console.log('3) first all item:', all[0]?.id, all[0]?.username, 'last:', all[all.length-1]?.username)
     }
 
     // Deduplicate in case of pagination drift
@@ -433,9 +433,7 @@ function App() {
       if (!unique.has(c.id)) unique.set(c.id, c)
     }
     const nextCustomers = Array.from(unique.values())
-    console.log('4) nextCustomers[0]:', nextCustomers[0]?.id, nextCustomers[0]?.username)
     setCustomers(nextCustomers)
-    console.log('5) setCustomers called')
 
     if (nextCustomers.length === 0) {      setSelectedStoreCustomerId(null)
       setCustomerMovements([])
@@ -456,16 +454,6 @@ function App() {
 
     await loadCustomerMovements(currentSelectedId)
   }
-
-  useEffect(() => {
-    console.log('6) customers state updated:', customers.length, 'items')
-    if (customers.length > 0) {
-      console.log('6a) first:', customers[0].id, customers[0].username)
-      const sel = customers.find(c => c.id === selectedStoreCustomerId)
-      if (sel) console.log('6b) selected:', sel.id, sel.username, 'name:', sel.name)
-      else console.log('6b) no selected customer (selectedStoreCustomerId:', selectedStoreCustomerId, ')')
-    }
-  }, [customers, selectedStoreCustomerId])
 
   const loadCustomerHome = async (customerId: number) => {
     if (!supabase) {
@@ -1694,7 +1682,22 @@ function App() {
                         <li>Nessun movimento registrato per questo cliente</li>
                       )}
                     </ul>
-                    <Sparkline movements={customerMovements} />
+                    {customerMovements.length > 0 ? (
+                      <div className="sparkline-section">
+                        <h3
+                          onClick={() => setShowSparkline((v) => !v)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') setShowSparkline((v) => !v) }}
+                          style={{ cursor: 'pointer', userSelect: 'none', margin: 0 }}
+                          tabIndex={0}
+                          role="button"
+                        >
+                          Andamento punti {showSparkline ? '▾' : '▸'}
+                        </h3>
+                        {showSparkline ? (
+                          <Sparkline movements={customerMovements} embedded />
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </>
               ) : (
