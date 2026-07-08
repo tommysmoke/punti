@@ -1682,7 +1682,7 @@ function App() {
                         <li>Nessun movimento registrato per questo cliente</li>
                       )}
                     </ul>
-                    {customerMovements.length > 0 ? (
+                    {customerMovements.length >= 2 ? (
                       <div className="sparkline-section">
                         <h3
                           onClick={() => setShowSparkline((v) => !v)}
@@ -2069,7 +2069,9 @@ function App() {
                 <li>Nessun movimento registrato per ora</li>
               )}
             </ul>
-            <Sparkline movements={customerMovements} />
+            {customerMovements.length >= 2 ? (
+              <Sparkline movements={customerMovements} />
+            ) : null}
             </>
             )}
           </article>
