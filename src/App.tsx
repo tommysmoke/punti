@@ -6,7 +6,7 @@ import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { registerForPushNotifications, setupMessageListener } from './lib/notifications'
 import { CUSTOMERS_PAGE_SIZE, DEBOUNCE_SEARCH_MS, MAX_CUSTOMER_MOVEMENTS_VISIBLE, MAX_VISIBLE_NOTIFICATIONS, NOTIFICATIONS_MAX_COUNT, NOTIFICATIONS_RECENT_HOURS, POINTS_DIVISOR, TOAST_DURATION_MS } from './lib/constants'
 import { buildUsername } from './lib/username'
-import { loadSoundPreference, playEarnSound, playRedeemSound, saveSoundPreference, setSoundEnabled } from './lib/sounds'
+import { loadSoundPreference, playEarnSound, playRedeemSound, playSuccessSound, saveSoundPreference, setSoundEnabled } from './lib/sounds'
 import { useAppState } from './hooks/useAppState'
 import { useHashRoute } from './hooks/useHashRoute'
 import type { Customer, Movement, Profile, Reward, Toast } from './hooks/useAppState'
@@ -335,6 +335,7 @@ function App() {
       setNewRewardName('')
       setNewRewardDescription('')
       setNewRewardPoints('')
+      playSuccessSound()
       pushToast('success', `Premio "${name}" aggiunto`)
       await loadRewards(profile.store_id)
     } finally {
@@ -1048,6 +1049,7 @@ function App() {
         return
       }
 
+      playSuccessSound()
       pushToast('success', 'Anagrafica aggiornata')
       cancelEditCustomer()
       if (profile?.store_id) {
@@ -1176,6 +1178,7 @@ function App() {
       }
 
       setNewCustomerSuccess(`Cliente creato! Username: ${username} - Password iniziale: numero di telefono`)
+      playSuccessSound()
       pushToast('success', `Cliente creato: ${username}`)
       setNewCustomerName('')
       setNewCustomerNote('')

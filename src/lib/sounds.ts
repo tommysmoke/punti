@@ -73,3 +73,24 @@ export function playRedeemSound(): void {
     })
   } catch { /* AudioContext non disponibile */ }
 }
+
+export function playSuccessSound(): void {
+  if (!soundEnabled) return
+  try {
+    const ctx = getAudioCtx()
+    const now = ctx.currentTime
+    ;[523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      const t = now + i * 0.1
+      gain.gain.setValueAtTime(0.13, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(t)
+      osc.stop(t + 0.22)
+    })
+  } catch { /* AudioContext non disponibile */ }
+}
