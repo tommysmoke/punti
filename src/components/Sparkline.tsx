@@ -26,7 +26,7 @@ function computeCumulative(movements: Movement[], limitDays: number | null): num
 }
 
 export function Sparkline({ movements, embedded }: Props) {
-  const [range, setRange] = useState<'7' | '30' | 'all'>('7')
+  const [range, setRange] = useState<'7' | '30' | 'all'>('all')
 
   const limitDays = range === '7' ? 7 : range === '30' ? 30 : null
   const data = useMemo(() => computeCumulative(movements, limitDays), [movements, limitDays])
