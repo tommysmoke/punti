@@ -105,18 +105,15 @@ export function Sparkline({ movements, embedded }: Props) {
   )
 
   const yLabels = useMemo(() => {
-    const minClamped = Math.max(0, Math.min(...data))
-    const maxClamped = Math.max(...data)
-    if (minClamped === maxClamped) return [{ label: String(minClamped), topPct: 0 }]
-
+    const dataMax = Math.max(...data)
     const steps = 6
+    const decimals = dataMax <= 10 ? 1 : 0
     const result: { label: string; topPct: number }[] = []
     for (let i = 0; i < steps; i++) {
-      const val = minClamped + ((maxClamped - minClamped) / (steps - 1)) * i
-      const chartY = height - padding - ((val - min) / rangeVal) * (height - padding * 2)
+      const val = (dataMax / (steps - 1)) * i
       result.push({
-        label: Math.round(val).toString(),
-        topPct: (chartY / height) * 100,
+        label: val.toFixed(decimals).replace(/\.0+$/, ''),
+        topPct: 100 - (i / (steps - 1)) * 100,
       })
     }
     return result
