@@ -16,9 +16,11 @@ function computeCumulative(movements: Movement[], limitDays: number | null): num
       return new Date(m.created_at).getTime() >= cutoff
     })
     .sort((a, b) => {
-      const timeA = new Date(a.created_at).getTime()
-      const timeB = new Date(b.created_at).getTime()
-      if (timeA !== timeB) return timeA - timeB
+      const dateA = new Date(a.created_at)
+      const dateB = new Date(b.created_at)
+      const stampA = new Date(dateA.getFullYear(), dateA.getMonth(), dateA.getDate(), dateA.getHours(), dateA.getMinutes()).getTime()
+      const stampB = new Date(dateB.getFullYear(), dateB.getMonth(), dateB.getDate(), dateB.getHours(), dateB.getMinutes()).getTime()
+      if (stampA !== stampB) return stampA - stampB
       const kindOrder: Record<string, number> = { earn: 0, redeem: 1, adjust: 2 }
       const kindA = kindOrder[a.kind] ?? 9
       const kindB = kindOrder[b.kind] ?? 9
