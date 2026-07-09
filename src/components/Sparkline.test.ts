@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { computeCumulative } from './Sparkline'
+import { computeCumulative, computeVisualBounds, mapValueToY } from './Sparkline'
 import type { Movement } from '../hooks/useAppState'
 
 describe('computeCumulative', () => {
@@ -62,5 +62,35 @@ describe('computeCumulative', () => {
     ]
 
     expect(computeCumulative(movements, 7, 7)).toEqual([9, 7])
+  })
+})
+
+describe('computeVisualBounds', () => {
+  it('adds a subtle margin without forcing zero for positive-only data', () => {
+    const bounds = computeVisualBounds([11, 1])
+
+    expect(bounds.min).toBeGreaterThan(0)
+    expect(bounds.min).toBeLessThan(1)
+    expect(bounds.max).toBeGreaterThan(11)
+    expect(bounds.max).toBeLessThan(12)
+  })
+
+  it('adds margin even when all values are identical', () => {
+    const bounds = computeVisualBounds([4, 4])
+
+    expect(bounds.min).toBeLessThan(4)
+    expect(bounds.max).toBeGreaterThan(4)
+  })
+
+  it('maps Y positions using the same visual scale for every chart element', () => {
+    const bounds = computeVisualBounds([11, 1])
+    const geometry = { width: 600, height: 80, padding: 4 }
+
+    const higherValueY = mapValueToY(11, bounds, geometry)
+    const lowerValueY = mapValueToY(1, bounds, geometry)
+
+    expect(higherValueY).toBeGreaterThanOrEqual(geometry.padding)
+    expect(lowerValueY).toBeLessThanOrEqual(geometry.height - geometry.padding)
+    expect(higherValueY).toBeLessThan(lowerValueY)
   })
 })

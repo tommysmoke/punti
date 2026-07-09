@@ -7,6 +7,17 @@ type Props = {
   embedded?: boolean
 }
 
+type VisualBounds = {
+  min: number
+  max: number
+}
+
+type ChartGeometry = {
+  width: number
+  height: number
+  padding: number
+}
+
 function getMovementDelta(movement: Movement): number {
   if (movement.kind === 'redeem') {
     return -movement.points
@@ -65,6 +76,31 @@ export function computeCumulative(
   })
 }
 
+export function computeVisualBounds(data: number[]): VisualBounds {
+  const rawMin = Math.min(...data)
+  const rawMax = Math.max(...data)
+  const rawRange = rawMax - rawMin
+  const margin = rawRange > 0
+    ? Math.max(rawRange * 0.06, 0.2)
+    : Math.max(Math.abs(rawMax) * 0.06, 0.2)
+
+  return {
+    min: rawMin - margin,
+    max: rawMax + margin,
+  }
+}
+
+export function mapValueToY(
+  value: number,
+  bounds: VisualBounds,
+  geometry: ChartGeometry,
+): number {
+  const range = bounds.max - bounds.min || 1
+  const drawableHeight = geometry.height - geometry.padding * 2
+
+  return geometry.height - geometry.padding - ((value - bounds.min) / range) * drawableHeight
+}
+
 export function Sparkline({ movements, currentPoints, embedded }: Props) {
   const [range, setRange] = useState<'7' | '30' | 'all'>('all')
 
@@ -77,25 +113,21 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
   if (movements.length === 0) return null
   if (data.length < 2) return null
 
-  const width = 600
-  const height = 80
-  const padding = 4
-  const min = Math.min(...data, 0)
-  const max = Math.max(...data)
-  const rangeVal = max - min || 1
+  const geometry = { width: 600, height: 80, padding: 4 }
+  const visualBounds = useMemo(() => computeVisualBounds(data), [data])
 
   const points = data
     .map((value, index) => {
-      const x = padding + (index / (data.length - 1)) * (width - padding * 2)
-      const y = height - padding - ((value - min) / rangeVal) * (height - padding * 2)
+      const x = geometry.padding + (index / (data.length - 1)) * (geometry.width - geometry.padding * 2)
+      const y = mapValueToY(value, visualBounds, geometry)
       return `${x},${y}`
     })
     .join(' ')
 
-  const areaPath = `M${points} L${width - padding},${height - padding} L${padding},${height - padding} Z`
+  const areaPath = `M${points} L${geometry.width - geometry.padding},${geometry.height - geometry.padding} L${geometry.padding},${geometry.height - geometry.padding} Z`
   const linePath = `M${points}`
-  const lastX = width - padding
-  const lastY = height - padding - ((data[data.length - 1] - min) / rangeVal) * (height - padding * 2)
+  const lastX = geometry.width - geometry.padding
+  const lastY = mapValueToY(data[data.length - 1], visualBounds, geometry)
 
   const header = (
     <div className="sparkline-header">
@@ -128,11 +160,11 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
 
   const yLabels = useMemo(() => {
     const steps = 6
-    const decimals = max - min <= 10 ? 1 : 0
+    const decimals = visualBounds.max - visualBounds.min <= 10 ? 1 : 0
     const result: { label: string; topPct: number }[] = []
 
     for (let index = 0; index < steps; index++) {
-      const value = min + ((max - min) / (steps - 1)) * index
+      const value = visualBounds.min + ((visualBounds.max - visualBounds.min) / (steps - 1)) * index
       result.push({
         label: value.toFixed(decimals).replace(/\.0+$/, ''),
         topPct: 100 - (index / (steps - 1)) * 100,
@@ -140,7 +172,7 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
     }
 
     return result
-  }, [max, min])
+  }, [visualBounds])
 
   const chartContent = (
     <div className="sparkline-chart">
@@ -156,7 +188,7 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
         ))}
       </div>
       <svg
-        viewBox={`0 0 ${width} ${height}`}
+        viewBox={`0 0 ${geometry.width} ${geometry.height}`}
         className="sparkline-canvas"
         preserveAspectRatio="none"
       >
