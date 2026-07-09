@@ -2160,8 +2160,8 @@ function App() {
                 <li>Nessun movimento registrato per ora</li>
               )}
             </ul>
-            {customerMovements.length >= 2 ? (
-              <Sparkline movements={customerMovements} />
+            {customerVisibleMovements.length >= 2 ? (
+              <Sparkline movements={customerVisibleMovements} />
             ) : null}
             </>
             )}
