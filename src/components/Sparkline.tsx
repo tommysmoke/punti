@@ -102,6 +102,13 @@ export function mapValueToY(
   return geometry.height - geometry.padding - ((value - bounds.min) / range) * drawableHeight
 }
 
+export function formatYAxisLabel(value: number, bounds: VisualBounds): string {
+  const canUseDecimals = bounds.max - bounds.min <= 10 && value >= 0 && value <= 6
+  const labelValue = canUseDecimals ? value : Math.round(value)
+
+  return labelValue.toFixed(canUseDecimals ? 1 : 0).replace(/\.0+$/, '')
+}
+
 export function Sparkline({ movements, currentPoints, embedded }: Props) {
   const [range, setRange] = useState<'7' | '30' | 'all'>('all')
 
@@ -161,13 +168,12 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
 
   const yLabels = useMemo(() => {
     const steps = 6
-    const decimals = visualBounds.max - visualBounds.min <= 10 ? 1 : 0
     const result: { label: string; topPct: number }[] = []
 
     for (let index = 0; index < steps; index++) {
       const value = visualBounds.min + ((visualBounds.max - visualBounds.min) / (steps - 1)) * index
       result.push({
-        label: value.toFixed(decimals).replace(/\.0+$/, ''),
+        label: formatYAxisLabel(value, visualBounds),
         topPct: 100 - (index / (steps - 1)) * 100,
       })
     }

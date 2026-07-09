@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { computeCumulative, computeVisualBounds, mapValueToY } from './Sparkline'
+import { computeCumulative, computeVisualBounds, formatYAxisLabel, mapValueToY } from './Sparkline'
 import type { Movement } from '../hooks/useAppState'
 
 describe('computeCumulative', () => {
@@ -99,5 +99,14 @@ describe('computeVisualBounds', () => {
     expect(higherValueY).toBeGreaterThanOrEqual(geometry.padding)
     expect(lowerValueY).toBeLessThanOrEqual(geometry.height - geometry.padding)
     expect(higherValueY).toBeLessThan(lowerValueY)
+  })
+
+  it('keeps decimals only in the 0 to 6 segment', () => {
+    const bounds = { min: 0, max: 10 }
+
+    expect(formatYAxisLabel(5.4, bounds)).toBe('5.4')
+    expect(formatYAxisLabel(6, bounds)).toBe('6')
+    expect(formatYAxisLabel(6.2, bounds)).toBe('6')
+    expect(formatYAxisLabel(8.4, bounds)).toBe('8')
   })
 })
