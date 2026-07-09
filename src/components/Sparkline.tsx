@@ -19,7 +19,14 @@ function computeCumulative(movements: Movement[], limitDays: number | null): num
 
   let cum = 0
   return filtered.map((m) => {
-    const delta = m.kind === 'earn' ? m.points : -m.points
+    let delta: number
+    if (m.kind === 'redeem') {
+      delta = -m.points
+    } else if (m.kind === 'adjust') {
+      delta = m.points
+    } else {
+      delta = m.points
+    }
     cum += delta
     return cum
   })

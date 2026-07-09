@@ -1751,7 +1751,7 @@ function App() {
                             <div className="movement-content">
                               <div>
                                 <strong>
-                                  {(movement.kind === 'earn' || (movement.kind === 'adjust' && movement.points > 0)) ? '+ ' : movement.kind === 'adjust' && movement.points < 0 ? '- ' : '  '}
+                                  {(movement.kind === 'earn' || (movement.kind === 'adjust' && movement.points > 0)) ? '+ ' : (movement.kind === 'redeem' || (movement.kind === 'adjust' && movement.points < 0)) ? '- ' : '  '}
                                   {Math.abs(movement.points)} pt
                                 </strong>
                                 <p>{movement.note ?? 'Movimento registrato'}</p>
