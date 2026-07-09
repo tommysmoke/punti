@@ -107,7 +107,7 @@ export function Sparkline({ movements, embedded }: Props) {
   const yLabels = useMemo(() => {
     const minClamped = Math.max(0, Math.min(...data))
     const maxClamped = Math.max(...data)
-    if (minClamped === maxClamped) return [{ label: String(minClamped), y: 0 }]
+    if (minClamped === maxClamped) return [{ label: String(minClamped), topPct: 0 }]
 
     const steps = 6
     const result: { label: string; topPct: number }[] = []
