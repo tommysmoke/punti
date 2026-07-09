@@ -466,7 +466,7 @@ function App() {
     while (true) {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, store_id, name, phone, points, birth_day_month, notes')
+        .select('id, store_id, name, phone, points, birth_day_month, notes, created_at, updated_at')
         .eq('store_id', storeId)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .order('id', { ascending: false })
@@ -1673,7 +1673,12 @@ function App() {
                       </div>
                     ) : (
                       <div>
-                        <p className="customer-name">{selectedStoreCustomer.name}</p>
+                        <p
+                          className="customer-name"
+                          title={selectedStoreCustomer.created_at ? `Creato: ${new Date(selectedStoreCustomer.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}\nAggiornato: ${new Date(selectedStoreCustomer.updated_at ?? selectedStoreCustomer.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : undefined}
+                        >
+                          {selectedStoreCustomer.name}
+                        </p>
                         <p className="hint no-top">Telefono: {selectedStoreCustomer.phone}</p>
                         {selectedStoreCustomer.birth_day_month ? (
                           <p className="hint no-top">Nato il: {selectedStoreCustomer.birth_day_month}</p>
