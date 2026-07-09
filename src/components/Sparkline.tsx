@@ -1,7 +1,4 @@
-import { useMemo, useState } from 'react'
-
-import type { Movement } from '../hooks/useAppState'
-
+import { useMemo, useState } from 'react'import type { Movement } from '../hooks/useAppState'
 type Props = {
   movements: Movement[]
   embedded?: boolean
