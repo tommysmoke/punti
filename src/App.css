@@ -1309,6 +1309,28 @@ time {
   border-radius: 0.5rem;
 }
 
+.sparkline-chart {
+  display: flex;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.sparkline-y-axis {
+  position: relative;
+  width: 2.2rem;
+  flex-shrink: 0;
+}
+
+.sparkline-y-label {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  font-size: 0.68rem;
+  color: #7d8a8e;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* Sound toggle */
 .sound-toggle {
   display: inline-flex;

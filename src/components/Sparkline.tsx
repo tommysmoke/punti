@@ -103,36 +103,67 @@ export function Sparkline({ movements, embedded }: Props) {
     </div>
   )
 
-  const svgChart = (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="sparkline-canvas"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient id="sparkline-grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(15,76,92,0.18)" />
-          <stop offset="100%" stopColor="rgba(15,76,92,0.0)" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill="url(#sparkline-grad)" />
-      <path
-        d={linePath}
-        fill="none"
-        stroke="#0f4c5c"
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      <circle cx={lastX} cy={lastY} r="3.5" fill="#0f4c5c" stroke="#fff" strokeWidth="1.5" />
-    </svg>
+  const yLabels = useMemo(() => {
+    const minClamped = Math.max(0, Math.min(...data))
+    const maxClamped = Math.max(...data)
+    if (minClamped === maxClamped) return [{ label: String(minClamped), y: 0 }]
+
+    const steps = 6
+    const result: { label: string; topPct: number }[] = []
+    for (let i = 0; i < steps; i++) {
+      const val = minClamped + ((maxClamped - minClamped) / (steps - 1)) * i
+      const chartY = height - padding - ((val - min) / rangeVal) * (height - padding * 2)
+      result.push({
+        label: Math.round(val).toString(),
+        topPct: (chartY / height) * 100,
+      })
+    }
+    return result
+  }, [data])
+
+  const chartContent = (
+    <div className="sparkline-chart">
+      <div className="sparkline-y-axis">
+        {yLabels.map((l, i) => (
+          <span
+            key={i}
+            className="sparkline-y-label"
+            style={{ top: `${l.topPct}%` }}
+          >
+            {l.label}
+          </span>
+        ))}
+      </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="sparkline-canvas"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id="sparkline-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(15,76,92,0.18)" />
+            <stop offset="100%" stopColor="rgba(15,76,92,0.0)" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#sparkline-grad)" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="#0f4c5c"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <circle cx={lastX} cy={lastY} r="3.5" fill="#0f4c5c" stroke="#fff" strokeWidth="1.5" />
+      </svg>
+    </div>
   )
 
   if (embedded) {
     return (
       <div className="sparkline-section" style={{ borderTop: 'none', marginTop: 0, paddingTop: '0.35rem' }}>
         {header}
-        {svgChart}
+        {chartContent}
       </div>
     )
   }
@@ -140,7 +171,7 @@ export function Sparkline({ movements, embedded }: Props) {
   return (
     <div className="sparkline-section">
       {header}
-      {svgChart}
+      {chartContent}
     </div>
   )
 }
