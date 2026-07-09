@@ -15,7 +15,12 @@ function computeCumulative(movements: Movement[], limitDays: number | null): num
       if (!limitDays) return true
       return new Date(m.created_at).getTime() >= cutoff
     })
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime()
+      const timeB = new Date(b.created_at).getTime()
+      if (timeA !== timeB) return timeA - timeB
+      return a.id - b.id
+    })
 
   let cum = 0
   return filtered.map((m) => {
