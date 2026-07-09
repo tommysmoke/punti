@@ -3,7 +3,6 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { createClient } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import { registerForPushNotifications, setupMessageListener } from './lib/notifications'
 import { CUSTOMERS_PAGE_SIZE, DEBOUNCE_SEARCH_MS, MAX_CUSTOMER_MOVEMENTS_VISIBLE, MAX_VISIBLE_NOTIFICATIONS, NOTIFICATIONS_MAX_COUNT, NOTIFICATIONS_RECENT_HOURS, POINTS_DIVISOR, TOAST_DURATION_MS } from './lib/constants'
 import { buildUsername } from './lib/username'
 import { loadSoundPreference, playEarnSound, playRedeemSound, playSuccessSound, saveSoundPreference, setSoundEnabled } from './lib/sounds'
@@ -13,9 +12,10 @@ import type { Customer, Movement, Profile, Reward, Toast } from './hooks/useAppS
 import { Sparkline } from './components/Sparkline'
 
 const StoreNotifications = lazy(() => import('./components/StoreNotifications').then(m => ({ default: m.StoreNotifications })))
+const StoreRewardsPage = lazy(() => import('./components/StoreRewardsPage.tsx'))
 import { LoginPage } from './components/LoginPage'
 import { CustomerSidebar } from './components/CustomerSidebar'
-import { ConfirmModal } from './components/ConfirmModal'
+const ConfirmModal = lazy(() => import('./components/ConfirmModal').then(m => ({ default: m.ConfirmModal })))
 
 function capitalizeWords(str: string): string {
   const protectedWords: string[] = []
@@ -39,6 +39,21 @@ function capitalizeWords(str: string): string {
   result = result.replace(/\uE000(\d+)\uE000/g, (_, i) => protectedWords[Number(i)])
 
   return result
+}
+
+function StoreRewardsFallback() {
+  return (
+    <section className="store-single-page">
+      <article className="card">
+        <h2>Gestione premi</h2>
+        <div className="skeleton-stack" aria-hidden="true">
+          <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+          <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+          <div className="skeleton-box" style={{height:'3.4rem'}}></div>
+        </div>
+      </article>
+    </section>
+  )
 }
 
 function App() {
@@ -591,6 +606,7 @@ function App() {
 
         // Register for push notifications
         if (!notificationPermissionRequested) {
+          const { registerForPushNotifications, setupMessageListener } = await import('./lib/notifications')
           setPushStatus('Registrazione notifiche in corso...')
           const token = await registerForPushNotifications(nextProfile.customer_id)
           if (token) {
@@ -1540,18 +1556,20 @@ function App() {
       ) : null}
 
       {confirmModal ? (
-        <ConfirmModal
-          modal={confirmModal}
-          isProcessing={addingPoints || redeemingPoints || overridingPoints || creatingCustomer || addingReward}
-          onClose={() => setConfirmModal(null)}
-          onConfirm={async (action) => {
-            if (action === 'redeem') await confirmRedeem()
-            else if (action === 'override') await confirmOverride()
-            else if (action === 'delete-transaction') await confirmDeleteTransaction()
-            else if (action === 'delete-customer') await confirmDeleteCustomer()
-            else if (action === 'delete-reward') await confirmDeleteReward()
-          }}
-        />
+        <Suspense fallback={null}>
+          <ConfirmModal
+            modal={confirmModal}
+            isProcessing={addingPoints || redeemingPoints || overridingPoints || creatingCustomer || addingReward}
+            onClose={() => setConfirmModal(null)}
+            onConfirm={async (action) => {
+              if (action === 'redeem') await confirmRedeem()
+              else if (action === 'override') await confirmOverride()
+              else if (action === 'delete-transaction') await confirmDeleteTransaction()
+              else if (action === 'delete-customer') await confirmDeleteCustomer()
+              else if (action === 'delete-reward') await confirmDeleteReward()
+            }}
+          />
+        </Suspense>
       ) : null}
 
       {actionError ? <p className="error">{actionError}</p> : null}
@@ -1990,83 +2008,23 @@ function App() {
               <StoreNotifications />
             </Suspense>
           ) : tab === 'rewards' ? (
-            <section className="store-single-page">
-              <article className="card">
-                <h2>Gestione premi</h2>
-                <p className="hint no-top" style={{marginBottom:'1rem'}}>I premi attivi sono visibili ai clienti nella loro home.</p>
-
-                {loadingData ? (
-                  <div className="skeleton-stack" aria-hidden="true">
-                    <div className="skeleton-box" style={{height:'3.4rem'}}></div>
-                    <div className="skeleton-box" style={{height:'3.4rem'}}></div>
-                    <div className="skeleton-box" style={{height:'3.4rem'}}></div>
-                  </div>
-                ) : rewards.length > 0 ? (
-                  <ul className="rewards-list">
-                    {rewards.map((reward) => (
-                      <li key={reward.id} className={`reward-item ${reward.active ? '' : 'reward-inactive'}`}>
-                        <div className="reward-info">
-                          <strong>{reward.name}</strong>
-                          <span className="reward-cost">{reward.points_cost} pt</span>
-                          {reward.description ? <p className="reward-desc">{reward.description}</p> : null}
-                        </div>
-                        <div className="reward-actions">
-                          <button
-                            type="button"
-                            className="ghost small"
-                            onClick={() => toggleReward(reward)}
-                          >
-                            {reward.active ? 'Disattiva' : 'Attiva'}
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost small danger"
-                            onClick={() => askDeleteReward(reward)}
-                          >
-                            Elimina
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="hint no-top" style={{marginBottom:'1rem'}}>Nessun premio configurato. Aggiungine uno qui sotto.</p>
-                )}
-
-                <form onSubmit={addReward} className="stack split">
-                  <h3 style={{margin:0, fontSize:'0.96rem'}}>Aggiungi premio</h3>
-                  <label>
-                    Nome premio
-                    <input
-                      value={newRewardName}
-                      onChange={(e) => setNewRewardName(e.target.value)}
-                      placeholder="Es: Caffè gratis"
-                    />
-                  </label>
-                  <label>
-                    Descrizione (opzionale)
-                    <input
-                      value={newRewardDescription}
-                      onChange={(e) => setNewRewardDescription(e.target.value)}
-                      placeholder="Es: Un caffè a scelta"
-                    />
-                  </label>
-                  <label>
-                    Costo in punti
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={newRewardPoints}
-                      onChange={(e) => setNewRewardPoints(e.target.value)}
-                      placeholder="Es: 50"
-                    />
-                  </label>
-                  {rewardError ? <p className="error">{rewardError}</p> : null}
-                  <button className="cta" type="submit" disabled={addingReward}>{addingReward ? 'Aggiunta premio...' : 'Aggiungi premio'}</button>
-                </form>
-              </article>
-            </section>
+            <Suspense fallback={<StoreRewardsFallback />}>
+              <StoreRewardsPage
+                loadingData={loadingData}
+                rewards={rewards}
+                newRewardName={newRewardName}
+                newRewardDescription={newRewardDescription}
+                newRewardPoints={newRewardPoints}
+                rewardError={rewardError}
+                addingReward={addingReward}
+                onToggleReward={toggleReward}
+                onAskDeleteReward={askDeleteReward}
+                onRewardNameChange={setNewRewardName}
+                onRewardDescriptionChange={setNewRewardDescription}
+                onRewardPointsChange={setNewRewardPoints}
+                onSubmit={addReward}
+              />
+            </Suspense>
           ) : null}
         </>
       ) : (

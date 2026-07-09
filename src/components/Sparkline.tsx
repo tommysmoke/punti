@@ -83,9 +83,10 @@ export function computeVisualBounds(data: number[]): VisualBounds {
   const margin = rawRange > 0
     ? Math.max(rawRange * 0.06, 0.2)
     : Math.max(Math.abs(rawMax) * 0.06, 0.2)
+  const min = Math.max(0, rawMin - margin)
 
   return {
-    min: rawMin - margin,
+    min,
     max: rawMax + margin,
   }
 }

@@ -66,13 +66,20 @@ describe('computeCumulative', () => {
 })
 
 describe('computeVisualBounds', () => {
-  it('adds a subtle margin without forcing zero for positive-only data', () => {
+  it('adds a subtle margin without forcing zero for positive-only data far from the floor', () => {
     const bounds = computeVisualBounds([11, 1])
 
     expect(bounds.min).toBeGreaterThan(0)
     expect(bounds.min).toBeLessThan(1)
     expect(bounds.max).toBeGreaterThan(11)
     expect(bounds.max).toBeLessThan(12)
+  })
+
+  it('never lets the visual minimum go below the zero floor', () => {
+    const bounds = computeVisualBounds([1, 0])
+
+    expect(bounds.min).toBe(0)
+    expect(bounds.max).toBeGreaterThan(1)
   })
 
   it('adds margin even when all values are identical', () => {
