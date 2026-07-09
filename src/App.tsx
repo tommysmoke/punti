@@ -1785,7 +1785,7 @@ function App() {
                           Andamento punti {showSparkline ? '▾' : '▸'}
                         </h3>
                         {showSparkline ? (
-                          <Sparkline movements={customerMovements} embedded />
+                          <Sparkline movements={customerMovements} currentPoints={selectedStoreCustomer.points} embedded />
                         ) : null}
                       </div>
                     ) : null}

@@ -1,52 +1,78 @@
 import { useMemo, useState } from 'react'
 import type { Movement } from '../hooks/useAppState'
+
 type Props = {
   movements: Movement[]
+  currentPoints: number
   embedded?: boolean
 }
 
-function computeCumulative(movements: Movement[], limitDays: number | null): number[] {
+function getMovementDelta(movement: Movement): number {
+  if (movement.kind === 'redeem') {
+    return -movement.points
+  }
+
+  return movement.points
+}
+
+export function computeCumulative(
+  movements: Movement[],
+  currentPoints: number,
+  limitDays: number | null,
+): number[] {
   const now = Date.now()
   const cutoff = limitDays ? now - limitDays * 24 * 60 * 60 * 1000 : 0
 
   const filtered = movements
-    .filter((m) => {
+    .filter((movement) => {
       if (!limitDays) return true
-      return new Date(m.created_at).getTime() >= cutoff
+      return new Date(movement.created_at).getTime() >= cutoff
     })
     .sort((a, b) => {
       const dateA = new Date(a.created_at)
       const dateB = new Date(b.created_at)
-      const stampA = new Date(dateA.getFullYear(), dateA.getMonth(), dateA.getDate(), dateA.getHours(), dateA.getMinutes()).getTime()
-      const stampB = new Date(dateB.getFullYear(), dateB.getMonth(), dateB.getDate(), dateB.getHours(), dateB.getMinutes()).getTime()
+      const stampA = new Date(
+        dateA.getFullYear(),
+        dateA.getMonth(),
+        dateA.getDate(),
+        dateA.getHours(),
+        dateA.getMinutes(),
+      ).getTime()
+      const stampB = new Date(
+        dateB.getFullYear(),
+        dateB.getMonth(),
+        dateB.getDate(),
+        dateB.getHours(),
+        dateB.getMinutes(),
+      ).getTime()
+
       if (stampA !== stampB) return stampA - stampB
+
       const kindOrder: Record<string, number> = { earn: 0, redeem: 1, adjust: 2 }
       const kindA = kindOrder[a.kind] ?? 9
       const kindB = kindOrder[b.kind] ?? 9
+
       if (kindA !== kindB) return kindA - kindB
       return a.id - b.id
     })
 
-  let cum = 0
-  return filtered.map((m) => {
-    let delta: number
-    if (m.kind === 'redeem') {
-      delta = -m.points
-    } else if (m.kind === 'adjust') {
-      delta = m.points
-    } else {
-      delta = m.points
-    }
-    cum += delta
-    return cum
+  const totalDelta = filtered.reduce((sum, movement) => sum + getMovementDelta(movement), 0)
+  let cumulative = currentPoints - totalDelta
+
+  return filtered.map((movement) => {
+    cumulative += getMovementDelta(movement)
+    return cumulative
   })
 }
 
-export function Sparkline({ movements, embedded }: Props) {
+export function Sparkline({ movements, currentPoints, embedded }: Props) {
   const [range, setRange] = useState<'7' | '30' | 'all'>('all')
 
   const limitDays = range === '7' ? 7 : range === '30' ? 30 : null
-  const data = useMemo(() => computeCumulative(movements, limitDays), [movements, limitDays])
+  const data = useMemo(
+    () => computeCumulative(movements, currentPoints, limitDays),
+    [movements, currentPoints, limitDays],
+  )
 
   if (movements.length === 0) return null
   if (data.length < 2) return null
@@ -59,18 +85,16 @@ export function Sparkline({ movements, embedded }: Props) {
   const rangeVal = max - min || 1
 
   const points = data
-    .map((val, i) => {
-      const x = padding + (i / (data.length - 1)) * (width - padding * 2)
-      const y = height - padding - ((val - min) / rangeVal) * (height - padding * 2)
+    .map((value, index) => {
+      const x = padding + (index / (data.length - 1)) * (width - padding * 2)
+      const y = height - padding - ((value - min) / rangeVal) * (height - padding * 2)
       return `${x},${y}`
     })
     .join(' ')
 
-  const areaPath = `M${points} L${padding + ((data.length - 1) / (data.length - 1)) * (width - padding * 2)},${height - padding} L${padding},${height - padding} Z`
-
+  const areaPath = `M${points} L${width - padding},${height - padding} L${padding},${height - padding} Z`
   const linePath = `M${points}`
-
-  const lastX = padding + ((data.length - 1) / (data.length - 1)) * (width - padding * 2)
+  const lastX = width - padding
   const lastY = height - padding - ((data[data.length - 1] - min) / rangeVal) * (height - padding * 2)
 
   const header = (
@@ -103,30 +127,31 @@ export function Sparkline({ movements, embedded }: Props) {
   )
 
   const yLabels = useMemo(() => {
-    const dataMax = Math.max(...data)
     const steps = 6
-    const decimals = dataMax <= 10 ? 1 : 0
+    const decimals = max - min <= 10 ? 1 : 0
     const result: { label: string; topPct: number }[] = []
-    for (let i = 0; i < steps; i++) {
-      const val = (dataMax / (steps - 1)) * i
+
+    for (let index = 0; index < steps; index++) {
+      const value = min + ((max - min) / (steps - 1)) * index
       result.push({
-        label: val.toFixed(decimals).replace(/\.0+$/, ''),
-        topPct: 100 - (i / (steps - 1)) * 100,
+        label: value.toFixed(decimals).replace(/\.0+$/, ''),
+        topPct: 100 - (index / (steps - 1)) * 100,
       })
     }
+
     return result
-  }, [data])
+  }, [max, min])
 
   const chartContent = (
     <div className="sparkline-chart">
       <div className="sparkline-y-axis">
-        {yLabels.map((l, i) => (
+        {yLabels.map((label, index) => (
           <span
-            key={i}
+            key={index}
             className="sparkline-y-label"
-            style={{ top: `${l.topPct}%` }}
+            style={{ top: `${label.topPct}%` }}
           >
-            {l.label}
+            {label.label}
           </span>
         ))}
       </div>
