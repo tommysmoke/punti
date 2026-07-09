@@ -19,6 +19,10 @@ function computeCumulative(movements: Movement[], limitDays: number | null): num
       const timeA = new Date(a.created_at).getTime()
       const timeB = new Date(b.created_at).getTime()
       if (timeA !== timeB) return timeA - timeB
+      const kindOrder: Record<string, number> = { earn: 0, redeem: 1, adjust: 2 }
+      const kindA = kindOrder[a.kind] ?? 9
+      const kindB = kindOrder[b.kind] ?? 9
+      if (kindA !== kindB) return kindA - kindB
       return a.id - b.id
     })
 
