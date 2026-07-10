@@ -116,6 +116,26 @@ function App() {
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [notesDraft, setNotesDraft] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
+  const perfMarks = useRef(new Map<string, number>())
+
+  const perfStart = (label: string) => {
+    if (!import.meta.env.DEV) return
+    perfMarks.current.set(label, performance.now())
+    console.log(`[PERF] ${label} start`)
+  }
+
+  const perfEnd = (label: string, details?: string) => {
+    if (!import.meta.env.DEV) return
+    const start = perfMarks.current.get(label)
+    const duration = start !== undefined ? Math.round((performance.now() - start) * 10) / 10 : null
+    const suffix = details ? ` | ${details}` : ''
+    if (duration === null) {
+      console.log(`[PERF] ${label} end${suffix}`)
+      return
+    }
+    console.log(`[PERF] ${label} end (${duration}ms)${suffix}`)
+    perfMarks.current.delete(label)
+  }
 
   useEffect(() => {
     setIsEditingNotes(false)
@@ -185,6 +205,7 @@ function App() {
   const selectedStoreCustomerIdRef = useRef(selectedStoreCustomerId)
   selectedStoreCustomerIdRef.current = selectedStoreCustomerId
   const initialBootstrapDone = useRef(false)
+  const pushRegistrationInFlight = useRef(false)
 
   const [soundEnabled, setSoundEnabledState] = useState(() => loadSoundPreference())
   const [showSparkline, setShowSparkline] = useState(false)
@@ -576,6 +597,7 @@ function App() {
   }
 
   const bootstrapFromProfile = async (nextProfile: Profile) => {
+    perfStart(`bootstrap:${nextProfile.role}`)
     setLoadingData(true)
     setActionError('')
 
@@ -592,6 +614,7 @@ function App() {
       }
 
       if (nextProfile.role === 'customer' && nextProfile.customer_id) {
+        const customerId = nextProfile.customer_id
         await loadCustomerHome(nextProfile.customer_id)
         if (!supabase) return
         const { data: custData } = await supabase
@@ -604,18 +627,30 @@ function App() {
           await loadRecentNotifications(custData.store_id)
         }
 
-        // Register for push notifications
-        if (!notificationPermissionRequested) {
-          const { registerForPushNotifications, setupMessageListener } = await import('./lib/notifications')
-          setPushStatus('Registrazione notifiche in corso...')
-          const token = await registerForPushNotifications(nextProfile.customer_id)
-          if (token) {
-            setPushStatus('Notifiche push attive')
-          } else {
-            setPushStatus('Notifiche push non disponibili su questo dispositivo')
-          }
-          await setupMessageListener()
-          setNotificationPermissionRequested(true)
+        // Register push notifications in background so first post-login render is not blocked.
+        if (!notificationPermissionRequested && !pushRegistrationInFlight.current) {
+          pushRegistrationInFlight.current = true
+          safeAsync(async () => {
+            perfStart('push-registration')
+            try {
+              const { registerForPushNotifications, setupMessageListener } = await import('./lib/notifications')
+              setPushStatus('Registrazione notifiche in corso...')
+              const token = await registerForPushNotifications(customerId)
+              if (token) {
+                setPushStatus('Notifiche push attive')
+              } else {
+                setPushStatus('Notifiche push non disponibili su questo dispositivo')
+              }
+              await setupMessageListener()
+              setNotificationPermissionRequested(true)
+            } catch (error) {
+              console.error('Push bootstrap error', error)
+              setPushStatus('Notifiche push non disponibili su questo dispositivo')
+            } finally {
+              perfEnd('push-registration', `customerId=${customerId}`)
+              pushRegistrationInFlight.current = false
+            }
+          })
         }
       }
     } catch (error) {
@@ -623,6 +658,7 @@ function App() {
       setActionError(message)
     } finally {
       setLoadingData(false)
+      perfEnd(`bootstrap:${nextProfile.role}`)
     }
   }
 
@@ -653,24 +689,34 @@ function App() {
     const client = supabase
 
     const initialize = async () => {
+      perfStart('auth-initialize')
       try {
+        perfStart('auth-getSession')
         const { data } = await client.auth.getSession()
+        perfEnd('auth-getSession')
         const user = data.session?.user
 
-        if (user) {
-          try {
-            const nextProfile = await fetchProfile(user.id)
-            if (nextProfile) {
-              await bootstrapFromProfile(nextProfile)
-              initialBootstrapDone.current = true
-            }
-          } catch (err) {
-            const message = err instanceof Error ? err.message : 'Errore nel caricamento del profilo'
-            setInitError(message)
+        if (!user) {
+          return
+        }
+
+        try {
+          perfStart('auth-fetchProfile')
+          const nextProfile = await fetchProfile(user.id)
+          perfEnd('auth-fetchProfile')
+          if (nextProfile) {
+            setProfile(nextProfile)
+            setRole(nextProfile.role)
+            initialBootstrapDone.current = true
+            safeAsync(() => bootstrapFromProfile(nextProfile), 'Errore nel caricamento del profilo')
           }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Errore nel caricamento del profilo'
+          setInitError(message)
         }
       } finally {
         setSessionLoading(false)
+        perfEnd('auth-initialize')
       }
     }
 
@@ -687,6 +733,10 @@ function App() {
         return
       }
 
+      if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN' && event !== 'USER_UPDATED') {
+        return
+      }
+
       if (event === 'INITIAL_SESSION' && initialBootstrapDone.current) {
         return
       }
@@ -694,7 +744,10 @@ function App() {
       try {
         const nextProfile = await fetchProfile(session.user.id)
         if (nextProfile) {
-          await bootstrapFromProfile(nextProfile)
+          setProfile(nextProfile)
+          setRole(nextProfile.role)
+          initialBootstrapDone.current = true
+          safeAsync(() => bootstrapFromProfile(nextProfile), 'Errore nel caricamento del profilo')
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Errore nel caricamento del profilo'
@@ -960,13 +1013,16 @@ function App() {
     setLoginError('')
     setLoginLoading(true)
     const identifier = loginIdentifier.trim().toLowerCase()
+    perfStart('login-flow')
     try {
       let emailForLogin: string | null = identifier
 
       if (!identifier.includes('@')) {
+        perfStart('login-resolve-username')
         const { data, error } = await supabase.rpc('resolve_login_email', {
           p_identifier: identifier,
         })
+        perfEnd('login-resolve-username')
 
         if (error || !data) {
           setLoginError('Username non trovato. Controlla e riprova.')
@@ -981,10 +1037,12 @@ function App() {
         return
       }
 
+      perfStart('login-signIn')
       const { error } = await supabase.auth.signInWithPassword({
         email: emailForLogin,
         password: loginPassword,
       })
+      perfEnd('login-signIn')
 
       if (error) {
         setLoginError('Password errata. Riprova.')
@@ -995,6 +1053,7 @@ function App() {
       pushToast('success', 'Accesso effettuato')
     } finally {
       setLoginLoading(false)
+      perfEnd('login-flow')
     }
   }
 
@@ -1468,17 +1527,26 @@ function App() {
 
   if (!role) {
     return (
-      <LoginPage
-        loginIdentifier={loginIdentifier}
-        onLoginIdentifierChange={setLoginIdentifier}
-        loginPassword={loginPassword}
-        onLoginPasswordChange={setLoginPassword}
-        loginError={loginError}
-        loginLoading={loginLoading}
-        visiblePasswords={visiblePasswords}
-        onTogglePasswordVisibility={togglePasswordVisibility}
-        onLogin={login}
-      />
+      <>
+        <LoginPage
+          loginIdentifier={loginIdentifier}
+          onLoginIdentifierChange={setLoginIdentifier}
+          loginPassword={loginPassword}
+          onLoginPasswordChange={setLoginPassword}
+          loginError={loginError}
+          loginLoading={loginLoading}
+          visiblePasswords={visiblePasswords}
+          onTogglePasswordVisibility={togglePasswordVisibility}
+          onLogin={login}
+        />
+        {initError ? (
+          <main className="app-shell auth-layout">
+            <section className="card auth-card">
+              <p className="error">{initError}</p>
+            </section>
+          </main>
+        ) : null}
+      </>
     )
   }
 
