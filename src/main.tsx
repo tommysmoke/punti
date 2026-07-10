@@ -58,7 +58,7 @@ const updateSW = registerSW({
       logPwa('service worker registration unavailable')
       return
     }
-    logPwa('service worker registered, polling for updates every 60s')
+    logPwa('service worker registered, performing one safe update check')
 
     const pollForUpdates = async () => {
       if (document.visibilityState === 'hidden') {
@@ -75,9 +75,8 @@ const updateSW = registerSW({
 
     void pollForUpdates()
 
-    setInterval(() => {
-      void pollForUpdates()
-    }, 60 * 1000)
+    // Emergency-safe mode: avoid aggressive polling that can trigger
+    // InvalidStateError loops on some mobile browsers.
   },
   onRegisterError(error) {
     logPwa('registerSW error', error)
