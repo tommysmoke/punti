@@ -17,6 +17,9 @@ import { LoginPage } from './components/LoginPage'
 import { CustomerSidebar } from './components/CustomerSidebar'
 const ConfirmModal = lazy(() => import('./components/ConfirmModal').then(m => ({ default: m.ConfirmModal })))
 
+const ACTIVE_ROLE_KEY = 'punti-active-role'
+const PWA_UPDATE_PENDING_KEY = 'punti-pwa-update-pending'
+
 function capitalizeWords(str: string): string {
   const protectedWords: string[] = []
 
@@ -116,6 +119,8 @@ function App() {
   const [isEditingNotes, setIsEditingNotes] = useState(false)
   const [notesDraft, setNotesDraft] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false)
+  const [hasPendingUpdate, setHasPendingUpdate] = useState(false)
   const perfMarks = useRef(new Map<string, number>())
   const perfEnabled = true
 
@@ -200,6 +205,45 @@ function App() {
       setStorePage('operations')
     }
   }, [role, storePage, setStorePage])
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(ACTIVE_ROLE_KEY, role ?? '')
+    } catch {
+      // Ignore storage issues, update logic will default to safe auto refresh.
+    }
+  }, [role])
+
+  useEffect(() => {
+    if (role !== 'store') return
+    try {
+      if (window.sessionStorage.getItem(PWA_UPDATE_PENDING_KEY) === '1') {
+        setHasPendingUpdate(true)
+        setShowUpdatePrompt(true)
+      }
+    } catch {
+      // No-op
+    }
+  }, [role])
+
+  useEffect(() => {
+    const handleUpdateAvailable = () => {
+      if (role === 'store') {
+        try {
+          window.sessionStorage.setItem(PWA_UPDATE_PENDING_KEY, '1')
+        } catch {
+          // No-op
+        }
+        setHasPendingUpdate(true)
+        setShowUpdatePrompt(true)
+      }
+    }
+
+    window.addEventListener('punti:pwa-update-available', handleUpdateAvailable)
+    return () => {
+      window.removeEventListener('punti:pwa-update-available', handleUpdateAvailable)
+    }
+  }, [role])
 
   const tab = storePage ?? 'operations'
 
@@ -1593,6 +1637,23 @@ function App() {
 
       {toast ? <p className={`toast ${toast.type}`}>{toast.message}</p> : null}
 
+      {role === 'store' && hasPendingUpdate ? (
+        <p className="hint" style={{ marginTop: 0 }}>
+          Nuova versione disponibile.{' '}
+          <button
+            className="ghost small"
+            type="button"
+            onClick={() => {
+              setHasPendingUpdate(false)
+              setShowUpdatePrompt(false)
+              window.dispatchEvent(new CustomEvent('punti:pwa-apply-update'))
+            }}
+          >
+            Aggiorna ora
+          </button>
+        </p>
+      ) : null}
+
       {!isOnline ? (
         <p className="error" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
           <span>Connessione assente. I dati si aggiorneranno al ripristino della connessione.</span>
@@ -1639,6 +1700,32 @@ function App() {
             }}
           />
         </Suspense>
+      ) : null}
+
+      {showUpdatePrompt && role === 'store' ? (
+        <div className="modal-overlay" onClick={() => setShowUpdatePrompt(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Nuova versione disponibile</h3>
+            <p>
+              E' disponibile un aggiornamento del pannello. Puoi continuare a lavorare e aggiornare quando vuoi.
+            </p>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setShowUpdatePrompt(false)}>
+                Piu tardi
+              </button>
+              <button
+                className="cta"
+                onClick={() => {
+                  setHasPendingUpdate(false)
+                  setShowUpdatePrompt(false)
+                  window.dispatchEvent(new CustomEvent('punti:pwa-apply-update'))
+                }}
+              >
+                Aggiorna ora
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {actionError ? <p className="error">{actionError}</p> : null}
