@@ -7,6 +7,7 @@ import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
 const ACTIVE_ROLE_KEY = 'punti-active-role'
 const PWA_UPDATE_PENDING_KEY = 'punti-pwa-update-pending'
+const PWA_UPDATE_TEST_MARKER = '2026-07-10-update-test'
 const FORCE_STORE_AUTO_UPDATE =
   import.meta.env.VITE_FORCE_STORE_AUTO_UPDATE === '1' ||
   import.meta.env.VITE_FORCE_STORE_AUTO_UPDATE === 'true'
@@ -17,6 +18,7 @@ const updateSW = registerSW({
     let activeRole = ''
     try {
       activeRole = window.sessionStorage.getItem(ACTIVE_ROLE_KEY) ?? ''
+      void PWA_UPDATE_TEST_MARKER
     } catch {
       activeRole = ''
     }
