@@ -117,15 +117,16 @@ function App() {
   const [notesDraft, setNotesDraft] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
   const perfMarks = useRef(new Map<string, number>())
+  const perfEnabled = true
 
   const perfStart = (label: string) => {
-    if (!import.meta.env.DEV) return
+    if (!perfEnabled) return
     perfMarks.current.set(label, performance.now())
     console.log(`[PERF] ${label} start`)
   }
 
   const perfEnd = (label: string, details?: string) => {
-    if (!import.meta.env.DEV) return
+    if (!perfEnabled) return
     const start = perfMarks.current.get(label)
     const duration = start !== undefined ? Math.round((performance.now() - start) * 10) / 10 : null
     const suffix = details ? ` | ${details}` : ''
