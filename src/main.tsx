@@ -6,7 +6,7 @@ import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
 const PWA_UPDATE_PENDING_KEY = 'punti-pwa-update-pending'
-const PWA_UPDATE_TEST_MARKER = '2026-07-10-update-test'
+const PWA_UPDATE_TEST_MARKER = '2026-07-10-update-test-2'
 const FORCE_STORE_AUTO_UPDATE =
   import.meta.env.VITE_FORCE_STORE_AUTO_UPDATE === '1' ||
   import.meta.env.VITE_FORCE_STORE_AUTO_UPDATE === 'true'
