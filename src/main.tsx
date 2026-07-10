@@ -5,52 +5,69 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
-const ACTIVE_ROLE_KEY = 'punti-active-role'
 const PWA_UPDATE_PENDING_KEY = 'punti-pwa-update-pending'
 const PWA_UPDATE_TEST_MARKER = '2026-07-10-update-test'
 const FORCE_STORE_AUTO_UPDATE =
   import.meta.env.VITE_FORCE_STORE_AUTO_UPDATE === '1' ||
   import.meta.env.VITE_FORCE_STORE_AUTO_UPDATE === 'true'
 
+const logPwa = (message: string, details?: unknown) => {
+  if (details === undefined) {
+    console.log(`[PWA] ${message}`)
+    return
+  }
+  console.log(`[PWA] ${message}`, details)
+}
+
+logPwa('boot', { forceStoreAutoUpdate: FORCE_STORE_AUTO_UPDATE })
+
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    let activeRole = ''
+    logPwa('onNeedRefresh fired')
     try {
-      activeRole = window.sessionStorage.getItem(ACTIVE_ROLE_KEY) ?? ''
       void PWA_UPDATE_TEST_MARKER
+      window.sessionStorage.setItem(PWA_UPDATE_PENDING_KEY, '1')
+      logPwa('pending update flag set in sessionStorage')
     } catch {
-      activeRole = ''
+      logPwa('failed to set pending update flag in sessionStorage')
     }
 
-    if (activeRole === 'store' && !FORCE_STORE_AUTO_UPDATE) {
+    if (!FORCE_STORE_AUTO_UPDATE) {
       try {
-        window.sessionStorage.setItem(PWA_UPDATE_PENDING_KEY, '1')
+        logPwa('dispatching punti:pwa-update-available')
+        window.dispatchEvent(new CustomEvent('punti:pwa-update-available'))
       } catch {
-        // Ignore storage issues and still show in-session prompt event.
+        logPwa('failed to dispatch punti:pwa-update-available')
       }
-      window.dispatchEvent(new CustomEvent('punti:pwa-update-available'))
       return
     }
 
-    // Guest/customer paths can refresh automatically.
+    logPwa('force mode enabled: applying update immediately for everyone')
     updateSW(true)
   },
   onRegisteredSW(_swUrl, registration) {
-    // Check for updates periodically while app stays open.
-    if (!registration) return
+    if (!registration) {
+      logPwa('service worker registration unavailable')
+      return
+    }
+    logPwa('service worker registered, polling for updates every 60s')
     setInterval(() => {
+      logPwa('triggering periodic registration.update()')
       registration.update()
     }, 60 * 1000)
   },
 })
 
 window.addEventListener('punti:pwa-apply-update', () => {
+  logPwa('received punti:pwa-apply-update event')
   try {
     window.sessionStorage.removeItem(PWA_UPDATE_PENDING_KEY)
+    logPwa('pending update flag removed from sessionStorage')
   } catch {
-    // No-op
+    logPwa('failed to remove pending update flag from sessionStorage')
   }
+  logPwa('calling updateSW(true)')
   updateSW(true)
 })
 
@@ -59,6 +76,7 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (refreshing) return
     refreshing = true
+    logPwa('controllerchange detected, reloading page')
     window.location.reload()
   })
 }

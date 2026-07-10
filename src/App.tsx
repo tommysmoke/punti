@@ -17,8 +17,14 @@ import { LoginPage } from './components/LoginPage'
 import { CustomerSidebar } from './components/CustomerSidebar'
 const ConfirmModal = lazy(() => import('./components/ConfirmModal').then(m => ({ default: m.ConfirmModal })))
 
-const ACTIVE_ROLE_KEY = 'punti-active-role'
 const PWA_UPDATE_PENDING_KEY = 'punti-pwa-update-pending'
+const logPwa = (message: string, details?: unknown) => {
+  if (details === undefined) {
+    console.log(`[PWA] ${message}`)
+    return
+  }
+  console.log(`[PWA] ${message}`, details)
+}
 
 function capitalizeWords(str: string): string {
   const protectedWords: string[] = []
@@ -207,43 +213,56 @@ function App() {
   }, [role, storePage, setStorePage])
 
   useEffect(() => {
+    if (sessionLoading) return
     try {
-      window.sessionStorage.setItem(ACTIVE_ROLE_KEY, role ?? '')
-    } catch {
-      // Ignore storage issues, update logic will default to safe auto refresh.
-    }
-  }, [role])
-
-  useEffect(() => {
-    if (role !== 'store') return
-    try {
-      if (window.sessionStorage.getItem(PWA_UPDATE_PENDING_KEY) === '1') {
-        setHasPendingUpdate(true)
-        setShowUpdatePrompt(true)
+      const pending = window.sessionStorage.getItem(PWA_UPDATE_PENDING_KEY) === '1'
+      logPwa('session/role ready, checking pending update flag', { role, pending })
+      if (pending) {
+        if (role === 'store') {
+          logPwa('pending update found on store: opening prompt')
+          setHasPendingUpdate(true)
+          setShowUpdatePrompt(true)
+        } else {
+          logPwa('pending update found on non-store: applying update automatically')
+          window.dispatchEvent(new CustomEvent('punti:pwa-apply-update'))
+        }
       }
     } catch {
-      // No-op
+      logPwa('failed reading pending update flag')
     }
-  }, [role])
+  }, [role, sessionLoading])
 
   useEffect(() => {
     const handleUpdateAvailable = () => {
+      logPwa('received punti:pwa-update-available', { role, sessionLoading })
+      try {
+        window.sessionStorage.setItem(PWA_UPDATE_PENDING_KEY, '1')
+        logPwa('pending update flag stored in sessionStorage')
+      } catch {
+        logPwa('failed writing pending update flag in sessionStorage')
+      }
+
+      if (sessionLoading) {
+        logPwa('session still loading, postponing decision')
+        return
+      }
+
       if (role === 'store') {
-        try {
-          window.sessionStorage.setItem(PWA_UPDATE_PENDING_KEY, '1')
-        } catch {
-          // No-op
-        }
+        logPwa('store role detected: showing update prompt')
         setHasPendingUpdate(true)
         setShowUpdatePrompt(true)
+        return
       }
+
+      logPwa('non-store role detected: applying update automatically')
+      window.dispatchEvent(new CustomEvent('punti:pwa-apply-update'))
     }
 
     window.addEventListener('punti:pwa-update-available', handleUpdateAvailable)
     return () => {
       window.removeEventListener('punti:pwa-update-available', handleUpdateAvailable)
     }
-  }, [role])
+  }, [role, sessionLoading])
 
   const tab = storePage ?? 'operations'
 
@@ -1644,6 +1663,7 @@ function App() {
             className="ghost small"
             type="button"
             onClick={() => {
+              logPwa('store clicked Aggiorna ora from reminder')
               setHasPendingUpdate(false)
               setShowUpdatePrompt(false)
               window.dispatchEvent(new CustomEvent('punti:pwa-apply-update'))
@@ -1710,12 +1730,16 @@ function App() {
               E' disponibile un aggiornamento del pannello. Puoi continuare a lavorare e aggiornare quando vuoi.
             </p>
             <div className="modal-actions">
-              <button className="ghost" onClick={() => setShowUpdatePrompt(false)}>
+              <button className="ghost" onClick={() => {
+                logPwa('store clicked Piu tardi on update prompt')
+                setShowUpdatePrompt(false)
+              }}>
                 Piu tardi
               </button>
               <button
                 className="cta"
                 onClick={() => {
+                  logPwa('store clicked Aggiorna ora on update prompt')
                   setHasPendingUpdate(false)
                   setShowUpdatePrompt(false)
                   window.dispatchEvent(new CustomEvent('punti:pwa-apply-update'))
