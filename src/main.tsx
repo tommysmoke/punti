@@ -21,6 +21,13 @@ const logPwa = (message: string, details?: unknown) => {
 
 logPwa('boot', { forceStoreAutoUpdate: FORCE_STORE_AUTO_UPDATE })
 
+const applyUpdateNow = () => {
+  logPwa('calling updateSW(true)')
+  void updateSW(true).catch((error) => {
+    logPwa('updateSW(true) failed', error)
+  })
+}
+
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
@@ -44,7 +51,7 @@ const updateSW = registerSW({
     }
 
     logPwa('force mode enabled: applying update immediately for everyone')
-    updateSW(true)
+    applyUpdateNow()
   },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) {
@@ -85,8 +92,7 @@ window.addEventListener('punti:pwa-apply-update', () => {
   } catch {
     logPwa('failed to remove pending update flag from sessionStorage')
   }
-  logPwa('calling updateSW(true)')
-  updateSW(true)
+  applyUpdateNow()
 })
 
 if ('serviceWorker' in navigator) {
@@ -98,6 +104,25 @@ if ('serviceWorker' in navigator) {
     window.location.reload()
   })
 }
+
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason
+  const message =
+    typeof reason === 'string'
+      ? reason
+      : reason instanceof Error
+        ? reason.message
+        : ''
+
+  const isInvalidSwState =
+    message.includes('Failed to update a ServiceWorker') &&
+    message.includes('invalid state')
+
+  if (!isInvalidSwState) return
+
+  logPwa('suppressed known ServiceWorker InvalidStateError', reason)
+  event.preventDefault()
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
