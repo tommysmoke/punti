@@ -50,6 +50,16 @@ function capitalizeWords(str: string): string {
   return result
 }
 
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
 function StoreRewardsFallback() {
   return (
     <section className="store-single-page">
@@ -330,19 +340,24 @@ function App() {
   }, [customerSearch])
 
   const filteredCustomers = customers.filter((customer) => {
-    const needle = debouncedSearch.trim().toLowerCase()
+    const needle = normalizeSearchText(debouncedSearch)
     if (!needle) {
       return true
     }
 
+    const normalizedName = normalizeSearchText(customer.name)
+    const normalizedPhone = customer.phone.replace(/\D+/g, '')
+    const compactNeedle = needle.replace(/\s+/g, '')
+
     return (
-      customer.name.toLowerCase().includes(needle) ||
-      customer.phone.includes(needle)
+      normalizedName.includes(needle) ||
+      normalizedName.replace(/\s+/g, '').includes(compactNeedle) ||
+      normalizedPhone.includes(compactNeedle)
     )
   })
 
   useEffect(() => {
-    const needle = debouncedSearch.trim().toLowerCase()
+    const needle = normalizeSearchText(debouncedSearch)
     if (needle) {
       console.log(`[SIDEBAR] Ricerca "${needle}": ${filteredCustomers.length} di ${customers.length} clienti visibili`)
       if (filteredCustomers.length > 0 && filteredCustomers.length <= 10) {
