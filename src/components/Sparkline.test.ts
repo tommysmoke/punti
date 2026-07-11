@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { computeCumulative, computeGraphSeries, computeVisualBounds, formatYAxisLabel, mapValueToY } from './Sparkline'
+import { computeCumulative, computeGraphSeries, computeHybridXPositions, computeVisualBounds, formatYAxisLabel, mapValueToY } from './Sparkline'
 import type { Movement } from '../hooks/useAppState'
 
 describe('computeCumulative', () => {
@@ -95,6 +95,33 @@ describe('computeGraphSeries', () => {
     expect(series[1]).toEqual({
       timestamp: new Date('2026-07-11T11:29:00.000Z').getTime(),
       value: 2,
+    })
+  })
+})
+
+describe('computeHybridXPositions', () => {
+  it('keeps consecutive points within a bounded, deterministic spacing range', () => {
+    const geometry = { width: 600, height: 80, padding: 4 }
+    const points = [
+      { timestamp: 0, value: 10 },
+      { timestamp: 10, value: 11 },
+      { timestamp: 20, value: 12 },
+      { timestamp: 220, value: 13 },
+    ]
+
+    const xPositions = computeHybridXPositions(points, geometry)
+    const gaps = [
+      xPositions[1] - xPositions[0],
+      xPositions[2] - xPositions[1],
+      xPositions[3] - xPositions[2],
+    ]
+    const idealStep = (geometry.width - geometry.padding * 2) / (points.length - 1)
+
+    expect(xPositions[0]).toBe(geometry.padding)
+    expect(xPositions[xPositions.length - 1]).toBe(geometry.width - geometry.padding)
+    gaps.forEach((gap) => {
+      expect(gap).toBeGreaterThanOrEqual(idealStep * 0.5)
+      expect(gap).toBeLessThanOrEqual(idealStep * 1.6)
     })
   })
 })

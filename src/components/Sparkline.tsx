@@ -61,6 +61,86 @@ function sortMovements(movements: Movement[]): Movement[] {
   })
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+export function computeHybridXPositions(
+  points: GraphPoint[],
+  geometry: ChartGeometry,
+): number[] {
+  if (points.length === 0) return []
+  if (points.length === 1) return [geometry.padding]
+
+  const availableWidth = geometry.width - geometry.padding * 2
+  const gapCount = points.length - 1
+  const idealStep = availableWidth / gapCount
+  const minStep = Math.min(Math.max(6, idealStep * 0.5), idealStep)
+  const maxStep = Math.max(idealStep, idealStep * 1.6)
+
+  const timestamps = points.map((point) => point.timestamp)
+  const rawGaps = timestamps.slice(1).map((timestamp, index) => Math.max(0, timestamp - timestamps[index]))
+  const rawTotal = rawGaps.reduce((sum, gap) => sum + gap, 0)
+
+  const gaps = rawTotal > 0
+    ? rawGaps.map((gap) => (gap / rawTotal) * availableWidth)
+    : Array.from({ length: gapCount }, () => idealStep)
+
+  for (let index = 0; index < gaps.length; index++) {
+    gaps[index] = clamp(gaps[index], minStep, maxStep)
+  }
+
+  const epsilon = 0.0001
+  let remaining = availableWidth - gaps.reduce((sum, gap) => sum + gap, 0)
+
+  for (let pass = 0; pass < gapCount * 8 && Math.abs(remaining) > epsilon; pass++) {
+    const candidates = gaps
+      .map((gap, index) => ({
+        index,
+        room: remaining > 0 ? maxStep - gap : gap - minStep,
+      }))
+      .filter((candidate) => candidate.room > epsilon)
+
+    if (candidates.length === 0) break
+
+    const share = remaining / candidates.length
+    let applied = 0
+
+    for (const candidate of candidates) {
+      const delta = remaining > 0
+        ? Math.min(share, candidate.room)
+        : -Math.min(-share, candidate.room)
+
+      gaps[candidate.index] += delta
+      applied += delta
+    }
+
+    if (Math.abs(applied) < epsilon) break
+    remaining -= applied
+  }
+
+  if (Math.abs(remaining) > epsilon) {
+    const fallbackIndex = remaining > 0 ? gaps.findIndex((gap) => gap < maxStep - epsilon) : gaps.findIndex((gap) => gap > minStep + epsilon)
+
+    if (fallbackIndex >= 0) {
+      gaps[fallbackIndex] += remaining
+    }
+  }
+
+  const positions: number[] = [geometry.padding]
+  let x = geometry.padding
+
+  for (const gap of gaps) {
+    x += gap
+    positions.push(x)
+  }
+
+  positions[0] = geometry.padding
+  positions[positions.length - 1] = geometry.width - geometry.padding
+
+  return positions
+}
+
 export function computeGraphSeries(
   movements: Movement[],
   currentPoints: number,
@@ -160,21 +240,18 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
 
   const geometry = { width: 600, height: 80, padding: 4 }
   const visualBounds = useMemo(() => computeVisualBounds(data.map((point) => point.value)), [data])
-
-  const startTimestamp = data[0].timestamp
-  const endTimestamp = data[data.length - 1].timestamp
-  const timeRange = endTimestamp - startTimestamp || 1
+  const xPositions = useMemo(() => computeHybridXPositions(data, geometry), [data])
 
   const points = data
-    .map((point) => {
-      const x = geometry.padding + ((point.timestamp - startTimestamp) / timeRange) * (geometry.width - geometry.padding * 2)
+    .map((point, index) => {
+      const x = xPositions[index]
       const y = mapValueToY(point.value, visualBounds, geometry)
       return `${x},${y}`
     })
     .join(' ')
 
-  const startX = geometry.padding
-  const lastX = geometry.padding + ((endTimestamp - startTimestamp) / timeRange) * (geometry.width - geometry.padding * 2)
+  const startX = xPositions[0]
+  const lastX = xPositions[xPositions.length - 1]
   const areaPath = `M${points} L${lastX},${geometry.height - geometry.padding} L${startX},${geometry.height - geometry.padding} Z`
   const linePath = `M${points}`
   const lastY = mapValueToY(data[data.length - 1].value, visualBounds, geometry)
