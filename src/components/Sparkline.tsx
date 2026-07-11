@@ -18,6 +18,11 @@ type ChartGeometry = {
   padding: number
 }
 
+type GraphPoint = {
+  timestamp: number
+  value: number
+}
+
 function getMovementDelta(movement: Movement): number {
   if (movement.kind === 'redeem') {
     return -movement.points
@@ -26,54 +31,86 @@ function getMovementDelta(movement: Movement): number {
   return movement.points
 }
 
+function sortMovements(movements: Movement[]): Movement[] {
+  return [...movements].sort((a, b) => {
+    const dateA = new Date(a.created_at)
+    const dateB = new Date(b.created_at)
+    const stampA = new Date(
+      dateA.getFullYear(),
+      dateA.getMonth(),
+      dateA.getDate(),
+      dateA.getHours(),
+      dateA.getMinutes(),
+    ).getTime()
+    const stampB = new Date(
+      dateB.getFullYear(),
+      dateB.getMonth(),
+      dateB.getDate(),
+      dateB.getHours(),
+      dateB.getMinutes(),
+    ).getTime()
+
+    if (stampA !== stampB) return stampA - stampB
+
+    const kindOrder: Record<string, number> = { earn: 0, redeem: 1, adjust: 2 }
+    const kindA = kindOrder[a.kind] ?? 9
+    const kindB = kindOrder[b.kind] ?? 9
+
+    if (kindA !== kindB) return kindA - kindB
+    return a.id - b.id
+  })
+}
+
+export function computeGraphSeries(
+  movements: Movement[],
+  currentPoints: number,
+  limitDays: number | null,
+): GraphPoint[] {
+  const now = Date.now()
+  const cutoff = limitDays ? now - limitDays * 24 * 60 * 60 * 1000 : 0
+
+  const filtered = sortMovements(
+    movements.filter((movement) => {
+      if (!limitDays) return true
+      return new Date(movement.created_at).getTime() >= cutoff
+    }),
+  )
+
+  if (filtered.length === 0) {
+    return []
+  }
+
+  const totalDelta = filtered.reduce((sum, movement) => sum + getMovementDelta(movement), 0)
+  const initialBalance = currentPoints - totalDelta
+  const firstMovementTime = new Date(filtered[0].created_at).getTime()
+
+  const points: GraphPoint[] = [
+    {
+      timestamp: firstMovementTime - 60 * 60 * 1000,
+      value: initialBalance,
+    },
+  ]
+
+  let cumulative = initialBalance
+  for (const movement of filtered) {
+    cumulative += getMovementDelta(movement)
+    points.push({
+      timestamp: new Date(movement.created_at).getTime(),
+      value: cumulative,
+    })
+  }
+
+  return points
+}
+
 export function computeCumulative(
   movements: Movement[],
   currentPoints: number,
   limitDays: number | null,
 ): number[] {
-  const now = Date.now()
-  const cutoff = limitDays ? now - limitDays * 24 * 60 * 60 * 1000 : 0
-
-  const filtered = movements
-    .filter((movement) => {
-      if (!limitDays) return true
-      return new Date(movement.created_at).getTime() >= cutoff
-    })
-    .sort((a, b) => {
-      const dateA = new Date(a.created_at)
-      const dateB = new Date(b.created_at)
-      const stampA = new Date(
-        dateA.getFullYear(),
-        dateA.getMonth(),
-        dateA.getDate(),
-        dateA.getHours(),
-        dateA.getMinutes(),
-      ).getTime()
-      const stampB = new Date(
-        dateB.getFullYear(),
-        dateB.getMonth(),
-        dateB.getDate(),
-        dateB.getHours(),
-        dateB.getMinutes(),
-      ).getTime()
-
-      if (stampA !== stampB) return stampA - stampB
-
-      const kindOrder: Record<string, number> = { earn: 0, redeem: 1, adjust: 2 }
-      const kindA = kindOrder[a.kind] ?? 9
-      const kindB = kindOrder[b.kind] ?? 9
-
-      if (kindA !== kindB) return kindA - kindB
-      return a.id - b.id
-    })
-
-  const totalDelta = filtered.reduce((sum, movement) => sum + getMovementDelta(movement), 0)
-  let cumulative = currentPoints - totalDelta
-
-  return filtered.map((movement) => {
-    cumulative += getMovementDelta(movement)
-    return cumulative
-  })
+  return computeGraphSeries(movements, currentPoints, limitDays)
+    .slice(1)
+    .map((point) => point.value)
 }
 
 export function computeVisualBounds(data: number[]): VisualBounds {
@@ -114,7 +151,7 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
 
   const limitDays = range === '7' ? 7 : range === '30' ? 30 : null
   const data = useMemo(
-    () => computeCumulative(movements, currentPoints, limitDays),
+    () => computeGraphSeries(movements, currentPoints, limitDays),
     [movements, currentPoints, limitDays],
   )
 
@@ -122,20 +159,25 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
   if (data.length < 2) return null
 
   const geometry = { width: 600, height: 80, padding: 4 }
-  const visualBounds = useMemo(() => computeVisualBounds(data), [data])
+  const visualBounds = useMemo(() => computeVisualBounds(data.map((point) => point.value)), [data])
+
+  const startTimestamp = data[0].timestamp
+  const endTimestamp = data[data.length - 1].timestamp
+  const timeRange = endTimestamp - startTimestamp || 1
 
   const points = data
-    .map((value, index) => {
-      const x = geometry.padding + (index / (data.length - 1)) * (geometry.width - geometry.padding * 2)
-      const y = mapValueToY(value, visualBounds, geometry)
+    .map((point) => {
+      const x = geometry.padding + ((point.timestamp - startTimestamp) / timeRange) * (geometry.width - geometry.padding * 2)
+      const y = mapValueToY(point.value, visualBounds, geometry)
       return `${x},${y}`
     })
     .join(' ')
 
-  const areaPath = `M${points} L${geometry.width - geometry.padding},${geometry.height - geometry.padding} L${geometry.padding},${geometry.height - geometry.padding} Z`
+  const startX = geometry.padding
+  const lastX = geometry.padding + ((endTimestamp - startTimestamp) / timeRange) * (geometry.width - geometry.padding * 2)
+  const areaPath = `M${points} L${lastX},${geometry.height - geometry.padding} L${startX},${geometry.height - geometry.padding} Z`
   const linePath = `M${points}`
-  const lastX = geometry.width - geometry.padding
-  const lastY = mapValueToY(data[data.length - 1], visualBounds, geometry)
+  const lastY = mapValueToY(data[data.length - 1].value, visualBounds, geometry)
 
   const header = (
     <div className="sparkline-header">

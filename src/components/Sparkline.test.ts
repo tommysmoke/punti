@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { computeCumulative, computeVisualBounds, formatYAxisLabel, mapValueToY } from './Sparkline'
+import { computeCumulative, computeGraphSeries, computeVisualBounds, formatYAxisLabel, mapValueToY } from './Sparkline'
 import type { Movement } from '../hooks/useAppState'
 
 describe('computeCumulative', () => {
@@ -62,6 +62,40 @@ describe('computeCumulative', () => {
     ]
 
     expect(computeCumulative(movements, 7, 7)).toEqual([9, 7])
+  })
+})
+
+describe('computeGraphSeries', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('adds a synthetic point one hour before the first movement in the selected range', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-11T12:00:00.000Z'))
+
+    const movements: Movement[] = [
+      {
+        id: 1,
+        customer_id: 10,
+        kind: 'earn',
+        points: 1,
+        note: 'Spesa 11.00 EUR',
+        created_at: '2026-07-11T11:29:00.000Z',
+      },
+    ]
+
+    const series = computeGraphSeries(movements, 2, null)
+
+    expect(series).toHaveLength(2)
+    expect(series[0]).toEqual({
+      timestamp: new Date('2026-07-11T10:29:00.000Z').getTime(),
+      value: 1,
+    })
+    expect(series[1]).toEqual({
+      timestamp: new Date('2026-07-11T11:29:00.000Z').getTime(),
+      value: 2,
+    })
   })
 })
 
