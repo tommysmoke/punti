@@ -139,6 +139,8 @@ export function parseEasyfattCSV(raw: string): EasyfattRow[] {
     const barcode = columns.barcode >= 0 ? (fields[columns.barcode]?.trim() ?? '') : ''
     const category = columns.category >= 0 ? (fields[columns.category]?.trim() ?? '') : ''
 
+    if (!category) continue
+
     rows.push({
       barcode,
       name: cleanName(name),

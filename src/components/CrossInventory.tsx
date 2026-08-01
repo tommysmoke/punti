@@ -385,7 +385,7 @@ export function CrossInventory() {
           </p>
 
           {cartItemsMapToMatches(cartItems, matches)
-            .filter((item) => item.matches.length > 0)
+            .filter((item) => item.matches.length > 0 && collectStoreButtons(item.matches, selectedStore).length > 0)
             .map((item) => {
               const storeButtons = collectStoreButtons(item.matches, selectedStore)
               return (
@@ -418,11 +418,7 @@ export function CrossInventory() {
                         </button>
                       ))}
                     </div>
-                  ) : (
-                    <p className="hint">
-                      Già in tuo possesso
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               )
             })}

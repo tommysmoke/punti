@@ -84,10 +84,13 @@ export function matchCartAgainstInventory(
   cartItems: string[],
   allInventory: InventoryEntry[],
 ): MatchResult[] {
+  const validInventory = allInventory.filter(
+    (entry) => entry.category && entry.category.trim() !== '',
+  )
   return cartItems.map((cartName) => {
     const cartTokens = tokenize(cartName)
 
-    const scored = allInventory
+    const scored = validInventory
       .map((entry) => {
         const entryTokens = tokenize(entry.product_name)
         const tokenScore = jaccardSimilarity(cartTokens, entryTokens)
