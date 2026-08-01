@@ -160,16 +160,3 @@ function cleanName(name: string): string {
     .replace(/\s*\([^)]*\)\s*$/, '')
     .trim()
 }
-
-export function buildInventoryUpsertPayload(
-  rows: EasyfattRow[],
-  storeName: string,
-): { store_name: string; product_name: string; barcode: string; quantity: number; category: string }[] {
-  return rows.map((row) => ({
-    store_name: storeName,
-    product_name: row.name,
-    barcode: row.barcode,
-    quantity: row.quantity,
-    category: row.category,
-  }))
-}

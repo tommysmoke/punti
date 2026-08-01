@@ -1,10 +1,18 @@
 export interface InventoryEntry {
   id: number
-  store_name: string
   product_name: string
   barcode: string | null
-  quantity: number
+  quantity_quarto: number
+  quantity_castenaso: number
+  quantity_bologna: number
+  quantity_san_lazzaro: number
   category: string | null
+}
+
+export interface StoreStock {
+  store: string
+  label: string
+  quantity: number
 }
 
 export interface MatchResult {
@@ -12,8 +20,33 @@ export interface MatchResult {
   matches: {
     entry: InventoryEntry
     score: number
+    stocks: StoreStock[]
   }[]
 }
+
+const STORE_COLUMNS: { store: string; label: string; col: keyof InventoryEntry }[] = [
+  { store: 'quarto', label: 'Quarto', col: 'quantity_quarto' },
+  { store: 'castenaso', label: 'Castenaso', col: 'quantity_castenaso' },
+  { store: 'bologna', label: 'Bologna', col: 'quantity_bologna' },
+  { store: 'san_lazzaro', label: 'San Lazzaro', col: 'quantity_san_lazzaro' },
+]
+
+export function getStoreStocks(entry: InventoryEntry): StoreStock[] {
+  return STORE_COLUMNS.map((s) => ({
+    store: s.store,
+    label: s.label,
+    quantity: entry[s.col] as number,
+  }))
+}
+
+export function getStoreColumnName(storeName: string): string {
+  const found = STORE_COLUMNS.find(
+    (s) => s.store === storeName.toLowerCase() || s.label.toLowerCase() === storeName.toLowerCase(),
+  )
+  return found ? `quantity_${found.store}` : ''
+}
+
+export const STORE_NAMES = STORE_COLUMNS.map((s) => s.label)
 
 function normalize(s: string): string {
   return s
@@ -50,23 +83,18 @@ function jaccardSimilarity(tokensA: string[], tokensB: string[]): number {
 export function matchCartAgainstInventory(
   cartItems: string[],
   allInventory: InventoryEntry[],
-  currentStoreName: string,
 ): MatchResult[] {
-  const otherInventory = allInventory.filter(
-    (entry) => entry.store_name !== currentStoreName,
-  )
-
   return cartItems.map((cartName) => {
     const cartTokens = tokenize(cartName)
 
-    const scored = otherInventory
+    const scored = allInventory
       .map((entry) => {
         const entryTokens = tokenize(entry.product_name)
         const tokenScore = jaccardSimilarity(cartTokens, entryTokens)
         const substringScore = substringBonus(normalize(cartName), normalize(entry.product_name))
         const score = Math.max(tokenScore, substringScore * 0.85, tokenScore * 0.7 + substringScore * 0.3)
 
-        return { entry, score }
+        return { entry, score, stocks: getStoreStocks(entry) }
       })
       .filter((m) => m.score >= 0.27)
       .sort((a, b) => b.score - a.score)

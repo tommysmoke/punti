@@ -1,15 +1,21 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { parseEasyfattCSV, buildInventoryUpsertPayload } from '../lib/csvParser'
+import { parseEasyfattCSV } from '../lib/csvParser'
 import { parseCart } from '../lib/cartParser'
-import { matchCartAgainstInventory, type InventoryEntry, type MatchResult } from '../lib/crossInventory'
+import {
+  matchCartAgainstInventory,
+  getStoreColumnName,
+  STORE_NAMES,
+  type InventoryEntry,
+  type MatchResult,
+} from '../lib/crossInventory'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
 export function CrossInventory() {
-  const [storeName, setStoreName] = useState(() => {
+  const [selectedStore, setSelectedStore] = useState(() => {
     try {
-      return sessionStorage.getItem('punti-cross-store-name') ?? ''
+      return sessionStorage.getItem('punti-cross-store') ?? ''
     } catch {
       return ''
     }
@@ -21,7 +27,6 @@ export function CrossInventory() {
 
   const [cartText, setCartText] = useState('')
   const [cartItems, setCartItems] = useState<string[]>([])
-  const [cartParsing, setCartParsing] = useState(false)
   const [cartError, setCartError] = useState('')
 
   const [matches, setMatches] = useState<MatchResult[]>([])
@@ -32,11 +37,11 @@ export function CrossInventory() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem('punti-cross-store-name', storeName)
+      sessionStorage.setItem('punti-cross-store', selectedStore)
     } catch {
       // ignore
     }
-  }, [storeName])
+  }, [selectedStore])
 
   useEffect(() => {
     setCartItems([])
@@ -53,14 +58,21 @@ export function CrossInventory() {
       return
     }
 
-    if (!storeName.trim()) {
-      setCsvMessage('Inserisci il nome del negozio prima di caricare')
+    if (!selectedStore) {
+      setCsvMessage('Seleziona il negozio')
       setCsvStatus('error')
       return
     }
 
     if (!csvFile) {
       setCsvMessage('Seleziona un file CSV')
+      setCsvStatus('error')
+      return
+    }
+
+    const columnName = getStoreColumnName(selectedStore)
+    if (!columnName) {
+      setCsvMessage('Nome negozio non riconosciuto')
       setCsvStatus('error')
       return
     }
@@ -79,31 +91,113 @@ export function CrossInventory() {
         return
       }
 
-      const { error: clearErr } = await supabase.rpc('clear_store_inventory', {
-        p_store_name: storeName.trim(),
+      // Reset all quantities for this store
+      const { error: resetErr } = await supabase.rpc('reset_inventory_for_store', {
+        p_column: columnName,
       })
-      if (clearErr) {
+      if (resetErr) {
         setCsvStatus('error')
-        setCsvMessage(`Errore durante la pulizia dei dati: ${clearErr.message}`)
+        setCsvMessage(`Errore reset: ${resetErr.message}`)
         return
       }
 
-      const payload = buildInventoryUpsertPayload(rows, storeName.trim())
-      const batchSize = 500
+      // Fetch all existing products for matching
+      const { data: existing, error: fetchErr } = await supabase
+        .from('shared_inventory')
+        .select('id, product_name, barcode')
+      if (fetchErr) {
+        setCsvStatus('error')
+        setCsvMessage(`Errore lettura inventario: ${fetchErr.message}`)
+        return
+      }
 
-      for (let i = 0; i < payload.length; i += batchSize) {
-        const batch = payload.slice(i, i + batchSize)
-        const { error } = await supabase.from('shared_inventory').insert(batch)
-        if (error) {
-          setCsvStatus('error')
-          setCsvMessage(`Errore durante il caricamento: ${error.message}`)
-          return
+      const existingProducts = (existing ?? []) as { id: number; product_name: string; barcode: string | null }[]
+
+      const updates: { id: number; [key: string]: number }[] = []
+      const inserts: {
+        product_name: string
+        barcode: string
+        category: string
+        [key: string]: string | number
+      }[] = []
+
+      const matchedIds = new Set<number>()
+
+      for (const row of rows) {
+        let matched = false
+
+        // Try barcode match first
+        if (row.barcode) {
+          const barcodeMatch = existingProducts.find(
+            (p) => p.barcode && p.barcode === row.barcode,
+          )
+          if (barcodeMatch && !matchedIds.has(barcodeMatch.id)) {
+            updates.push({ id: barcodeMatch.id, [columnName]: row.quantity })
+            matchedIds.add(barcodeMatch.id)
+            matched = true
+          }
+        }
+
+        if (matched) continue
+
+        // Try exact name match
+        const nameMatch = existingProducts.find(
+          (p) => p.product_name.toLowerCase() === row.name.toLowerCase() && !matchedIds.has(p.id),
+        )
+        if (nameMatch) {
+          updates.push({ id: nameMatch.id, [columnName]: row.quantity })
+          matchedIds.add(nameMatch.id)
+          matched = true
+        }
+
+        if (matched) continue
+
+        // No match: insert new row
+        inserts.push({
+          product_name: row.name,
+          barcode: row.barcode,
+          category: row.category,
+          [columnName]: row.quantity,
+        })
+      }
+
+      // Batch updates
+      if (updates.length > 0) {
+        const batchSize = 200
+        for (let i = 0; i < updates.length; i += batchSize) {
+          const batch = updates.slice(i, i + batchSize)
+          for (const update of batch) {
+            const { id, ...fields } = update
+            const { error } = await supabase
+              .from('shared_inventory')
+              .update(fields)
+              .eq('id', id)
+            if (error) {
+              setCsvStatus('error')
+              setCsvMessage(`Errore aggiornamento: ${error.message}`)
+              return
+            }
+          }
         }
       }
 
-      setInventoryCount(payload.length)
+      // Batch inserts
+      if (inserts.length > 0) {
+        const batchSize = 500
+        for (let i = 0; i < inserts.length; i += batchSize) {
+          const batch = inserts.slice(i, i + batchSize)
+          const { error } = await supabase.from('shared_inventory').insert(batch)
+          if (error) {
+            setCsvStatus('error')
+            setCsvMessage(`Errore inserimento: ${error.message}`)
+            return
+          }
+        }
+      }
+
+      setInventoryCount(rows.length)
       setCsvStatus('success')
-      setCsvMessage(`Caricati ${payload.length} prodotti`)
+      setCsvMessage(`Caricati ${rows.length} prodotti (${updates.length} aggiornati, ${inserts.length} nuovi)`)
       setCsvFile(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Errore sconosciuto'
@@ -120,7 +214,6 @@ export function CrossInventory() {
       return
     }
 
-    setCartParsing(true)
     setCartError('')
     setMatches([])
 
@@ -128,26 +221,18 @@ export function CrossInventory() {
       const items = parseCart(cartText)
       if (items.length === 0) {
         setCartError('Nessun prodotto trovato nel testo incollato. Verifica il formato.')
-        setCartParsing(false)
         return
       }
       setCartItems(items.map((i) => i.name))
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Errore durante il parsing'
       setCartError(message)
-    } finally {
-      setCartParsing(false)
     }
   }
 
   const handleMatch = async () => {
     if (!supabase) {
       setMatchError('Supabase non configurato')
-      return
-    }
-
-    if (!storeName.trim()) {
-      setMatchError('Inserisci il nome del negozio')
       return
     }
 
@@ -171,7 +256,7 @@ export function CrossInventory() {
     try {
       const { data, error } = await supabase
         .from('shared_inventory')
-        .select('id, store_name, product_name, barcode, quantity, category')
+        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category')
 
       if (error) {
         setMatchError(`Errore nel recupero inventario: ${error.message}`)
@@ -179,7 +264,7 @@ export function CrossInventory() {
       }
 
       const inventory = (data ?? []) as InventoryEntry[]
-      const results = matchCartAgainstInventory(names, inventory, storeName.trim())
+      const results = matchCartAgainstInventory(names, inventory)
 
       setCartItems(names)
       setMatches(results)
@@ -191,13 +276,12 @@ export function CrossInventory() {
     }
   }
 
-  const handleFetchAndMatch = async () => {
-    handleParseCart()
-
-    // Wait for state update
-    window.requestAnimationFrame(async () => {
-      await handleMatch()
-    })
+  const doMatch = () => {
+    if (!cartText.trim()) {
+      setMatchError('Incolla il testo del carrello')
+      return
+    }
+    handleMatch()
   }
 
   return (
@@ -209,15 +293,19 @@ export function CrossInventory() {
         </p>
 
         <form onSubmit={handleUploadCSV} className="stack split">
-          <h3 style={{ margin: 0, fontSize: '0.96rem' }}>1. Dati negozio e inventario</h3>
+          <h3 style={{ margin: 0, fontSize: '0.96rem' }}>1. Carica inventario</h3>
 
           <label>
-            Nome negozio
-            <input
-              value={storeName}
-              onChange={(e) => setStoreName(e.target.value)}
-              placeholder="Es: Napoli Centro"
-            />
+            Negozio
+            <select
+              value={selectedStore}
+              onChange={(e) => setSelectedStore(e.target.value)}
+            >
+              <option value="">Seleziona negozio...</option>
+              {STORE_NAMES.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
           </label>
 
           <label>
@@ -234,7 +322,7 @@ export function CrossInventory() {
           ) : null}
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button className="cta" type="submit" disabled={uploading || !csvFile}>
+            <button className="cta" type="submit" disabled={uploading || !csvFile || !selectedStore}>
               {uploading ? 'Caricamento...' : 'Carica inventario'}
             </button>
             {inventoryCount > 0 ? (
@@ -245,12 +333,7 @@ export function CrossInventory() {
       </article>
 
       <article className="card">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-          }}
-          className="stack split"
-        >
+        <div className="stack split">
           <h3 style={{ margin: 0, fontSize: '0.96rem' }}>2. Carrello fornitore</h3>
 
           <label>
@@ -276,29 +359,29 @@ export function CrossInventory() {
               className="ghost"
               type="button"
               onClick={handleParseCart}
-              disabled={cartParsing || !cartText.trim()}
+              disabled={!cartText.trim()}
             >
-              {cartParsing ? 'Analisi...' : 'Analizza carrello'}
+              Analizza carrello
             </button>
             <button
               className="cta"
               type="button"
-              onClick={handleFetchAndMatch}
+              onClick={doMatch}
               disabled={matching || !cartText.trim()}
             >
-              {matching ? 'Confronto...' : 'Analizza e confronta'}
+              {matching ? 'Confronto...' : 'Confronta con inventario'}
             </button>
           </div>
 
           {matchError ? <p className="error">{matchError}</p> : null}
-        </form>
+        </div>
       </article>
 
       {matches.length > 0 ? (
         <article className="card">
           <h2>Risultati confronto</h2>
           <p className="hint no-top" style={{ marginBottom: '1rem' }}>
-            Prodotti del carrello trovati nell'inventario di altri negozi.
+            Prodotti del carrello trovati nell'inventario condiviso.
           </p>
 
           {cartItemsMapToMatches(cartItems, matches).map((item) => (
@@ -328,7 +411,22 @@ export function CrossInventory() {
                     <li key={m.entry.id} className="cross-match-detail-item">
                       <div className="cross-match-detail-info">
                         <strong>{m.entry.product_name}</strong>
-                        <span className="cross-match-store">{m.entry.store_name}</span>
+                        <div className="cross-match-stores">
+                          {m.stocks
+                            .filter((s) => s.quantity > 0)
+                            .map((s) => (
+                              <span
+                                key={s.store}
+                                className={`cross-store-tag${selectedStore && s.label.toLowerCase() === selectedStore.toLowerCase() ? ' self' : ''}`}
+                              >
+                                {s.label}: {s.quantity}
+                                {selectedStore && s.label.toLowerCase() === selectedStore.toLowerCase() ? ' (tu)' : ''}
+                              </span>
+                            ))}
+                          {m.stocks.every((s) => s.quantity <= 0) ? (
+                            <span className="cross-store-tag empty">Nessuna giacenza</span>
+                          ) : null}
+                        </div>
                       </div>
                       <span className={`cross-match-inline-score${m.score >= 0.7 ? ' high' : m.score >= 0.4 ? ' medium' : ' low'}`}>
                         {m.score >= 0.7 ? '✓' : '~'} {Math.round(m.score * 100)}%
@@ -338,7 +436,7 @@ export function CrossInventory() {
                 </ul>
               ) : (
                 <p className="hint no-top" style={{ paddingLeft: '0.5rem' }}>
-                  Nessuna corrispondenza trovata negli altri negozi.
+                  Nessuna corrispondenza trovata nell'inventario.
                 </p>
               )}
             </div>

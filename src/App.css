@@ -1496,3 +1496,33 @@ time {
   color: #8b2e2e;
 }
 
+.cross-match-stores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+
+.cross-store-tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #eaf0f2;
+  color: #0f4c5c;
+  border: 1px solid #c5d5da;
+  font-weight: 500;
+}
+
+.cross-store-tag.self {
+  background: #fef9e7;
+  color: #8a6d14;
+  border-color: #f0d779;
+}
+
+.cross-store-tag.empty {
+  background: #f8f9fa;
+  color: #7d8a8e;
+  border-color: var(--border);
+  font-weight: 400;
+}
+
