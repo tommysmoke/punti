@@ -86,7 +86,7 @@ begin
     raise exception 'Colonna non valida';
   end if;
 
-  execute format('update public.shared_inventory set %I = 0', p_column);
+  execute format('update public.shared_inventory set %I = 0 where true', p_column);
 end;
 $$;
 
