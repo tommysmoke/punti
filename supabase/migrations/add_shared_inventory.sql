@@ -134,3 +134,36 @@ end;
 $$;
 
 grant execute on function public.batch_update_store_quantities(text, jsonb) to authenticated;
+
+-- Saved barcode aliases for manual cart item matching
+create table if not exists public.cross_inventory_aliases (
+  id bigint generated always as identity primary key,
+  cart_name text not null,
+  barcode text not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists cross_inventory_aliases_cart_name_idx
+  on public.cross_inventory_aliases(lower(cart_name));
+
+alter table public.cross_inventory_aliases enable row level security;
+
+drop policy if exists "cross_inventory_aliases_all_read" on public.cross_inventory_aliases;
+create policy "cross_inventory_aliases_all_read" on public.cross_inventory_aliases
+for select using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'store'
+  )
+);
+
+drop policy if exists "cross_inventory_aliases_all_insert" on public.cross_inventory_aliases;
+create policy "cross_inventory_aliases_all_insert" on public.cross_inventory_aliases
+for insert with check (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'store'
+  )
+);
