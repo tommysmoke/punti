@@ -1541,3 +1541,31 @@ time {
   border-top: 1px dashed var(--border);
 }
 
+.cross-match-no-match {
+  margin-top: 0.4rem;
+}
+
+.cross-match-barcode-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cross-barcode-input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.7rem;
+  background: #fff;
+  color: var(--text);
+}
+
+.cross-barcode-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.12);
+}
+

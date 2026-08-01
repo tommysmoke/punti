@@ -5,6 +5,7 @@ import { parseCart } from '../lib/cartParser'
 import {
   matchCartAgainstInventory,
   getStoreColumnName,
+  getStoreStocks,
   STORE_NAMES,
   type InventoryEntry,
   type MatchResult,
@@ -34,6 +35,11 @@ export function CrossInventory() {
   const [matchError, setMatchError] = useState('')
 
   const [uploading, setUploading] = useState(false)
+
+  const [manualMatches, setManualMatches] = useState<Map<string, { entry: InventoryEntry; stores: ReturnType<typeof getStoreStocks> }>>(new Map())
+  const [searchingBarcode, setSearchingBarcode] = useState<string | null>(null)
+  const [barcodeInput, setBarcodeInput] = useState('')
+  const [barcodeError, setBarcodeError] = useState('')
 
   useEffect(() => {
     try {
@@ -278,6 +284,45 @@ export function CrossInventory() {
     handleMatch()
   }
 
+  const startBarcodeSearch = (cartName: string) => {
+    setSearchingBarcode(cartName)
+    setBarcodeInput('')
+    setBarcodeError('')
+  }
+
+  const lookupBarcode = async (cartName: string) => {
+    if (!supabase || !barcodeInput.trim()) return
+    setBarcodeError('')
+    try {
+      const { data, error } = await supabase
+        .from('shared_inventory')
+        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category')
+        .eq('barcode', barcodeInput.trim())
+        .not('category', 'is', null)
+        .neq('category', '')
+        .limit(1)
+
+      if (error) {
+        setBarcodeError(error.message)
+        return
+      }
+
+      const entry = (data ?? [])[0] as InventoryEntry | undefined
+      if (!entry) {
+        setBarcodeError('Nessun prodotto trovato con questo barcode')
+        return
+      }
+
+      const next = new Map(manualMatches)
+      next.set(cartName, { entry, stores: getStoreStocks(entry) })
+      setManualMatches(next)
+      setSearchingBarcode(null)
+      setBarcodeInput('')
+    } catch (err) {
+      setBarcodeError(err instanceof Error ? err.message : 'Errore')
+    }
+  }
+
   return (
     <section className="store-single-page">
       <article className="card">
@@ -391,7 +436,57 @@ export function CrossInventory() {
                       {hasNoMatch ? 'nessun match' : `${Math.round(item.bestMatch!.score * 100)}%`}
                     </span>
                   </div>
-                  {hasNoMatch ? null : (
+                  {hasNoMatch ? (
+                    <div className="cross-match-no-match">
+                      {searchingBarcode === item.name ? (
+                        <div className="cross-match-barcode-search">
+                          <input
+                            className="cross-barcode-input"
+                            value={barcodeInput}
+                            onChange={(e) => setBarcodeInput(e.target.value)}
+                            placeholder="Incolla barcode da Easyfatt..."
+                            autoFocus
+                            onKeyDown={(e) => { if (e.key === 'Enter') lookupBarcode(item.name) }}
+                          />
+                          <div className="cross-match-actions">
+                            <button className="ghost small" type="button" onClick={() => lookupBarcode(item.name)}>
+                              Cerca
+                            </button>
+                            <button className="ghost small" type="button" onClick={() => setSearchingBarcode(null)}>
+                              Annulla
+                            </button>
+                          </div>
+                          {barcodeError ? <p className="error">{barcodeError}</p> : null}
+                        </div>
+                      ) : manualMatches.has(item.name) ? (
+                        (() => {
+                          const manual = manualMatches.get(item.name)!
+                          const manualButtons = manual.stores
+                            .filter((s) => s.quantity > 0 && s.label.toLowerCase() !== selectedStore.toLowerCase())
+                          return manualButtons.length > 0 ? (
+                            <>
+                              <p className="cross-match-product">{manual.entry.product_name}</p>
+                              <div className="cross-match-actions">
+                                {manualButtons.map((s) => (
+                                  <button key={s.store} className="ghost small" type="button">
+                                    CHIEDI A {s.label.toUpperCase()}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <p className="hint">Trovato "{manual.entry.product_name}" ma nessun altro store ha giacenza</p>
+                          )
+                        })()
+                      ) : (
+                        <div className="cross-match-actions">
+                          <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name)}>
+                            Cerca per barcode
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
                     <>
                       <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
                       <div className="cross-match-actions">
