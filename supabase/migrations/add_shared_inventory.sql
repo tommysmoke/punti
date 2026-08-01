@@ -91,3 +91,46 @@ end;
 $$;
 
 grant execute on function public.reset_inventory_for_store(text) to authenticated;
+
+-- Batch update store quantities by product IDs (single UPDATE with FROM VALUES)
+create or replace function public.batch_update_store_quantities(
+  p_column text,
+  p_updates jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_pairs text := '';
+  rec record;
+begin
+  if not exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid()
+      and p.role = 'store'
+  ) then
+    raise exception 'Permesso negato';
+  end if;
+
+  if p_column not in ('quantity_quarto', 'quantity_castenaso', 'quantity_bologna', 'quantity_san_lazzaro') then
+    raise exception 'Colonna non valida';
+  end if;
+
+  if jsonb_array_length(p_updates) = 0 then
+    return;
+  end if;
+
+  select string_agg(format('(%s, %s)', (item->>'id'), (item->>'q')), ', ')
+  into v_pairs
+  from jsonb_array_elements(p_updates) as item;
+
+  execute format(
+    'update public.shared_inventory si set %I = v.q from (values %s) as v(id, q) where si.id = v.id',
+    p_column, v_pairs
+  );
+end;
+$$;
+
+grant execute on function public.batch_update_store_quantities(text, jsonb) to authenticated;

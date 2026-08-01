@@ -161,23 +161,17 @@ export function CrossInventory() {
         })
       }
 
-      // Batch updates
+      // Batch updates via RPC
       if (updates.length > 0) {
-        const batchSize = 200
-        for (let i = 0; i < updates.length; i += batchSize) {
-          const batch = updates.slice(i, i + batchSize)
-          for (const update of batch) {
-            const { id, ...fields } = update
-            const { error } = await supabase
-              .from('shared_inventory')
-              .update(fields)
-              .eq('id', id)
-            if (error) {
-              setCsvStatus('error')
-              setCsvMessage(`Errore aggiornamento: ${error.message}`)
-              return
-            }
-          }
+        const payload = updates.map((u) => ({ id: u.id, q: u[columnName] }))
+        const { error } = await supabase.rpc('batch_update_store_quantities', {
+          p_column: columnName,
+          p_updates: payload,
+        })
+        if (error) {
+          setCsvStatus('error')
+          setCsvMessage(`Errore aggiornamento: ${error.message}`)
+          return
         }
       }
 
