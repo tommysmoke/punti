@@ -379,40 +379,35 @@ export function CrossInventory() {
           </p>
 
           {cartItemsMapToMatches(cartItems, matches)
-            .filter((item) => item.matches.length > 0 && collectStoreButtons(item.matches, selectedStore).length > 0)
+            .filter((item) => item.matches.length === 0 || collectStoreButtons(item.matches, selectedStore).length > 0)
             .map((item) => {
               const storeButtons = collectStoreButtons(item.matches, selectedStore)
+              const hasNoMatch = item.matches.length === 0
               return (
                 <div key={item.name} className="cross-match-item">
                   <div className="cross-match-header">
                     <span className="cross-match-cart-name">{item.name}</span>
-                    <span
-                      className={`cross-match-score${
-                        item.bestMatch!.score >= 0.7
-                          ? ' high'
-                          : item.bestMatch!.score >= 0.4
-                            ? ' medium'
-                            : ' low'
-                      }`}
-                    >
-                      {Math.round(item.bestMatch!.score * 100)}%
+                    <span className={`cross-match-score${hasNoMatch ? ' none' : item.bestMatch!.score >= 0.7 ? ' high' : item.bestMatch!.score >= 0.4 ? ' medium' : ' low'}`}>
+                      {hasNoMatch ? 'nessun match' : `${Math.round(item.bestMatch!.score * 100)}%`}
                     </span>
                   </div>
-                  <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
-                  {storeButtons.length > 0 ? (
-                    <div className="cross-match-actions">
-                      {storeButtons.map((s) => (
-                        <button
-                          key={s.store}
-                          className="ghost small"
-                          type="button"
-                          onClick={() => { /* TODO: implementare richiesta */ }}
-                        >
-                          CHIEDI A {s.label.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                  {hasNoMatch ? null : (
+                    <>
+                      <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
+                      <div className="cross-match-actions">
+                        {storeButtons.map((s) => (
+                          <button
+                            key={s.store}
+                            className="ghost small"
+                            type="button"
+                            onClick={() => { /* TODO: implementare richiesta */ }}
+                          >
+                            CHIEDI A {s.label.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )
             })}
