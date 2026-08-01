@@ -384,63 +384,48 @@ export function CrossInventory() {
             Prodotti del carrello trovati nell'inventario condiviso.
           </p>
 
-          {cartItemsMapToMatches(cartItems, matches).map((item) => (
-            <div key={item.name} className="cross-match-item">
-              <div className="cross-match-header">
-                <span className="cross-match-cart-name">{item.name}</span>
-                {item.bestMatch ? (
-                  <span
-                    className={`cross-match-score${
-                      item.bestMatch.score >= 0.7
-                        ? ' high'
-                        : item.bestMatch.score >= 0.4
-                          ? ' medium'
-                          : ' low'
-                    }`}
-                  >
-                    {Math.round(item.bestMatch.score * 100)}%
-                  </span>
-                ) : (
-                  <span className="cross-match-score none">nessun match</span>
-                )}
-              </div>
-
-              {item.matches.length > 0 ? (
-                <ul className="cross-match-details">
-                  {item.matches.map((m) => (
-                    <li key={m.entry.id} className="cross-match-detail-item">
-                      <div className="cross-match-detail-info">
-                        <strong>{m.entry.product_name}</strong>
-                        <div className="cross-match-stores">
-                          {m.stocks
-                            .filter((s) => s.quantity > 0)
-                            .map((s) => (
-                              <span
-                                key={s.store}
-                                className={`cross-store-tag${selectedStore && s.label.toLowerCase() === selectedStore.toLowerCase() ? ' self' : ''}`}
-                              >
-                                {s.label}: {s.quantity}
-                                {selectedStore && s.label.toLowerCase() === selectedStore.toLowerCase() ? ' (tu)' : ''}
-                              </span>
-                            ))}
-                          {m.stocks.every((s) => s.quantity <= 0) ? (
-                            <span className="cross-store-tag empty">Nessuna giacenza</span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <span className={`cross-match-inline-score${m.score >= 0.7 ? ' high' : m.score >= 0.4 ? ' medium' : ' low'}`}>
-                        {m.score >= 0.7 ? '✓' : '~'} {Math.round(m.score * 100)}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="hint no-top" style={{ paddingLeft: '0.5rem' }}>
-                  Nessuna corrispondenza trovata nell'inventario.
-                </p>
-              )}
-            </div>
-          ))}
+          {cartItemsMapToMatches(cartItems, matches)
+            .filter((item) => item.matches.length > 0)
+            .map((item) => {
+              const storeButtons = collectStoreButtons(item.matches, selectedStore)
+              return (
+                <div key={item.name} className="cross-match-item">
+                  <div className="cross-match-header">
+                    <span className="cross-match-cart-name">{item.name}</span>
+                    <span
+                      className={`cross-match-score${
+                        item.bestMatch!.score >= 0.7
+                          ? ' high'
+                          : item.bestMatch!.score >= 0.4
+                            ? ' medium'
+                            : ' low'
+                      }`}
+                    >
+                      {Math.round(item.bestMatch!.score * 100)}%
+                    </span>
+                  </div>
+                  <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
+                  {storeButtons.length > 0 ? (
+                    <div className="cross-match-actions">
+                      {storeButtons.map((s) => (
+                        <button
+                          key={s.store}
+                          className="ghost small"
+                          type="button"
+                          onClick={() => { /* TODO: implementare richiesta */ }}
+                        >
+                          CHIEDI A {s.label.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="hint">
+                      Già in tuo possesso
+                    </p>
+                  )}
+                </div>
+              )
+            })}
         </article>
       ) : null}
     </section>
@@ -451,6 +436,12 @@ interface CartItemMatch {
   name: string
   matches: MatchResult['matches']
   bestMatch: MatchResult['matches'][number] | null
+}
+
+interface StoreButton {
+  store: string
+  label: string
+  quantity: number
 }
 
 function cartItemsMapToMatches(
@@ -471,4 +462,24 @@ function cartItemsMapToMatches(
       bestMatch: matches.length > 0 ? matches[0] : null,
     }
   })
+}
+
+function collectStoreButtons(
+  matches: MatchResult['matches'],
+  currentStore: string,
+): StoreButton[] {
+  const seen = new Set<string>()
+  const buttons: StoreButton[] = []
+
+  for (const m of matches) {
+    for (const s of m.stocks) {
+      if (s.quantity <= 0) continue
+      if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
+      if (seen.has(s.store)) continue
+      seen.add(s.store)
+      buttons.push(s)
+    }
+  }
+
+  return buttons
 }
