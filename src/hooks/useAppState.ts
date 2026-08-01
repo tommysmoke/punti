@@ -53,7 +53,7 @@ type RecentNotification = {
   created_at: string
 }
 
-type StorePage = 'operations' | 'new-customer' | 'rewards' | 'communications'
+type StorePage = 'operations' | 'new-customer' | 'rewards' | 'communications' | 'cross-inventory'
 
 export function useAppState() {
   // Session / auth
