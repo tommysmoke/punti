@@ -1,5 +1,5 @@
 -- Shared inventory for cross-store surplus/excess tracking
--- One row per product, with quantity columns per store
+-- One row per product, with quantity columns per store and alias columns for supplier names
 
 create table if not exists public.shared_inventory (
   id bigint generated always as identity primary key,
@@ -10,6 +10,16 @@ create table if not exists public.shared_inventory (
   quantity_bologna integer not null default 0,
   quantity_san_lazzaro integer not null default 0,
   category text,
+  alias_1 text,
+  alias_2 text,
+  alias_3 text,
+  alias_4 text,
+  alias_5 text,
+  alias_6 text,
+  alias_7 text,
+  alias_8 text,
+  alias_9 text,
+  alias_10 text,
   updated_at timestamptz not null default now()
 );
 
@@ -104,7 +114,6 @@ set search_path = public
 as $$
 declare
   v_pairs text := '';
-  rec record;
 begin
   if not exists (
     select 1 from public.profiles p
@@ -135,35 +144,5 @@ $$;
 
 grant execute on function public.batch_update_store_quantities(text, jsonb) to authenticated;
 
--- Saved barcode aliases for manual cart item matching
-create table if not exists public.cross_inventory_aliases (
-  id bigint generated always as identity primary key,
-  cart_name text not null,
-  barcode text not null,
-  created_at timestamptz not null default now()
-);
-
-create unique index if not exists cross_inventory_aliases_cart_name_idx
-  on public.cross_inventory_aliases(lower(cart_name));
-
-alter table public.cross_inventory_aliases enable row level security;
-
-drop policy if exists "cross_inventory_aliases_all_read" on public.cross_inventory_aliases;
-create policy "cross_inventory_aliases_all_read" on public.cross_inventory_aliases
-for select using (
-  exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid()
-      and p.role = 'store'
-  )
-);
-
-drop policy if exists "cross_inventory_aliases_all_insert" on public.cross_inventory_aliases;
-create policy "cross_inventory_aliases_all_insert" on public.cross_inventory_aliases
-for insert with check (
-  exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid()
-      and p.role = 'store'
-  )
-);
+-- Drop old aliases table
+drop table if exists public.cross_inventory_aliases;

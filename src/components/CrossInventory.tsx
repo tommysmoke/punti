@@ -6,23 +6,13 @@ import {
   matchCartAgainstInventory,
   getStoreColumnName,
   getStoreStocks,
+  findEmptyAliasColumn,
   STORE_NAMES,
   type InventoryEntry,
   type MatchResult,
 } from '../lib/crossInventory'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
-
-function safeInsertAlias(cartName: string, barcode: string) {
-  supabase
-    ?.from('cross_inventory_aliases')
-    .insert({ cart_name: cartName, barcode })
-    .then(({ error }) => {
-      if (error && !error.message.includes('duplicate')) {
-        console.warn('Failed to save alias', error)
-      }
-    })
-}
 
 export function CrossInventory() {
   const [selectedStore, setSelectedStore] = useState(() => {
@@ -267,7 +257,7 @@ export function CrossInventory() {
     try {
       const { data, error } = await supabase
         .from('shared_inventory')
-        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category')
+        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
 
       if (error) {
         setMatchError(`Errore nel recupero inventario: ${error.message}`)
@@ -276,47 +266,6 @@ export function CrossInventory() {
 
       const inventory = (data ?? []) as InventoryEntry[]
       const results = matchCartAgainstInventory(names, inventory)
-
-      // Check saved barcode aliases for unmatched items
-      const unmatchedNames = results
-        .filter((r) => r.matches.length === 0)
-        .map((r) => r.cartName)
-
-      if (unmatchedNames.length > 0 && supabase) {
-        const { data: aliases } = await supabase
-          .from('cross_inventory_aliases')
-          .select('cart_name, barcode')
-          .in('cart_name', unmatchedNames)
-
-        if (aliases && aliases.length > 0) {
-          const barcodeToCartName = new Map<string, string>()
-          for (const a of aliases as { cart_name: string; barcode: string }[]) {
-            if (!barcodeToCartName.has(a.barcode)) {
-              barcodeToCartName.set(a.barcode, a.cart_name)
-            }
-          }
-
-          const barcodes = [...barcodeToCartName.keys()]
-          const { data: aliasInventory } = await supabase
-            .from('shared_inventory')
-            .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category')
-            .in('barcode', barcodes)
-            .not('category', 'is', null)
-            .neq('category', '')
-
-          if (aliasInventory && aliasInventory.length > 0) {
-            const nextManual = new Map(manualMatches)
-            for (const entry of aliasInventory as InventoryEntry[]) {
-              const cartName = barcodeToCartName.get(entry.barcode!)
-              if (cartName) {
-                nextManual.set(cartName, { entry, stores: getStoreStocks(entry) })
-              }
-            }
-            setManualMatches(nextManual)
-          }
-        }
-      }
-
       setCartItems(names)
       setMatches(results)
     } catch (err) {
@@ -347,7 +296,7 @@ export function CrossInventory() {
     try {
       const { data, error } = await supabase
         .from('shared_inventory')
-        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category')
+        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
         .eq('barcode', barcodeInput.trim())
         .not('category', 'is', null)
         .neq('category', '')
@@ -370,8 +319,18 @@ export function CrossInventory() {
       setSearchingBarcode(null)
       setBarcodeInput('')
 
-      // Persist alias for future matching (all stores benefit)
-      safeInsertAlias(cartName, barcodeInput.trim())
+      // Persist alias on product row
+      const col = findEmptyAliasColumn(entry)
+      if (col) {
+        await supabase.from('shared_inventory').update({ [col]: cartName }).eq('id', entry.id)
+      } else {
+        // All 10 full: clear all and save as alias_1
+        const clearPayload: Record<string, null> = {}
+        for (let i = 1; i <= 10; i++) {
+          clearPayload[`alias_${i}`] = null
+        }
+        await supabase.from('shared_inventory').update({ ...clearPayload, alias_1: cartName }).eq('id', entry.id)
+      }
     } catch (err) {
       setBarcodeError(err instanceof Error ? err.message : 'Errore')
     }

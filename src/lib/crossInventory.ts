@@ -7,6 +7,16 @@ export interface InventoryEntry {
   quantity_bologna: number
   quantity_san_lazzaro: number
   category: string | null
+  alias_1: string | null
+  alias_2: string | null
+  alias_3: string | null
+  alias_4: string | null
+  alias_5: string | null
+  alias_6: string | null
+  alias_7: string | null
+  alias_8: string | null
+  alias_9: string | null
+  alias_10: string | null
 }
 
 export interface StoreStock {
@@ -31,6 +41,11 @@ const STORE_COLUMNS: { store: string; label: string; col: keyof InventoryEntry }
   { store: 'san_lazzaro', label: 'San Lazzaro', col: 'quantity_san_lazzaro' },
 ]
 
+const ALIAS_COLUMNS: (keyof InventoryEntry)[] = [
+  'alias_1', 'alias_2', 'alias_3', 'alias_4', 'alias_5',
+  'alias_6', 'alias_7', 'alias_8', 'alias_9', 'alias_10',
+]
+
 export function getStoreStocks(entry: InventoryEntry): StoreStock[] {
   return STORE_COLUMNS.map((s) => ({
     store: s.store,
@@ -44,6 +59,20 @@ export function getStoreColumnName(storeName: string): string {
     (s) => s.store === storeName.toLowerCase() || s.label.toLowerCase() === storeName.toLowerCase(),
   )
   return found ? `quantity_${found.store}` : ''
+}
+
+export function getAliases(entry: InventoryEntry): string[] {
+  return ALIAS_COLUMNS
+    .map((col) => entry[col])
+    .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+}
+
+export function findEmptyAliasColumn(entry: InventoryEntry): keyof InventoryEntry | null {
+  for (const col of ALIAS_COLUMNS) {
+    const val = entry[col]
+    if (typeof val !== 'string' || val.trim() === '') return col
+  }
+  return null
 }
 
 export const STORE_NAMES = STORE_COLUMNS.map((s) => s.label)
@@ -93,8 +122,23 @@ export function matchCartAgainstInventory(
     const scored = validInventory
       .map((entry) => {
         const entryTokens = tokenize(entry.product_name)
-        const tokenScore = jaccardSimilarity(cartTokens, entryTokens)
+        let tokenScore = jaccardSimilarity(cartTokens, entryTokens)
         const substringScore = substringBonus(normalize(cartName), normalize(entry.product_name))
+
+        // Check aliases: exact match on alias gives a high score
+        const aliases = getAliases(entry)
+        for (const alias of aliases) {
+          if (normalize(alias) === normalize(cartName)) {
+            tokenScore = Math.max(tokenScore, 0.95)
+            break
+          }
+          const aliasTokens = tokenize(alias)
+          const aliasScore = jaccardSimilarity(cartTokens, aliasTokens)
+          if (aliasScore > 0.5) {
+            tokenScore = Math.max(tokenScore, aliasScore * 0.9)
+          }
+        }
+
         const score = Math.max(tokenScore, substringScore * 0.85, tokenScore * 0.7 + substringScore * 0.3)
 
         return { entry, score, stocks: getStoreStocks(entry) }
