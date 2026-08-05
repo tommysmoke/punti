@@ -1688,23 +1688,6 @@ function App() {
               <p>{profile.store_id}</p>
             </details>
           ) : null}
-          {role === 'store' ? (
-            <label className="test-mode-toggle" title="Abilita test cross-inventory (invio a sé stessi)">
-              <input
-                type="checkbox"
-                checked={testMode}
-                onChange={() => {
-                  if (testMode) {
-                    try { localStorage.setItem('punti-cross-test-mode', '0') } catch { /* ignore */ }
-                    setTestMode(false)
-                  } else {
-                    setShowTestConfirm(true)
-                  }
-                }}
-              />
-              Test
-            </label>
-          ) : null}
           {import.meta.env.VITE_GIT_SHA ? (
             <details className="store-code-box">
               <summary>Versione</summary>
@@ -2475,7 +2458,23 @@ function App() {
         </section>
       </>
       )}
-
+        {role === 'store' ? (
+          <label className="test-mode-float" title="Abilita test cross-inventory (invio a sé stessi)">
+            <input
+              type="checkbox"
+              checked={testMode}
+              onChange={() => {
+                if (testMode) {
+                  try { localStorage.setItem('punti-cross-test-mode', '0') } catch { /* ignore */ }
+                  setTestMode(false)
+                } else {
+                  setShowTestConfirm(true)
+                }
+              }}
+            />
+            <span>Test cross</span>
+          </label>
+        ) : null}
     </main>
   )
 }

@@ -1594,27 +1594,32 @@ time {
   color: #8b2e2e;
 }
 
-.test-mode-toggle {
+.test-mode-float {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 100;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--text);
   cursor: pointer;
   user-select: none;
-  padding: 0.3rem 0.55rem;
+  padding: 0.35rem 0.6rem;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   transition: 0.15s ease;
 }
 
-.test-mode-toggle input {
+.test-mode-float input {
   accent-color: #d9534f;
   cursor: pointer;
 }
 
-.test-mode-toggle:has(input:checked) {
+.test-mode-float:has(input:checked) {
   background: #fff5f5;
   border-color: #d9534f;
   color: #8b2e2e;
