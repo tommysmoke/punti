@@ -496,11 +496,17 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
 
               <label>
                 File CSV (export Easyfatt)
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
-                />
+                <div className="cross-file-input">
+                  <label className="ghost small cross-file-button">
+                    Scegli file
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <span className="cross-file-name">{csvFile ? csvFile.name : 'Nessun file selezionato'}</span>
+                </div>
               </label>
 
               {csvMessage ? (

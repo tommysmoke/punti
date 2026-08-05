@@ -1609,15 +1609,6 @@ time {
   min-width: 0;
 }
 
-.cross-main .card {
-  overflow: hidden;
-}
-
-.cross-main input[type="file"] {
-  max-width: 100%;
-  overflow: hidden;
-}
-
 .cross-main .success,
 .cross-main .error {
   overflow-wrap: break-word;
@@ -1626,7 +1617,32 @@ time {
 
 .cross-layout .card {
   min-width: 0;
-  overflow: hidden;
+}
+
+.cross-file-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cross-file-button {
+  position: relative;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.cross-file-button input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cross-file-name {
+  font-size: 0.75rem;
+  color: #7d8a8e;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 @media (max-width: 1100px) {
@@ -1714,10 +1730,7 @@ time {
 }
 
 .cross-results-placeholder {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 200px;
+  /* behaves like a normal card */
 }
 
 .test-mode-float {
