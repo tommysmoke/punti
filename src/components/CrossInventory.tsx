@@ -81,14 +81,40 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
   const [receivedRequests, setReceivedRequests] = useState<ReceivedRequest[]>([])
   const [showSvuotaConfirm, setShowSvuotaConfirm] = useState(false)
 
-  const [requestBasket, setRequestBasket] = useState<Map<string, { productName: string; barcode: string | null }[]>>(new Map())
+  const [requestBasket, setRequestBasket] = useState<Map<string, { productName: string; barcode: string | null; quantity: number }[]>>(new Map())
 
   const addToBasket = (toStore: string, productName: string, barcode: string | null) => {
     setRequestBasket((prev) => {
       const next = new Map(prev)
       const items = next.get(toStore) ?? []
-      items.push({ productName, barcode })
+      items.push({ productName, barcode, quantity: 1 })
       next.set(toStore, items)
+      return next
+    })
+  }
+
+  const updateBasketQuantity = (toStore: string, index: number, quantity: number) => {
+    if (quantity < 1) return
+    setRequestBasket((prev) => {
+      const next = new Map(prev)
+      const items = [...(next.get(toStore) ?? [])]
+      if (index >= 0 && index < items.length) {
+        items[index] = { ...items[index], quantity }
+      }
+      next.set(toStore, items)
+      return next
+    })
+  }
+
+  const removeFromBasket = (toStore: string, index: number) => {
+    setRequestBasket((prev) => {
+      const next = new Map(prev)
+      const items = (next.get(toStore) ?? []).filter((_, i) => i !== index)
+      if (items.length === 0) {
+        next.delete(toStore)
+      } else {
+        next.set(toStore, items)
+      }
       return next
     })
   }
@@ -98,7 +124,7 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
     const items = requestBasket.get(toStore)
     if (!items || items.length === 0) return
     const fromStore = selectedStore
-    const bodyLines = items.map((item, i) => `${i + 1}. ${item.productName}${item.barcode ? ` (${item.barcode})` : ''}`)
+    const bodyLines = items.map((item) => `${item.quantity} ${item.productName}${item.barcode ? ` (${item.barcode})` : ''}`)
     const body = `Chiede:\n${bodyLines.join('\n')}`
     try {
       const { error } = await supabase.from('store_notifications').insert({
@@ -698,13 +724,37 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
         {requestBasket.size > 0 ? (
           <div className="cross-basket-bar">
             {[...requestBasket].map(([store, items]) => (
-              <div key={store} className="cross-basket-item">
-                <span className="cross-basket-text">
-                  Richiesta per <strong>{store}</strong> ({items.length} prodotti)
-                </span>
-                <button className="cta" type="button" onClick={() => sendBasketRequest(store)}>
-                  Invia
-                </button>
+              <div key={store} className="cross-basket-group">
+                <div className="cross-basket-header">
+                  <span className="cross-basket-text">
+                    Richiesta per <strong>{store}</strong> ({items.length} prodotti)
+                  </span>
+                  <button className="cta" type="button" onClick={() => sendBasketRequest(store)}>
+                    Invia
+                  </button>
+                </div>
+                <ul className="cross-basket-items">
+                  {items.map((item, i) => (
+                    <li key={i} className="cross-basket-li">
+                      <input
+                        className="cross-basket-qty"
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateBasketQuantity(store, i, parseInt(e.target.value, 10) || 1)}
+                      />
+                      <span className="cross-basket-name">{item.productName}</span>
+                      <button
+                        className="ghost small"
+                        type="button"
+                        onClick={() => removeFromBasket(store, i)}
+                        title="Rimuovi"
+                      >
+                        &#10005;
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>

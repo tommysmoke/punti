@@ -64,7 +64,7 @@ function normalizeSearchText(value: string): string {
 function truncateCrossBody(body: string): string {
   const lines = body.split('\n').filter((l) => l.trim())
   if (lines.length <= 1) return body
-  const firstItem = lines[0].replace(/^Chiede:\s*/, '') || lines[1]?.replace(/^\d+\.\s*/, '') || ''
+  const firstItem = lines[1]?.replace(/^\d+\s*/, '') || ''
   const extra = lines.length - 2
   const suffix = extra > 0 ? ` e altri ${extra} articoli` : ''
   const limit = 55
