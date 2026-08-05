@@ -1433,6 +1433,17 @@ time {
   border: 1px solid var(--border);
 }
 
+.cross-match-score-btn {
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  transition: opacity 0.15s ease;
+}
+
+.cross-match-score-btn:hover {
+  opacity: 0.8;
+}
+
 .cross-match-details {
   list-style: none;
   margin: 0.5rem 0 0;

@@ -77,6 +77,16 @@ export function findEmptyAliasColumn(entry: InventoryEntry): keyof InventoryEntr
 
 export const STORE_NAMES = STORE_COLUMNS.map((s) => s.label)
 
+const KNOWN_BRANDS: { name: string; normalized: string }[] = [
+  'Vaporart', 'Vaporice', 'Tnt', 'Suprem-e', 'Dea', 'Dreamods',
+  'Elfliq', 'ElfBar', 'Eliquid France', 'Fruizee', 'Cyber Flavour',
+  'Vaporesso', 'Geekvape', 'Voopoo', 'Aspire', 'Innokin', 'Justfog',
+  'Kiwi', 'Samsung', 'SvapoNext', 'Super Flavor', 'Seven Wonders',
+  'Royal Blend', 'Ripe Vapes', 'Reload Vape', 'King Liquid', 'Flavourart',
+  'Blendfeel', 'Azhad', 'Tabaccheria', 'Tob', 'TommySmoke',
+  'BARRIQUE LINE', 'Vaporice',
+].map((name) => ({ name, normalized: normalize(name) }))
+
 function normalize(s: string): string {
   return s
     .toLowerCase()
@@ -92,21 +102,91 @@ function tokenize(s: string): string[] {
     .filter((t) => t.length >= 2)
 }
 
+function tokenWeight(token: string): number {
+  // Molto basso: filler words che appaiono in quasi tutti i prodotti
+  if (token === 'nicotina' || token === 'concentrato') return 0.3
+
+  // Basso: mg/ml standalone (senza numero davanti)
+  if (token === 'mg' || token === 'ml') return 0.5
+
+  // Medio: aroma
+  if (token === 'aroma') return 1.5
+
+  // Medio-alto: dosi di nicotina con numero
+  if (/^\d{1,2}mg$/.test(token)) {
+    const n = parseInt(token, 10)
+    if (n >= 0 && n <= 20) return 2.0
+  }
+
+  // Medio-alto: formati ml con numero
+  if (/^\d{2,3}ml$/.test(token)) return 2.0
+
+  // Medio: 10+10
+  if (token === '10+10') return 1.5
+
+  // Token di esattamente 2 caratteri: spesso codici interni, meno distintivi
+  if (token.length === 2) return 1.5
+
+  // Alto (default): parole distintive del prodotto
+  return 3.0
+}
+
 function jaccardSimilarity(tokensA: string[], tokensB: string[]): number {
   if (tokensA.length === 0 && tokensB.length === 0) return 0
 
   const setA = new Set(tokensA)
   const setB = new Set(tokensB)
 
-  let intersection = 0
-  for (const t of setA) {
-    if (setB.has(t)) intersection++
+  const allTokens = new Set([...setA, ...setB])
+
+  let weightedIntersection = 0
+  let weightedUnion = 0
+
+  for (const t of allTokens) {
+    const weight = tokenWeight(t)
+    const inA = setA.has(t)
+    const inB = setB.has(t)
+
+    if (inA && inB) {
+      weightedIntersection += weight
+      weightedUnion += weight
+    } else if (inA || inB) {
+      weightedUnion += weight
+    }
   }
 
-  const union = setA.size + setB.size - intersection
-  if (union === 0) return 0
+  if (weightedUnion === 0) return 0
+  return weightedIntersection / weightedUnion
+}
 
-  return intersection / union
+function brandBoost(cartName: string, entry: InventoryEntry): number {
+  if (!entry.category) return 0
+  const catNorm = normalize(entry.category)
+  for (const brand of KNOWN_BRANDS) {
+    if (catNorm.includes(brand.normalized) && normalize(cartName).includes(brand.normalized)) {
+      return 0.10
+    }
+  }
+  return 0
+}
+
+function prefixBonus(cartName: string, entryName: string): number {
+  const cartWords = normalize(cartName).split(/\s+/).filter((t) => t.length >= 2)
+  const entryWords = normalize(entryName).split(/\s+/).filter((t) => t.length >= 2)
+
+  let matchCount = 0
+  const max = Math.min(cartWords.length, entryWords.length, 3)
+  for (let i = 0; i < max; i++) {
+    if (cartWords[i] === entryWords[i]) {
+      matchCount++
+    } else {
+      break
+    }
+  }
+
+  if (matchCount >= 3) return 0.03
+  if (matchCount >= 2) return 0.02
+  return 0
 }
 
 export function matchCartAgainstInventory(
@@ -140,15 +220,23 @@ export function matchCartAgainstInventory(
         }
 
         const score = Math.max(tokenScore, substringScore * 0.85, tokenScore * 0.7 + substringScore * 0.3)
+          + brandBoost(cartName, entry)
+          + prefixBonus(cartName, entry.product_name)
 
         return { entry, score, stocks: getStoreStocks(entry) }
       })
-      .filter((m) => m.score >= 0.27)
+      .filter((m) => m.score >= adaptiveThreshold(cartTokens))
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
 
     return { cartName, matches: scored }
   })
+}
+
+function adaptiveThreshold(tokens: string[]): number {
+  if (tokens.length === 0) return 0.27
+  const avgWeight = tokens.reduce((sum, t) => sum + tokenWeight(t), 0) / tokens.length
+  return 0.27 + (3.0 - avgWeight) * 0.01
 }
 
 function substringBonus(a: string, b: string): number {

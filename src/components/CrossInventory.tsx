@@ -688,9 +688,18 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                     <div key={item.name} className="cross-match-item">
                       <div className="cross-match-header">
                         <span className="cross-match-cart-name">{item.name}</span>
-                        <span className={`cross-match-score${hasNoMatch ? ' none' : item.bestMatch!.score >= 0.7 ? ' high' : item.bestMatch!.score >= 0.4 ? ' medium' : ' low'}`}>
-                          {hasNoMatch ? 'nessun match' : `${Math.round(item.bestMatch!.score * 100)}%`}
-                        </span>
+                        {hasNoMatch ? (
+                          <span className="cross-match-score none">nessun match</span>
+                        ) : (
+                          <button
+                            className={`cross-match-score-btn cross-match-score${item.bestMatch!.score >= 0.7 ? ' high' : item.bestMatch!.score >= 0.4 ? ' medium' : ' low'}`}
+                            type="button"
+                            onClick={() => startBarcodeSearch(item.name)}
+                            title="Cerca per barcode manuale"
+                          >
+                            {Math.round(item.bestMatch!.score * 100)}%
+                          </button>
+                        )}
                       </div>
                       {hasNoMatch ? (
                         <div className="cross-match-no-match">
@@ -725,7 +734,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                                   <div className="cross-match-actions">
                                     {manualButtons.map((s) => (
                                       <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode)}>
-                                        CHIEDI A {s.label.toUpperCase()}
+CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
                                       </button>
                                     ))}
                                   </div>
@@ -744,19 +753,63 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                         </div>
                       ) : (
                         <>
-                          <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
-                            <div className="cross-match-actions">
-                            {storeButtons.map((s) => (
-                              <button
-                                key={s.store}
-                                className="ghost small"
-                                type="button"
-                                onClick={() => addToBasket(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
-                              >
-                                CHIEDI A {s.label.toUpperCase()}
-                              </button>
-                            ))}
-                          </div>
+                          {searchingBarcode === item.name ? (
+                            <div className="cross-match-barcode-search">
+                              <input
+                                className="cross-barcode-input"
+                                value={barcodeInput}
+                                onChange={(e) => setBarcodeInput(e.target.value)}
+                                placeholder="Incolla barcode da Easyfatt..."
+                                autoFocus
+                                onKeyDown={(e) => { if (e.key === 'Enter') lookupBarcode(item.name) }}
+                              />
+                              <div className="cross-match-actions">
+                                <button className="ghost small" type="button" onClick={() => lookupBarcode(item.name)}>
+                                  Cerca
+                                </button>
+                                <button className="ghost small" type="button" onClick={() => setSearchingBarcode(null)}>
+                                  Annulla
+                                </button>
+                              </div>
+                              {barcodeError ? <p className="error">{barcodeError}</p> : null}
+                            </div>
+                          ) : manualMatches.has(item.name) ? (
+                            (() => {
+                              const manual = manualMatches.get(item.name)!
+                              const manualButtons = manual.stores
+                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()))
+                              return manualButtons.length > 0 ? (
+                                <>
+                                  <p className="cross-match-product">{manual.entry.product_name}</p>
+                                  <div className="cross-match-actions">
+                                    {manualButtons.map((s) => (
+                                      <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode)}>
+                                        CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              ) : (
+                                <p className="hint">Trovato "{manual.entry.product_name}" ma nessun altro store ha giacenza</p>
+                              )
+                            })()
+                          ) : (
+                            <>
+                              <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
+                              <div className="cross-match-actions">
+                                {storeButtons.map((s) => (
+                                  <button
+                                    key={s.store}
+                                    className="ghost small"
+                                    type="button"
+                                    onClick={() => addToBasket(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
+                                  >
+                                    CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
