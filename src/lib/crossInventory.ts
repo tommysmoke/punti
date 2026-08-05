@@ -124,6 +124,9 @@ function tokenWeight(token: string): number {
   // Medio: 10+10
   if (token === '10+10') return 1.5
 
+  // Medio: termini descrittivi che appaiono in molti prodotti
+  if (token === 'shot' || token === 'extra' || token === 'dry' || token === 'line' || token === 'mixture') return 1.5
+
   // Token di esattamente 2 caratteri: spesso codici interni, meno distintivi
   if (token.length === 2) return 1.5
 
@@ -131,8 +134,8 @@ function tokenWeight(token: string): number {
   return 3.0
 }
 
-function jaccardSimilarity(tokensA: string[], tokensB: string[]): number {
-  if (tokensA.length === 0 && tokensB.length === 0) return 0
+function jaccardSimilarity(tokensA: string[], tokensB: string[]): { score: number; hasHighWeight: boolean } {
+  if (tokensA.length === 0 && tokensB.length === 0) return { score: 0, hasHighWeight: false }
 
   const setA = new Set(tokensA)
   const setB = new Set(tokensB)
@@ -141,6 +144,7 @@ function jaccardSimilarity(tokensA: string[], tokensB: string[]): number {
 
   let weightedIntersection = 0
   let weightedUnion = 0
+  let hasHighWeight = false
 
   for (const t of allTokens) {
     const weight = tokenWeight(t)
@@ -150,13 +154,14 @@ function jaccardSimilarity(tokensA: string[], tokensB: string[]): number {
     if (inA && inB) {
       weightedIntersection += weight
       weightedUnion += weight
+      if (weight >= 3.0) hasHighWeight = true
     } else if (inA || inB) {
       weightedUnion += weight
     }
   }
 
-  if (weightedUnion === 0) return 0
-  return weightedIntersection / weightedUnion
+  if (weightedUnion === 0) return { score: 0, hasHighWeight: false }
+  return { score: weightedIntersection / weightedUnion, hasHighWeight }
 }
 
 function brandBoost(cartName: string, entry: InventoryEntry): number {
@@ -202,7 +207,9 @@ export function matchCartAgainstInventory(
     const scored = validInventory
       .map((entry) => {
         const entryTokens = tokenize(entry.product_name)
-        let tokenScore = jaccardSimilarity(cartTokens, entryTokens)
+        const js = jaccardSimilarity(cartTokens, entryTokens)
+        let tokenScore = js.score
+        const hasHighWeight = js.hasHighWeight
         const substringScore = substringBonus(normalize(cartName), normalize(entry.product_name))
 
         // Check aliases: exact match on alias gives a high score
@@ -213,19 +220,23 @@ export function matchCartAgainstInventory(
             break
           }
           const aliasTokens = tokenize(alias)
-          const aliasScore = jaccardSimilarity(cartTokens, aliasTokens)
-          if (aliasScore > 0.5) {
-            tokenScore = Math.max(tokenScore, aliasScore * 0.9)
+          const aliasJs = jaccardSimilarity(cartTokens, aliasTokens)
+          if (aliasJs.score > 0.5) {
+            tokenScore = Math.max(tokenScore, aliasJs.score * 0.9)
           }
         }
 
-        const score = Math.max(tokenScore, substringScore * 0.85, tokenScore * 0.7 + substringScore * 0.3)
+        let score = Math.max(tokenScore, substringScore * 0.85, tokenScore * 0.7 + substringScore * 0.3)
           + brandBoost(cartName, entry)
           + prefixBonus(cartName, entry.product_name)
+
+        // Penalty: no high-weight token in common → mostly generic match
+        if (!hasHighWeight) score *= 0.5
 
         return { entry, score, stocks: getStoreStocks(entry) }
       })
       .filter((m) => m.score >= adaptiveThreshold(cartTokens))
+      .filter((m) => lcsRatio(cartTokens, tokenize(m.entry.product_name)) >= 0.25)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
 
@@ -239,6 +250,24 @@ function adaptiveThreshold(tokens: string[]): number {
   return 0.27 + (3.0 - avgWeight) * 0.01
 }
 
+function lcsRatio(tokensA: string[], tokensB: string[]): number {
+  if (tokensA.length === 0 || tokensB.length === 0) return 0
+  const m = tokensA.length
+  const n = tokensB.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (tokensA[i - 1] === tokensB[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+      }
+    }
+  }
+  const lcs = dp[m][n]
+  return lcs / Math.min(m, n)
+}
+
 function substringBonus(a: string, b: string): number {
   if (!a || !b) return 0
 
@@ -250,9 +279,9 @@ function substringBonus(a: string, b: string): number {
 
   let matched = 0
   for (const ta of tokensA) {
-    if (ta.length < 3) continue
+    if (ta.length < 4) continue
     for (const tb of tokensB) {
-      if (tb.length < 3) continue
+      if (tb.length < 4) continue
       if (tb.includes(ta) || ta.includes(tb)) {
         matched++
         break
@@ -260,7 +289,7 @@ function substringBonus(a: string, b: string): number {
     }
   }
 
-  const max = Math.max(tokensA.filter((t) => t.length >= 3).length, tokensB.filter((t) => t.length >= 3).length)
+  const max = Math.max(tokensA.filter((t) => t.length >= 4).length, tokensB.filter((t) => t.length >= 4).length)
   if (max === 0) return 0
 
   return matched / max
