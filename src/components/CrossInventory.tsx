@@ -17,6 +17,7 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
 
 const STORE_KEY = 'punti-cross-identified-store'
 const STORE_IDENTIFIED_KEY = 'punti-cross-identified'
+const TEST_CROSS_REQUEST = import.meta.env.VITE_TEST_CROSS_REQUEST === '1' || import.meta.env.VITE_TEST_CROSS_REQUEST === 'true'
 
 export function CrossInventory({ profile, pushToast }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
@@ -261,7 +262,12 @@ export function CrossInventory({ profile, pushToast }: { profile: Profile | null
     try {
       const items = parseCart(cartText)
       if (items.length === 0) {
-        setCartError('Nessun prodotto trovato nel testo incollato. Verifica il formato.')
+        const lines = cartText.split('\n').map((l) => l.trim()).filter(Boolean)
+        if (lines.length > 0) {
+          setCartItems(lines)
+        } else {
+          setCartError('Nessun prodotto trovato nel testo incollato. Verifica il formato.')
+        }
         return
       }
       setCartItems(items.map((i) => i.name))
@@ -280,9 +286,11 @@ export function CrossInventory({ profile, pushToast }: { profile: Profile | null
     const names =
       cartItems.length > 0 ? cartItems : (() => {
         try {
-          return parseCart(cartText).map((i) => i.name)
+          const parsed = parseCart(cartText)
+          if (parsed.length > 0) return parsed.map((i) => i.name)
+          return cartText.split('\n').map((l) => l.trim()).filter(Boolean)
         } catch {
-          return []
+          return cartText.split('\n').map((l) => l.trim()).filter(Boolean)
         }
       })()
 
@@ -499,9 +507,13 @@ export function CrossInventory({ profile, pushToast }: { profile: Profile | null
           </p>
 
           {cartItemsMapToMatches(cartItems, matches)
-            .filter((item) => item.matches.length === 0 || collectStoreButtons(item.matches, selectedStore).length > 0)
+            .filter((item) => {
+              if (item.matches.length === 0) return true
+              if (TEST_CROSS_REQUEST) return true
+              return collectStoreButtons(item.matches, selectedStore).length > 0
+            })
             .map((item) => {
-              const storeButtons = collectStoreButtons(item.matches, selectedStore)
+              const storeButtons = collectStoreButtons(item.matches, TEST_CROSS_REQUEST ? '' : selectedStore)
               const hasNoMatch = item.matches.length === 0
               return (
                 <div key={item.name} className="cross-match-item">
@@ -537,7 +549,7 @@ export function CrossInventory({ profile, pushToast }: { profile: Profile | null
                         (() => {
                           const manual = manualMatches.get(item.name)!
                           const manualButtons = manual.stores
-                            .filter((s) => s.quantity > 0 && s.label.toLowerCase() !== selectedStore.toLowerCase())
+                            .filter((s) => s.quantity > 0 && (TEST_CROSS_REQUEST || s.label.toLowerCase() !== selectedStore.toLowerCase()))
                           return manualButtons.length > 0 ? (
                             <>
                               <p className="cross-match-product">{manual.entry.product_name}</p>
