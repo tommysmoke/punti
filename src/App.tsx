@@ -1878,7 +1878,7 @@ function App() {
             <div className="cross-requests-banner">
               {visibleCrossRequests.map((cr) => (
                 <div key={cr.id} className="comms-banner cross-request-banner">
-                  <span className="comms-banner-dot" aria-hidden="true" style={{ background: '#d9534f' }}></span>
+                  <span className="comms-banner-dot" aria-hidden="true"></span>
                   <div className="comms-banner-text">
                     <span className="comms-banner-title">{cr.title}</span>
                     <span className="comms-banner-body">{cr.body}</span>

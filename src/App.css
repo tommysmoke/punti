@@ -1586,12 +1586,16 @@ time {
 }
 
 .cross-request-banner {
-  border-color: #d9534f;
-  background: #fff5f5;
+  border-color: #e0b86e;
+  background: #fdf6ec;
+}
+
+.cross-request-banner .comms-banner-dot {
+  background: #c38410;
 }
 
 .cross-request-banner .comms-banner-title {
-  color: #8b2e2e;
+  color: #6b4306;
 }
 
 .test-mode-float {
