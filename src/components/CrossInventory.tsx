@@ -11,13 +11,14 @@ import {
   type InventoryEntry,
   type MatchResult,
 } from '../lib/crossInventory'
+import type { Profile, Toast } from '../hooks/useAppState'
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
 const STORE_KEY = 'punti-cross-identified-store'
 const STORE_IDENTIFIED_KEY = 'punti-cross-identified'
 
-export function CrossInventory() {
+export function CrossInventory({ profile, pushToast }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
       return localStorage.getItem(STORE_KEY) ?? ''
@@ -65,6 +66,28 @@ export function CrossInventory() {
 
   const handleChangeStore = () => {
     setShowIdentifier(true)
+  }
+
+  const sendCrossRequest = async (toStore: string, productName: string, barcode: string | null) => {
+    if (!supabase || !profile?.store_id) return
+    const fromStore = selectedStore
+    try {
+      const { error } = await supabase.from('store_notifications').insert({
+        store_id: profile.store_id,
+        kind: 'cross_request',
+        target_store: toStore,
+        title: `Richiesta da ${fromStore}`,
+        body: `Chiede: ${productName}${barcode ? ` (${barcode})` : ''}`,
+        created_by: profile.id,
+      })
+      if (error) {
+        pushToast('error', 'Invio richiesta non riuscito')
+        return
+      }
+      pushToast('success', `Richiesta inviata a ${toStore}`)
+    } catch {
+      pushToast('error', 'Invio richiesta non riuscito')
+    }
   }
 
   useEffect(() => {
@@ -520,7 +543,7 @@ export function CrossInventory() {
                               <p className="cross-match-product">{manual.entry.product_name}</p>
                               <div className="cross-match-actions">
                                 {manualButtons.map((s) => (
-                                  <button key={s.store} className="ghost small" type="button">
+                                  <button key={s.store} className="ghost small" type="button" onClick={() => sendCrossRequest(s.label, manual.entry.product_name, manual.entry.barcode)}>
                                     CHIEDI A {s.label.toUpperCase()}
                                   </button>
                                 ))}
@@ -541,13 +564,13 @@ export function CrossInventory() {
                   ) : (
                     <>
                       <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
-                      <div className="cross-match-actions">
+                        <div className="cross-match-actions">
                         {storeButtons.map((s) => (
                           <button
                             key={s.store}
                             className="ghost small"
                             type="button"
-                            onClick={() => { /* TODO: implementare richiesta */ }}
+                            onClick={() => sendCrossRequest(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
                           >
                             CHIEDI A {s.label.toUpperCase()}
                           </button>

@@ -1578,3 +1578,19 @@ time {
   color: var(--accent);
 }
 
+.cross-requests-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.cross-request-banner {
+  border-color: #d9534f;
+  background: #fff5f5;
+}
+
+.cross-request-banner .comms-banner-title {
+  color: #8b2e2e;
+}
+

@@ -288,6 +288,15 @@ function App() {
   const floatIdRef = useRef(0)
   const [balancePop, setBalancePop] = useState(false)
 
+  const [crossRequests, setCrossRequests] = useState<{ id: number; title: string; body: string; created_at: string }[]>([])
+  const identifiedStoreRef = useRef(() => {
+    try {
+      return localStorage.getItem('punti-cross-identified-store')
+    } catch {
+      return null
+    }
+  })
+
   const triggerFloatingPoints = (delta: number, kind: string) => {
     const id = ++floatIdRef.current
     setFloatingPoints((prev) => [...prev, { id, delta, kind }])
@@ -313,6 +322,10 @@ function App() {
       .filter((n) => !dismissedNotificationIds.includes(n.id))
       .slice(0, MAX_VISIBLE_NOTIFICATIONS)
   }, [recentNotifications, dismissedNotificationIds])
+
+  const visibleCrossRequests = useMemo(() => {
+    return crossRequests.filter((n) => !dismissedNotificationIds.includes(n.id))
+  }, [crossRequests, dismissedNotificationIds])
 
   const handleDismissNotification = (id: number) => {
     setDismissedNotificationIds((prev) => {
@@ -503,6 +516,22 @@ function App() {
     setRecentNotifications((data ?? []) as { id: number; title: string; body: string; created_at: string }[])
   }
 
+  const loadCrossRequests = async () => {
+    if (!supabase) return
+    const targetStore = identifiedStoreRef.current()
+    if (!targetStore) return
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { data } = await supabase
+      .from('store_notifications')
+      .select('id, title, body, created_at')
+      .eq('kind', 'cross_request')
+      .eq('target_store', targetStore)
+      .gte('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false })
+      .limit(NOTIFICATIONS_MAX_COUNT)
+    setCrossRequests((data ?? []) as { id: number; title: string; body: string; created_at: string }[])
+  }
+
   const addReward = async (event: FormEvent) => {
     event.preventDefault()
     if (!supabase || !profile?.store_id || addingReward) return
@@ -690,6 +719,7 @@ function App() {
           loadStoreCustomers(nextProfile.store_id),
           loadRewards(nextProfile.store_id),
           loadRecentNotifications(nextProfile.store_id),
+          loadCrossRequests(),
         ])
       }
 
@@ -889,6 +919,7 @@ function App() {
             loadStoreCustomers(profile.store_id!),
             loadRewards(profile.store_id!),
             loadRecentNotifications(profile.store_id!),
+            loadCrossRequests(),
           ]), 'Sincronizzazione dati fallita')
         }
         if (role === 'customer' && profile.customer_id) {
@@ -965,7 +996,7 @@ function App() {
           () => {
             const storeId = profile?.store_id
             if (!storeId) return
-            safeAsync(() => loadRecentNotifications(storeId))
+            safeAsync(() => Promise.all([loadRecentNotifications(storeId), loadCrossRequests()]))
           },
         )
         .subscribe()
@@ -1772,6 +1803,24 @@ function App() {
 
       {role === 'store' ? (
         <>
+          {visibleCrossRequests.length > 0 ? (
+            <div className="cross-requests-banner">
+              {visibleCrossRequests.map((cr) => (
+                <div key={cr.id} className="comms-banner cross-request-banner">
+                  <span className="comms-banner-dot" aria-hidden="true" style={{ background: '#d9534f' }}></span>
+                  <div className="comms-banner-text">
+                    <span className="comms-banner-title">{cr.title}</span>
+                    <span className="comms-banner-body">{cr.body}</span>
+                  </div>
+                  <button
+                    className="comms-banner-dismiss"
+                    onClick={() => handleDismissNotification(cr.id)}
+                    aria-label="Nascondi richiesta"
+                  >&#10005;</button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <section className="store-nav">
             <button
               type="button"
@@ -2212,7 +2261,7 @@ function App() {
             </Suspense>
           ) : tab === 'cross-inventory' ? (
             <Suspense fallback={null}>
-              <CrossInventory />
+              <CrossInventory profile={profile} pushToast={pushToast} />
             </Suspense>
           ) : tab === 'rewards' ? (
             <Suspense fallback={<StoreRewardsFallback />}>
