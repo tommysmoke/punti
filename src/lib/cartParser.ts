@@ -97,7 +97,8 @@ export function parseCart(raw: string): CartItem[] {
       const nicMatch = line.match(NICOTINA_EXTRACT)
       const mlMatch = line.match(ML_EXTRACT)
       const ohmMatch = line.match(OHM_EXTRACT)
-      if (nicMatch) pendingOptions.push(nicMatch[1])
+      const isAroma = /aroma|concentrato|shot|mix\s*&\s*vape|mix\s*10\+10/i.test(currentName ?? '')
+      if (nicMatch && !isAroma) pendingOptions.push(nicMatch[1])
       if (mlMatch) pendingOptions.push(mlMatch[1])
       if (ohmMatch) pendingOptions.push(`${ohmMatch[1]}ohm`)
       lastSeenPrice = false
