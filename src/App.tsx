@@ -1080,17 +1080,18 @@ function App() {
 
   useEffect(() => {
     if (!supabase || role !== 'store') return
-    if (!identifiedStore) return
+    const store = getIdentifiedStore()
+    if (!store) return
 
     const client = supabase
     const channel = client
-      .channel(`cross-requests-${identifiedStore}`)
+      .channel(`cross-requests-${store}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'store_notifications', filter: 'kind=eq.cross_request' },
         (payload) => {
           const record = payload.new as { target_store?: string } | undefined
-          if (record?.target_store === identifiedStore) {
+          if (record?.target_store === getIdentifiedStore()) {
             safeAsync(() => loadCrossRequests())
           }
         },
@@ -2343,7 +2344,14 @@ function App() {
             </Suspense>
           ) : tab === 'cross-inventory' ? (
             <Suspense fallback={null}>
-              <CrossInventory profile={profile} pushToast={pushToast} testMode={testMode} />
+              <CrossInventory profile={profile} pushToast={pushToast} testMode={testMode} onRequestToggleTest={() => {
+                if (testMode) {
+                  try { localStorage.setItem('punti-cross-test-mode', '0') } catch { /* ignore */ }
+                  setTestMode(false)
+                } else {
+                  setShowTestConfirm(true)
+                }
+              }} />
             </Suspense>
           ) : tab === 'rewards' ? (
             <Suspense fallback={<StoreRewardsFallback />}>
@@ -2505,23 +2513,6 @@ function App() {
         </section>
       </>
       )}
-        {role === 'store' ? (
-          <label className="test-mode-float" title="Abilita test cross-inventory (invio a sé stessi)">
-            <input
-              type="checkbox"
-              checked={testMode}
-              onChange={() => {
-                if (testMode) {
-                  try { localStorage.setItem('punti-cross-test-mode', '0') } catch { /* ignore */ }
-                  setTestMode(false)
-                } else {
-                  setShowTestConfirm(true)
-                }
-              }}
-            />
-            <span>Test cross</span>
-          </label>
-        ) : null}
     </main>
   )
 }

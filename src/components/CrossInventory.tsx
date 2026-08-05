@@ -42,7 +42,7 @@ function setFulfilledIds(ids: Set<number>) {
   } catch { /* ignore */ }
 }
 
-export function CrossInventory({ profile, pushToast, testMode }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean }) {
+export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
       return localStorage.getItem(STORE_KEY) ?? ''
@@ -813,6 +813,14 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
         </aside>
         {requestBasket.size > 0 ? null : null}
       </div>
+      <label className="test-mode-float" title="Abilita test cross-inventory (invio a sé stessi)">
+        <input
+          type="checkbox"
+          checked={testMode}
+          onChange={onRequestToggleTest}
+        />
+        <span>Test cross</span>
+      </label>
     </>
   )
 }
