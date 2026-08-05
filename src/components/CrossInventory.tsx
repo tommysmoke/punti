@@ -42,6 +42,28 @@ function setFulfilledIds(ids: Set<number>) {
   } catch { /* ignore */ }
 }
 
+function parseRequestBody(body: string): { productName: string; barcode: string | null; quantity: number }[] {
+  const lines = body.split('\n').filter((l) => l.trim())
+  const items: { productName: string; barcode: string | null; quantity: number }[] = []
+  for (const line of lines) {
+    if (line.startsWith('Chiede:') || line.startsWith('Conferma')) continue
+    const match = line.match(/^(\d+)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/)
+    if (match) {
+      items.push({
+        quantity: parseInt(match[1], 10) || 1,
+        productName: match[2].trim(),
+        barcode: match[3]?.trim() ?? null,
+      })
+    }
+  }
+  return items
+}
+
+function extractSender(title: string): string | null {
+  const match = title.match(/^Richiesta da (.+)$/)
+  return match ? match[1] : null
+}
+
 export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
@@ -202,6 +224,65 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   }
 
   const visibleReceived = receivedRequests.filter((r) => !getFulfilledIds().has(r.id))
+
+  const [replyRequest, setReplyRequest] = useState<ReceivedRequest | null>(null)
+  const [replyItems, setReplyItems] = useState<{ productName: string; barcode: string | null; quantity: number }[]>([])
+
+  const openReply = (req: ReceivedRequest) => {
+    const items = parseRequestBody(req.body)
+    setReplyItems(items)
+    setReplyRequest(req)
+  }
+
+  const updateReplyQuantity = (index: number, qty: number) => {
+    setReplyItems((prev) => {
+      const next = [...prev]
+      if (index >= 0 && index < next.length) {
+        if (qty <= 0) {
+          return next.filter((_, i) => i !== index)
+        }
+        next[index] = { ...next[index], quantity: qty }
+      }
+      return next
+    })
+  }
+
+  const removeReplyItem = (index: number) => {
+    setReplyItems((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const confirmReply = async () => {
+    if (!supabase || !profile?.store_id || !replyRequest) return
+    const fromStore = extractSender(replyRequest.title)
+    const items = replyItems.filter((item) => item.quantity > 0)
+    if (!fromStore || items.length === 0) return
+    const bodyLines = items.map((item) => `${item.quantity} ${item.productName}${item.barcode ? ` (${item.barcode})` : ''}`)
+    const body = `Conferma invio:\n${bodyLines.join('\n')}`
+    try {
+      const { error } = await supabase.from('store_notifications').insert({
+        store_id: profile.store_id,
+        kind: 'cross_request',
+        target_store: fromStore,
+        title: `Risposta da ${selectedStore}`,
+        body,
+        created_by: profile.id,
+      })
+      if (error) {
+        pushToast('error', 'Invio risposta non riuscito')
+        return
+      }
+      pushToast('success', `Risposta inviata a ${fromStore}`)
+      setReplyRequest(null)
+      setReplyItems([])
+    } catch {
+      pushToast('error', 'Invio risposta non riuscito')
+    }
+  }
+
+  const closeReply = () => {
+    setReplyRequest(null)
+    setReplyItems([])
+  }
 
   useEffect(() => {
     setCartItems([])
@@ -769,7 +850,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                           <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
                           <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                         </div>
-                        <button className="ghost small" type="button" title="Rispondi (in arrivo)">
+                        <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
                           &#8630;
                         </button>
                       </li>
@@ -799,7 +880,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                         <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
                         <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                       </div>
-                      <button className="ghost small" type="button" title="Rispondi (in arrivo)">
+                      <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
                         &#8630;
                       </button>
                     </li>
@@ -813,6 +894,57 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         </aside>
         {requestBasket.size > 0 ? null : null}
       </div>
+
+      {replyRequest ? (
+        <div className="modal-overlay" onClick={closeReply}>
+          <div className="modal-content cross-reply-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Rispondi a {extractSender(replyRequest.title)}</h3>
+            <p className="hint" style={{ marginBottom: '1rem' }}>
+              Modifica le quantità che puoi inviare. Imposta a 0 o usa <strong>&minus;</strong> per rimuovere un prodotto.
+            </p>
+            <ul className="cross-reply-items">
+              {replyItems.map((item, i) => (
+                <li key={i} className="cross-reply-li">
+                  <button
+                    className="ghost small danger"
+                    type="button"
+                    onClick={() => removeReplyItem(i)}
+                    title="Rimuovi"
+                  >
+                    &minus;
+                  </button>
+                  <input
+                    className="cross-basket-qty"
+                    type="number"
+                    min="0"
+                    value={item.quantity}
+                    onChange={(e) => updateReplyQuantity(i, parseInt(e.target.value, 10) || 0)}
+                  />
+                  <span className="cross-reply-name">{item.productName}</span>
+                  {item.barcode ? <span className="cross-reply-barcode">{item.barcode}</span> : null}
+                </li>
+              ))}
+            </ul>
+            {replyItems.length === 0 ? (
+              <p className="error">Nessun prodotto da confermare.</p>
+            ) : null}
+            <div className="modal-actions">
+              <button className="ghost" type="button" onClick={closeReply}>
+                Annulla
+              </button>
+              <button
+                className="cta"
+                type="button"
+                onClick={confirmReply}
+                disabled={replyItems.length === 0}
+              >
+                Conferma invio
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <label className="test-mode-float" title="Abilita test cross-inventory (invio a sé stessi)">
         <input
           type="checkbox"

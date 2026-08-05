@@ -1814,6 +1814,46 @@ time {
   margin-top: 0.3rem;
 }
 
+.cross-reply-modal {
+  max-width: 620px;
+  width: 90vw;
+}
+
+.cross-reply-items {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cross-reply-li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.cross-reply-li:last-child {
+  border-bottom: none;
+}
+
+.cross-reply-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.cross-reply-barcode {
+  font-size: 0.7rem;
+  color: #7d8a8e;
+  flex-shrink: 0;
+}
+
 .test-mode-float {
   position: fixed;
   bottom: 1rem;
