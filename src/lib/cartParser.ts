@@ -12,6 +12,9 @@ interface PriceLine {
 const PRICE_LINE_RE = /^(\d+[.,]\d{2})\s*€\s*(\d+[.,]\d{2})\s*€\s*$/m
 const SINGLE_PRICE_RE = /^(\d+[.,]\d{2})\s*€\s*$/m
 const OPTION_RE = /^(SCEGLI|ml:|OHM:|COLORE:|Opzione)/i
+const NICOTINA_EXTRACT = /nicotina:\s*(\d+mg)/i
+const ML_EXTRACT = /^ml:\s*(\d{2,3}ml)/i
+const OHM_EXTRACT = /^ohm:\s*([\d.]+)\s*ohm/i
 const QUANTITY_LINE_RE = /^\d+$/
 const LINE_TOTAL_RE = /^\d+[.,]\d{2}\s*€\s*$/
 
@@ -61,6 +64,7 @@ export function parseCart(raw: string): CartItem[] {
   const items: CartItem[] = []
   let currentName: string | null = null
   let nameBuffer: string[] = []
+  let pendingOptions: string[] = []
   let lastSeenPrice = false
   let lineAfterPrice = false
 
@@ -78,9 +82,11 @@ export function parseCart(raw: string): CartItem[] {
         (i > 1 && isPricePair(lines[i - 1]?.trim() ?? '') !== null)
 
       if (isRealQty && currentName) {
-        items.push({ name: currentName, raw: nameBuffer.join('\n') })
+        const options = pendingOptions.length > 0 ? ` ${pendingOptions.join(' ')}` : ''
+        items.push({ name: currentName + options, raw: nameBuffer.join('\n') })
         currentName = null
         nameBuffer = []
+        pendingOptions = []
         lastSeenPrice = false
         lineAfterPrice = false
       }
@@ -88,6 +94,12 @@ export function parseCart(raw: string): CartItem[] {
     }
 
     if (optionLike(line)) {
+      const nicMatch = line.match(NICOTINA_EXTRACT)
+      const mlMatch = line.match(ML_EXTRACT)
+      const ohmMatch = line.match(OHM_EXTRACT)
+      if (nicMatch) pendingOptions.push(nicMatch[1])
+      if (mlMatch) pendingOptions.push(mlMatch[1])
+      if (ohmMatch) pendingOptions.push(`${ohmMatch[1]}ohm`)
       lastSeenPrice = false
       lineAfterPrice = false
       continue
@@ -147,7 +159,8 @@ export function parseCart(raw: string): CartItem[] {
 
   // Flush last item if exists
   if (currentName) {
-    items.push({ name: currentName, raw: nameBuffer.join('\n') })
+    const options = pendingOptions.length > 0 ? ` ${pendingOptions.join(' ')}` : ''
+    items.push({ name: currentName + options, raw: nameBuffer.join('\n') })
   }
 
   return deduplicate(items)
