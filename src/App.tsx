@@ -61,6 +61,17 @@ function normalizeSearchText(value: string): string {
     .replace(/\s+/g, ' ')
 }
 
+function truncateCrossBody(body: string): string {
+  const lines = body.split('\n').filter((l) => l.trim())
+  if (lines.length <= 1) return body
+  const firstItem = lines[0].replace(/^Chiede:\s*/, '') || lines[1]?.replace(/^\d+\.\s*/, '') || ''
+  const extra = lines.length - 2
+  const suffix = extra > 0 ? ` e altri ${extra} articoli` : ''
+  const limit = 55
+  const truncated = firstItem.length > limit ? firstItem.slice(0, limit) + '...' : firstItem
+  return `Chiede: ${truncated}${suffix}`
+}
+
 function StoreRewardsFallback() {
   return (
     <section className="store-single-page">
@@ -1881,7 +1892,7 @@ function App() {
                   <span className="comms-banner-dot" aria-hidden="true"></span>
                   <div className="comms-banner-text">
                     <span className="comms-banner-title">{cr.title}</span>
-                    <span className="comms-banner-body">{cr.body}</span>
+                    <span className="comms-banner-body">{truncateCrossBody(cr.body)}</span>
                   </div>
                   <button
                     className="comms-banner-dismiss"

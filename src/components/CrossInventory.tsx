@@ -81,6 +81,49 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
   const [receivedRequests, setReceivedRequests] = useState<ReceivedRequest[]>([])
   const [showSvuotaConfirm, setShowSvuotaConfirm] = useState(false)
 
+  const [requestBasket, setRequestBasket] = useState<Map<string, { productName: string; barcode: string | null }[]>>(new Map())
+
+  const addToBasket = (toStore: string, productName: string, barcode: string | null) => {
+    setRequestBasket((prev) => {
+      const next = new Map(prev)
+      const items = next.get(toStore) ?? []
+      items.push({ productName, barcode })
+      next.set(toStore, items)
+      return next
+    })
+  }
+
+  const sendBasketRequest = async (toStore: string) => {
+    if (!supabase || !profile?.store_id) return
+    const items = requestBasket.get(toStore)
+    if (!items || items.length === 0) return
+    const fromStore = selectedStore
+    const bodyLines = items.map((item, i) => `${i + 1}. ${item.productName}${item.barcode ? ` (${item.barcode})` : ''}`)
+    const body = `Chiede:\n${bodyLines.join('\n')}`
+    try {
+      const { error } = await supabase.from('store_notifications').insert({
+        store_id: profile.store_id,
+        kind: 'cross_request',
+        target_store: toStore,
+        title: `Richiesta da ${fromStore}`,
+        body,
+        created_by: profile.id,
+      })
+      if (error) {
+        pushToast('error', 'Invio richiesta non riuscito')
+        return
+      }
+      setRequestBasket((prev) => {
+        const next = new Map(prev)
+        next.delete(toStore)
+        return next
+      })
+      pushToast('success', `Richiesta inviata a ${toStore} (${items.length} prodotti)`)
+    } catch {
+      pushToast('error', 'Invio richiesta non riuscito')
+    }
+  }
+
   const loadReceivedRequests = useCallback(async () => {
     if (!supabase || !selectedStore) return
     const { data } = await supabase
@@ -118,28 +161,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
 
   const handleChangeStore = () => {
     setShowIdentifier(true)
-  }
-
-  const sendCrossRequest = async (toStore: string, productName: string, barcode: string | null) => {
-    if (!supabase || !profile?.store_id) return
-    const fromStore = selectedStore
-    try {
-      const { error } = await supabase.from('store_notifications').insert({
-        store_id: profile.store_id,
-        kind: 'cross_request',
-        target_store: toStore,
-        title: `Richiesta da ${fromStore}`,
-        body: `Chiede: ${productName}${barcode ? ` (${barcode})` : ''}`,
-        created_by: profile.id,
-      })
-      if (error) {
-        pushToast('error', 'Invio richiesta non riuscito')
-        return
-      }
-      pushToast('success', `Richiesta inviata a ${toStore}`)
-    } catch {
-      pushToast('error', 'Invio richiesta non riuscito')
-    }
   }
 
   const handleSvuota = () => {
@@ -595,7 +616,7 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
                                   <p className="cross-match-product">{manual.entry.product_name}</p>
                                   <div className="cross-match-actions">
                                     {manualButtons.map((s) => (
-                                      <button key={s.store} className="ghost small" type="button" onClick={() => sendCrossRequest(s.label, manual.entry.product_name, manual.entry.barcode)}>
+                                      <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode)}>
                                         CHIEDI A {s.label.toUpperCase()}
                                       </button>
                                     ))}
@@ -622,7 +643,7 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
                                 key={s.store}
                                 className="ghost small"
                                 type="button"
-                                onClick={() => sendCrossRequest(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
+                                onClick={() => addToBasket(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
                               >
                                 CHIEDI A {s.label.toUpperCase()}
                               </button>
@@ -660,7 +681,7 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
                   <li key={req.id} className="cross-received-item">
                     <div className="cross-received-item-main">
                       <strong>{req.title}</strong>
-                      <p>{req.body}</p>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
                       <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                     </div>
                     <button className="ghost small" type="button" title="Rispondi (in arrivo)">
@@ -674,6 +695,20 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
             )}
           </article>
         </aside>
+        {requestBasket.size > 0 ? (
+          <div className="cross-basket-bar">
+            {[...requestBasket].map(([store, items]) => (
+              <div key={store} className="cross-basket-item">
+                <span className="cross-basket-text">
+                  Richiesta per <strong>{store}</strong> ({items.length} prodotti)
+                </span>
+                <button className="cta" type="button" onClick={() => sendBasketRequest(store)}>
+                  Invia
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </>
   )
