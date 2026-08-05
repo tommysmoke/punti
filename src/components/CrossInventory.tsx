@@ -14,14 +14,25 @@ import {
 
 type Status = 'idle' | 'loading' | 'success' | 'error'
 
+const STORE_KEY = 'punti-cross-identified-store'
+const STORE_IDENTIFIED_KEY = 'punti-cross-identified'
+
 export function CrossInventory() {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
-      return sessionStorage.getItem('punti-cross-store') ?? ''
+      return localStorage.getItem(STORE_KEY) ?? ''
     } catch {
       return ''
     }
   })
+  const [identified, setIdentified] = useState(() => {
+    try {
+      return localStorage.getItem(STORE_IDENTIFIED_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const [showIdentifier, setShowIdentifier] = useState(!identified)
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [csvStatus, setCsvStatus] = useState<Status>('idle')
   const [csvMessage, setCsvMessage] = useState('')
@@ -42,13 +53,19 @@ export function CrossInventory() {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [barcodeError, setBarcodeError] = useState('')
 
-  useEffect(() => {
+  const handleConfirmStore = () => {
+    if (!selectedStore) return
     try {
-      sessionStorage.setItem('punti-cross-store', selectedStore)
-    } catch {
-      // ignore
-    }
-  }, [selectedStore])
+      localStorage.setItem(STORE_KEY, selectedStore)
+      localStorage.setItem(STORE_IDENTIFIED_KEY, '1')
+    } catch { /* ignore */ }
+    setIdentified(true)
+    setShowIdentifier(false)
+  }
+
+  const handleChangeStore = () => {
+    setShowIdentifier(true)
+  }
 
   useEffect(() => {
     setCartItems([])
@@ -338,17 +355,13 @@ export function CrossInventory() {
 
   return (
     <section className="store-single-page">
-      <article className="card">
-        <h2>Cross-Inventory</h2>
-        <p className="hint no-top" style={{ marginBottom: '1.2rem' }}>
-          Confronta il carrello fornitore con l'inventario degli altri negozi per evitare acquisti doppi.
-        </p>
-
-        <form onSubmit={handleUploadCSV} className="stack split">
-          <h3 style={{ margin: 0, fontSize: '0.96rem' }}>1. Carica inventario</h3>
-
-          <label>
-            Negozio
+      {showIdentifier ? (
+        <div className="modal-overlay">
+          <div className="modal-content cross-identifier-modal">
+            <h3>Identifica il tuo negozio</h3>
+            <p>
+              Seleziona la tua sede. Verrà ricordata su questo computer.
+            </p>
             <select
               value={selectedStore}
               onChange={(e) => setSelectedStore(e.target.value)}
@@ -358,7 +371,33 @@ export function CrossInventory() {
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
-          </label>
+            <div className="modal-actions">
+              <button className="cta" type="button" onClick={handleConfirmStore} disabled={!selectedStore}>
+                Conferma
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <article className="card">
+        <h2>Cross-Inventory</h2>
+        <p className="hint no-top" style={{ marginBottom: '1.2rem' }}>
+          Confronta il carrello fornitore con l'inventario degli altri negozi per evitare acquisti doppi.
+        </p>
+
+        <form onSubmit={handleUploadCSV} className="stack split">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: '0.96rem' }}>1. Carica inventario</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="cross-identified-store">
+                Negozio: <strong>{selectedStore}</strong>
+              </span>
+              <button className="ghost small" type="button" onClick={handleChangeStore}>
+                Cambia
+              </button>
+            </div>
+          </div>
 
           <label>
             File CSV (export Easyfatt)

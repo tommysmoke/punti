@@ -1569,3 +1569,12 @@ time {
   box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.12);
 }
 
+.cross-identified-store {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.cross-identified-store strong {
+  color: var(--accent);
+}
+
