@@ -17,7 +17,7 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
 
 const STORE_KEY = 'punti-cross-identified-store'
 const STORE_IDENTIFIED_KEY = 'punti-cross-identified'
-const TEST_CROSS_REQUEST = import.meta.env.VITE_TEST_CROSS_REQUEST === '1' || import.meta.env.VITE_TEST_CROSS_REQUEST === 'true'
+const TEST_CROSS_REQUEST = true
 
 export function CrossInventory({ profile, pushToast }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
