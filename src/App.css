@@ -1639,8 +1639,9 @@ time {
 }
 
 .cross-file-name {
-  font-size: 0.75rem;
-  color: #7d8a8e;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
   overflow-wrap: break-word;
   word-break: break-word;
 }

@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { parseEasyfattCSV } from '../lib/csvParser'
 import { parseCart } from '../lib/cartParser'
@@ -96,6 +96,15 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
   useEffect(() => {
     loadReceivedRequests()
   }, [loadReceivedRequests])
+
+  const cartUniqueCount = useMemo(() => {
+    if (!cartText.trim()) return 0
+    try {
+      return parseCart(cartText).length
+    } catch {
+      return cartText.split('\n').filter((l) => l.trim()).length
+    }
+  }, [cartText])
 
   const handleConfirmStore = () => {
     if (!selectedStore) return
@@ -295,33 +304,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
       setCsvMessage(message)
     } finally {
       setUploading(false)
-    }
-  }
-
-  const handleParseCart = () => {
-    if (!cartText.trim()) {
-      setCartError('Incolla il testo del carrello')
-      return
-    }
-
-    setCartError('')
-    setMatches([])
-
-    try {
-      const items = parseCart(cartText)
-      if (items.length === 0) {
-        const lines = cartText.split('\n').map((l) => l.trim()).filter(Boolean)
-        if (lines.length > 0) {
-          setCartItems(lines)
-        } else {
-          setCartError('Nessun prodotto trovato nel testo incollato. Verifica il formato.')
-        }
-        return
-      }
-      setCartItems(items.map((i) => i.name))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Errore durante il parsing'
-      setCartError(message)
     }
   }
 
@@ -527,7 +509,7 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
 
         <div className="cross-main">
           <article className="card">
-            <h2>Carrello fornitore</h2>
+            <h2>Carrello fornitore{cartUniqueCount > 0 ? <span className="badge">{cartUniqueCount}</span> : null}</h2>
             <div className="stack split">
 
               <label>
@@ -542,21 +524,8 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
               </label>
 
               {cartError ? <p className="error">{cartError}</p> : null}
-              {cartItems.length > 0 ? (
-                <p className="hint no-top">
-                  {cartItems.length} prodotti trovati nel carrello
-                </p>
-              ) : null}
 
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button
-                  className="ghost"
-                  type="button"
-                  onClick={handleParseCart}
-                  disabled={!cartText.trim()}
-                >
-                  Analizza carrello
-                </button>
                 <button
                   className="cta"
                   type="button"

@@ -1885,7 +1885,7 @@ function App() {
                   </div>
                   <button
                     className="comms-banner-dismiss"
-                    onClick={() => handleDismissNotification(cr.id)}
+                    onClick={(e) => { e.stopPropagation(); handleDismissNotification(cr.id) }}
                     aria-label="Nascondi richiesta"
                   >&#10005;</button>
                 </div>
