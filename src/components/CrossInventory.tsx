@@ -82,6 +82,7 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
   const [showSvuotaConfirm, setShowSvuotaConfirm] = useState(false)
 
   const [requestBasket, setRequestBasket] = useState<Map<string, { productName: string; barcode: string | null; quantity: number }[]>>(new Map())
+  const [basketMinimized, setBasketMinimized] = useState(false)
 
   const addToBasket = (toStore: string, productName: string, barcode: string | null) => {
     setRequestBasket((prev) => {
@@ -692,73 +693,125 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
         <div className="cross-divider" aria-hidden="true"></div>
 
         <aside className="cross-sidebar">
-          <article className="card">
-            <div className="cross-received-header">
-              <h2>Richieste ricevute</h2>
-              {visibleReceived.length > 0 ? (
-                <button className="ghost small danger" type="button" onClick={() => setShowSvuotaConfirm(true)}>
-                  SVUOTA
+          {requestBasket.size > 0 ? (
+            <article className="card cross-basket-card">
+              <div className="cross-basket-header">
+                <h2>
+                  Carrello richieste
+                  {!basketMinimized ? null : (
+                    <span className="badge" style={{ marginLeft: '0.4rem' }}>
+                      {[...requestBasket].reduce((sum, [, items]) => sum + items.length, 0)}
+                    </span>
+                  )}
+                </h2>
+                <button
+                  className="ghost small"
+                  type="button"
+                  onClick={() => setBasketMinimized((v) => !v)}
+                  title={basketMinimized ? 'Espandi' : 'Minimizza'}
+                >
+                  {basketMinimized ? 'Espandi' : 'Minimizza'}
                 </button>
-              ) : null}
-            </div>
-            {visibleReceived.length > 0 ? (
-              <ul className="cross-received-list">
-                {visibleReceived.map((req) => (
-                  <li key={req.id} className="cross-received-item">
-                    <div className="cross-received-item-main">
-                      <strong>{req.title}</strong>
-                      <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
-                      <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+              </div>
+              {!basketMinimized ? (
+                <>
+                  {[...requestBasket].map(([store, items]) => (
+                    <div key={store} className="cross-basket-store">
+                      <div className="cross-basket-store-header">
+                        <span>
+                          Per <strong>{store}</strong> ({items.length})
+                        </span>
+                        <button className="cta" type="button" onClick={() => sendBasketRequest(store)}>
+                          Invia
+                        </button>
+                      </div>
+                      <ul className="cross-basket-items">
+                        {items.map((item, i) => (
+                          <li key={i} className="cross-basket-li">
+                            <input
+                              className="cross-basket-qty"
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updateBasketQuantity(store, i, parseInt(e.target.value, 10) || 1)}
+                            />
+                            <span className="cross-basket-name">{item.productName}</span>
+                            <button
+                              className="ghost small"
+                              type="button"
+                              onClick={() => removeFromBasket(store, i)}
+                              title="Rimuovi"
+                            >
+                              &#10005;
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <button className="ghost small" type="button" title="Rispondi (in arrivo)">
-                      &#8630;
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="hint no-top">Nessuna richiesta ricevuta.</p>
-            )}
-          </article>
-        </aside>
-        {requestBasket.size > 0 ? (
-          <div className="cross-basket-bar">
-            {[...requestBasket].map(([store, items]) => (
-              <div key={store} className="cross-basket-group">
-                <div className="cross-basket-header">
-                  <span className="cross-basket-text">
-                    Richiesta per <strong>{store}</strong> ({items.length} prodotti)
-                  </span>
-                  <button className="cta" type="button" onClick={() => sendBasketRequest(store)}>
-                    Invia
-                  </button>
+                  ))}
+                </>
+              ) : null}
+              {visibleReceived.length > 0 ? (
+                <div className="cross-received-mini">
+                  <div className="cross-received-header">
+                    <h3 style={{ margin: 0, fontSize: '0.9rem' }}>Ricevute</h3>
+                    {basketMinimized ? (
+                      <button className="ghost small danger" type="button" onClick={() => setShowSvuotaConfirm(true)}>
+                        SVUOTA
+                      </button>
+                    ) : null}
+                  </div>
+                  <ul className="cross-received-list">
+                    {visibleReceived.map((req) => (
+                      <li key={req.id} className="cross-received-item">
+                        <div className="cross-received-item-main">
+                          <strong>{req.title}</strong>
+                          <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
+                          <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                        </div>
+                        <button className="ghost small" type="button" title="Rispondi (in arrivo)">
+                          &#8630;
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="cross-basket-items">
-                  {items.map((item, i) => (
-                    <li key={i} className="cross-basket-li">
-                      <input
-                        className="cross-basket-qty"
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateBasketQuantity(store, i, parseInt(e.target.value, 10) || 1)}
-                      />
-                      <span className="cross-basket-name">{item.productName}</span>
-                      <button
-                        className="ghost small"
-                        type="button"
-                        onClick={() => removeFromBasket(store, i)}
-                        title="Rimuovi"
-                      >
-                        &#10005;
+              ) : basketMinimized ? (
+                <p className="hint">Nessuna richiesta ricevuta.</p>
+              ) : null}
+            </article>
+          ) : (
+            <article className="card">
+              <div className="cross-received-header">
+                <h2>Richieste ricevute</h2>
+                {visibleReceived.length > 0 ? (
+                  <button className="ghost small danger" type="button" onClick={() => setShowSvuotaConfirm(true)}>
+                    SVUOTA
+                  </button>
+                ) : null}
+              </div>
+              {visibleReceived.length > 0 ? (
+                <ul className="cross-received-list">
+                  {visibleReceived.map((req) => (
+                    <li key={req.id} className="cross-received-item">
+                      <div className="cross-received-item-main">
+                        <strong>{req.title}</strong>
+                        <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
+                        <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                      </div>
+                      <button className="ghost small" type="button" title="Rispondi (in arrivo)">
+                        &#8630;
                       </button>
                     </li>
                   ))}
                 </ul>
-              </div>
-            ))}
-          </div>
-        ) : null}
+              ) : (
+                <p className="hint no-top">Nessuna richiesta ricevuta.</p>
+              )}
+            </article>
+          )}
+        </aside>
+        {requestBasket.size > 0 ? null : null}
       </div>
     </>
   )
