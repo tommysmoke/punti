@@ -86,6 +86,7 @@ export function StoreNotifications() {
         .from('store_notifications')
         .select('*')
         .eq('store_id', profile.store_id)
+        .eq('kind', 'broadcast')
         .order('created_at', { ascending: false })
         .limit(50)
 

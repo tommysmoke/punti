@@ -518,6 +518,7 @@ function App() {
       .from('store_notifications')
       .select('id, title, body, created_at')
       .eq('store_id', storeId)
+      .eq('kind', 'broadcast')
       .gte('created_at', oneDayAgo)
       .order('created_at', { ascending: false })
       .limit(NOTIFICATIONS_MAX_COUNT)
@@ -538,6 +539,14 @@ function App() {
       .order('created_at', { ascending: false })
       .limit(NOTIFICATIONS_MAX_COUNT)
     setCrossRequests((data ?? []) as { id: number; title: string; body: string; created_at: string }[])
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    void supabase
+      .from('store_notifications')
+      .delete()
+      .eq('kind', 'cross_request')
+      .lt('created_at', thirtyDaysAgo)
+      .then(({ error }) => { if (error) console.warn('Cleanup vecchie cross-request fallito', error) })
   }
 
   const addReward = async (event: FormEvent) => {
