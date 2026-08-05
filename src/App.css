@@ -1600,9 +1600,33 @@ time {
 
 .cross-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 310px) minmax(240px, 310px) minmax(0, 1fr) 2px 280px;
+  grid-template-columns: 280px 280px minmax(0, 0.8fr) 2px 280px;
   gap: 1rem;
   align-items: start;
+}
+
+.cross-main {
+  min-width: 0;
+}
+
+.cross-main .card {
+  overflow: hidden;
+}
+
+.cross-main input[type="file"] {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.cross-main .success,
+.cross-main .error {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.cross-layout .card {
+  min-width: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 1100px) {
