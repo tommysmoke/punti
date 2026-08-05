@@ -297,13 +297,15 @@ function App() {
     }
   })
   const [showTestConfirm, setShowTestConfirm] = useState(false)
-  const identifiedStoreRef = useRef(() => {
+  const getIdentifiedStore = () => {
     try {
       return localStorage.getItem('punti-cross-identified-store')
     } catch {
       return null
     }
-  })
+  }
+  const [identifiedStore, setIdentifiedStore] = useState(getIdentifiedStore)
+  const identifiedStoreRef = useRef(() => getIdentifiedStore())
 
   const triggerFloatingPoints = (delta: number, kind: string) => {
     const id = ++floatIdRef.current
@@ -931,6 +933,7 @@ function App() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        setIdentifiedStore(getIdentifiedStore())
         if (role === 'store' && profile.store_id) {
           safeAsync(() => Promise.all([
             loadStoreCustomers(profile.store_id!),
@@ -1063,6 +1066,30 @@ function App() {
       })
     }
   }, [profile, role])
+
+  useEffect(() => {
+    if (!supabase || role !== 'store') return
+    if (!identifiedStore) return
+
+    const client = supabase
+    const channel = client
+      .channel(`cross-requests-${identifiedStore}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'store_notifications', filter: 'kind=eq.cross_request' },
+        (payload) => {
+          const record = payload.new as { target_store?: string } | undefined
+          if (record?.target_store === identifiedStore) {
+            safeAsync(() => loadCrossRequests())
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      safeAsync(() => client.removeChannel(channel))
+    }
+  }, [profile, role, identifiedStore])
 
   useEffect(() => {
     if (!supabase || role !== 'customer') return
