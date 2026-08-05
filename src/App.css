@@ -1594,3 +1594,29 @@ time {
   color: #8b2e2e;
 }
 
+.test-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  transition: 0.15s ease;
+}
+
+.test-mode-toggle input {
+  accent-color: #d9534f;
+  cursor: pointer;
+}
+
+.test-mode-toggle:has(input:checked) {
+  background: #fff5f5;
+  border-color: #d9534f;
+  color: #8b2e2e;
+}
+

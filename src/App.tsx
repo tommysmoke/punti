@@ -289,6 +289,14 @@ function App() {
   const [balancePop, setBalancePop] = useState(false)
 
   const [crossRequests, setCrossRequests] = useState<{ id: number; title: string; body: string; created_at: string }[]>([])
+  const [testMode, setTestMode] = useState(() => {
+    try {
+      return localStorage.getItem('punti-cross-test-mode') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [showTestConfirm, setShowTestConfirm] = useState(false)
   const identifiedStoreRef = useRef(() => {
     try {
       return localStorage.getItem('punti-cross-identified-store')
@@ -1680,6 +1688,23 @@ function App() {
               <p>{profile.store_id}</p>
             </details>
           ) : null}
+          {role === 'store' ? (
+            <label className="test-mode-toggle" title="Abilita test cross-inventory (invio a sé stessi)">
+              <input
+                type="checkbox"
+                checked={testMode}
+                onChange={() => {
+                  if (testMode) {
+                    try { localStorage.setItem('punti-cross-test-mode', '0') } catch { /* ignore */ }
+                    setTestMode(false)
+                  } else {
+                    setShowTestConfirm(true)
+                  }
+                }}
+              />
+              Test
+            </label>
+          ) : null}
           {import.meta.env.VITE_GIT_SHA ? (
             <details className="store-code-box">
               <summary>Versione</summary>
@@ -1793,6 +1818,33 @@ function App() {
                 }}
               >
                 Aggiorna ora
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showTestConfirm ? (
+        <div className="modal-overlay" onClick={() => setShowTestConfirm(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Modalità test</h3>
+            <p>
+              In modalità test potrai inviare richieste cross-inventory anche
+              al tuo stesso negozio. Disattivala per l'uso normale.
+            </p>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setShowTestConfirm(false)}>
+                Annulla
+              </button>
+              <button
+                className="cta"
+                onClick={() => {
+                  try { localStorage.setItem('punti-cross-test-mode', '1') } catch { /* ignore */ }
+                  setTestMode(true)
+                  setShowTestConfirm(false)
+                }}
+              >
+                Attiva test
               </button>
             </div>
           </div>
@@ -2261,7 +2313,7 @@ function App() {
             </Suspense>
           ) : tab === 'cross-inventory' ? (
             <Suspense fallback={null}>
-              <CrossInventory profile={profile} pushToast={pushToast} />
+              <CrossInventory profile={profile} pushToast={pushToast} testMode={testMode} />
             </Suspense>
           ) : tab === 'rewards' ? (
             <Suspense fallback={<StoreRewardsFallback />}>

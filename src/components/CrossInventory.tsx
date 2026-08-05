@@ -17,9 +17,8 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
 
 const STORE_KEY = 'punti-cross-identified-store'
 const STORE_IDENTIFIED_KEY = 'punti-cross-identified'
-const TEST_CROSS_REQUEST = true
 
-export function CrossInventory({ profile, pushToast }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void }) {
+export function CrossInventory({ profile, pushToast, testMode }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean }) {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
       return localStorage.getItem(STORE_KEY) ?? ''
@@ -509,11 +508,11 @@ export function CrossInventory({ profile, pushToast }: { profile: Profile | null
           {cartItemsMapToMatches(cartItems, matches)
             .filter((item) => {
               if (item.matches.length === 0) return true
-              if (TEST_CROSS_REQUEST) return true
+              if (testMode) return true
               return collectStoreButtons(item.matches, selectedStore).length > 0
             })
             .map((item) => {
-              const storeButtons = collectStoreButtons(item.matches, TEST_CROSS_REQUEST ? '' : selectedStore)
+              const storeButtons = collectStoreButtons(item.matches, testMode ? '' : selectedStore)
               const hasNoMatch = item.matches.length === 0
               return (
                 <div key={item.name} className="cross-match-item">
@@ -549,7 +548,7 @@ export function CrossInventory({ profile, pushToast }: { profile: Profile | null
                         (() => {
                           const manual = manualMatches.get(item.name)!
                           const manualButtons = manual.stores
-                            .filter((s) => s.quantity > 0 && (TEST_CROSS_REQUEST || s.label.toLowerCase() !== selectedStore.toLowerCase()))
+                            .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()))
                           return manualButtons.length > 0 ? (
                             <>
                               <p className="cross-match-product">{manual.entry.product_name}</p>
