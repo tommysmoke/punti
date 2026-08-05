@@ -431,7 +431,7 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
   }
 
   return (
-    <section className="store-single-page">
+    <>
       {showIdentifier ? (
         <div className="modal-overlay">
           <div className="modal-content cross-identifier-modal">
@@ -700,7 +700,7 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
           </article>
         </aside>
       </div>
-    </section>
+    </>
   )
 }
 
