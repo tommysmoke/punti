@@ -477,14 +477,13 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
       <div className="cross-layout">
         <div className="cross-main">
           <article className="card">
-            <h2>Cross-Inventory</h2>
-            <p className="hint no-top" style={{ marginBottom: '1.2rem' }}>
-              Confronta il carrello fornitore con l'inventario degli altri negozi per evitare acquisti doppi.
-            </p>
+            <h2>Carica inventario</h2>
 
             <form onSubmit={handleUploadCSV} className="stack split">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '0.96rem' }}>1. Carica inventario</h3>
+
+
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span className="cross-identified-store">
                     Negozio: <strong>{selectedStore}</strong>
@@ -518,10 +517,12 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
               </div>
             </form>
           </article>
+        </div>
 
+        <div className="cross-main">
           <article className="card">
+            <h2>Carrello fornitore</h2>
             <div className="stack split">
-              <h3 style={{ margin: 0, fontSize: '0.96rem' }}>2. Carrello fornitore</h3>
 
               <label>
                 Incolla qui il testo del carrello
@@ -563,13 +564,12 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
               {matchError ? <p className="error">{matchError}</p> : null}
             </div>
           </article>
+        </div>
 
+        <div className="cross-main">
           {matches.length > 0 ? (
             <article className="card">
-              <h2>Risultati confronto</h2>
-              <p className="hint no-top" style={{ marginBottom: '1rem' }}>
-                Prodotti del carrello trovati nell'inventario condiviso.
-              </p>
+              <h2>Risultati ricerca</h2>
 
               {cartItemsMapToMatches(cartItems, matches)
                 .filter((item) => {
@@ -659,8 +659,15 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
                   )
                 })}
             </article>
-          ) : null}
+          ) : (
+            <article className="card cross-results-placeholder">
+              <h2>Risultati ricerca</h2>
+              <p className="hint no-top">Carica l'inventario e incolla il carrello fornitore, poi clicca "Confronta con inventario".</p>
+            </article>
+          )}
         </div>
+
+        <div className="cross-divider" aria-hidden="true"></div>
 
         <aside className="cross-sidebar">
           <article className="card">
