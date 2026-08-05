@@ -1877,7 +1877,7 @@ function App() {
           {visibleCrossRequests.length > 0 ? (
             <div className="cross-requests-banner">
               {visibleCrossRequests.map((cr) => (
-                <div key={cr.id} className="comms-banner cross-request-banner">
+                <div key={cr.id} className="comms-banner cross-request-banner" onClick={() => setStorePage('cross-inventory')} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') setStorePage('cross-inventory') }}>
                   <span className="comms-banner-dot" aria-hidden="true"></span>
                   <div className="comms-banner-text">
                     <span className="comms-banner-title">{cr.title}</span>

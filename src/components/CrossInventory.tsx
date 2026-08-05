@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { parseEasyfattCSV } from '../lib/csvParser'
 import { parseCart } from '../lib/cartParser'
@@ -17,6 +17,30 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
 
 const STORE_KEY = 'punti-cross-identified-store'
 const STORE_IDENTIFIED_KEY = 'punti-cross-identified'
+const FULFILLED_KEY = 'punti-cross-fulfilled-ids'
+
+interface ReceivedRequest {
+  id: number
+  title: string
+  body: string
+  created_at: string
+  target_store: string
+}
+
+function getFulfilledIds(): Set<number> {
+  try {
+    const raw = localStorage.getItem(FULFILLED_KEY)
+    return raw ? new Set(JSON.parse(raw) as number[]) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function setFulfilledIds(ids: Set<number>) {
+  try {
+    localStorage.setItem(FULFILLED_KEY, JSON.stringify([...ids]))
+  } catch { /* ignore */ }
+}
 
 export function CrossInventory({ profile, pushToast, testMode }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean }) {
   const [selectedStore, setSelectedStore] = useState(() => {
@@ -54,6 +78,25 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
   const [barcodeInput, setBarcodeInput] = useState('')
   const [barcodeError, setBarcodeError] = useState('')
 
+  const [receivedRequests, setReceivedRequests] = useState<ReceivedRequest[]>([])
+  const [showSvuotaConfirm, setShowSvuotaConfirm] = useState(false)
+
+  const loadReceivedRequests = useCallback(async () => {
+    if (!supabase || !selectedStore) return
+    const { data } = await supabase
+      .from('store_notifications')
+      .select('id, title, body, created_at, target_store')
+      .eq('kind', 'cross_request')
+      .eq('target_store', selectedStore)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    setReceivedRequests((data ?? []) as ReceivedRequest[])
+  }, [selectedStore])
+
+  useEffect(() => {
+    loadReceivedRequests()
+  }, [loadReceivedRequests])
+
   const handleConfirmStore = () => {
     if (!selectedStore) return
     try {
@@ -89,6 +132,19 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
       pushToast('error', 'Invio richiesta non riuscito')
     }
   }
+
+  const handleSvuota = () => {
+    const fulfilledIds = getFulfilledIds()
+    for (const req of receivedRequests) {
+      fulfilledIds.add(req.id)
+    }
+    setFulfilledIds(fulfilledIds)
+    setReceivedRequests([])
+    setShowSvuotaConfirm(false)
+    pushToast('success', 'Richieste svuotate')
+  }
+
+  const visibleReceived = receivedRequests.filter((r) => !getFulfilledIds().has(r.id))
 
   useEffect(() => {
     setCartItems([])
@@ -138,7 +194,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
         return
       }
 
-      // Reset all quantities for this store
       const { error: resetErr } = await supabase.rpc('reset_inventory_for_store', {
         p_column: columnName,
       })
@@ -148,7 +203,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
         return
       }
 
-      // Fetch all existing products for matching
       const { data: existing, error: fetchErr } = await supabase
         .from('shared_inventory')
         .select('id, product_name, barcode')
@@ -173,7 +227,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
       for (const row of rows) {
         let matched = false
 
-        // Try barcode match first
         if (row.barcode) {
           const barcodeMatch = existingProducts.find(
             (p) => p.barcode && p.barcode === row.barcode,
@@ -187,7 +240,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
 
         if (matched) continue
 
-        // Try exact name match
         const nameMatch = existingProducts.find(
           (p) => p.product_name.toLowerCase() === row.name.toLowerCase() && !matchedIds.has(p.id),
         )
@@ -199,7 +251,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
 
         if (matched) continue
 
-        // No match: insert new row
         inserts.push({
           product_name: row.name,
           barcode: row.barcode,
@@ -208,7 +259,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
         })
       }
 
-      // Batch updates via RPC
       if (updates.length > 0) {
         const payload = updates.map((u) => ({ id: u.id, q: u[columnName] }))
         const { error } = await supabase.rpc('batch_update_store_quantities', {
@@ -222,7 +272,6 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
         }
       }
 
-      // Batch inserts
       if (inserts.length > 0) {
         const batchSize = 500
         for (let i = 0; i < inserts.length; i += batchSize) {
@@ -366,12 +415,10 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
       setSearchingBarcode(null)
       setBarcodeInput('')
 
-      // Persist alias on product row
       const col = findEmptyAliasColumn(entry)
       if (col) {
         await supabase.from('shared_inventory').update({ [col]: cartName }).eq('id', entry.id)
       } else {
-        // All 10 full: clear all and save as alias_1
         const clearPayload: Record<string, null> = {}
         for (let i = 1; i <= 10; i++) {
           clearPayload[`alias_${i}`] = null
@@ -410,190 +457,242 @@ export function CrossInventory({ profile, pushToast, testMode }: { profile: Prof
         </div>
       ) : null}
 
-      <article className="card">
-        <h2>Cross-Inventory</h2>
-        <p className="hint no-top" style={{ marginBottom: '1.2rem' }}>
-          Confronta il carrello fornitore con l'inventario degli altri negozi per evitare acquisti doppi.
-        </p>
-
-        <form onSubmit={handleUploadCSV} className="stack split">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '0.96rem' }}>1. Carica inventario</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="cross-identified-store">
-                Negozio: <strong>{selectedStore}</strong>
-              </span>
-              <button className="ghost small" type="button" onClick={handleChangeStore}>
-                Cambia
+      {showSvuotaConfirm ? (
+        <div className="modal-overlay" onClick={() => setShowSvuotaConfirm(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Svuota richieste ricevute</h3>
+            <p>Confermi di aver recepito tutte le richieste? Verranno rimosse dalla lista.</p>
+            <div className="modal-actions">
+              <button className="ghost" onClick={() => setShowSvuotaConfirm(false)}>
+                Annulla
+              </button>
+              <button className="cta" style={{ background: '#d9534f', borderColor: '#d9534f' }} onClick={handleSvuota}>
+                Svuota
               </button>
             </div>
           </div>
-
-          <label>
-            File CSV (export Easyfatt)
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
-            />
-          </label>
-
-          {csvMessage ? (
-            <p className={csvStatus === 'error' ? 'error' : 'success'}>{csvMessage}</p>
-          ) : null}
-
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button className="cta" type="submit" disabled={uploading || !csvFile || !selectedStore}>
-              {uploading ? 'Caricamento...' : 'Carica inventario'}
-            </button>
-            {inventoryCount > 0 ? (
-              <span className="badge">{inventoryCount} prodotti a database</span>
-            ) : null}
-          </div>
-        </form>
-      </article>
-
-      <article className="card">
-        <div className="stack split">
-          <h3 style={{ margin: 0, fontSize: '0.96rem' }}>2. Carrello fornitore</h3>
-
-          <label>
-            Incolla qui il testo del carrello
-            <textarea
-              className="cross-inventory-textarea"
-              value={cartText}
-              onChange={(e) => setCartText(e.target.value)}
-              placeholder="Incolla il contenuto del carrello del fornitore..."
-              rows={12}
-            />
-          </label>
-
-          {cartError ? <p className="error">{cartError}</p> : null}
-          {cartItems.length > 0 ? (
-            <p className="hint no-top">
-              {cartItems.length} prodotti trovati nel carrello
-            </p>
-          ) : null}
-
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              className="ghost"
-              type="button"
-              onClick={handleParseCart}
-              disabled={!cartText.trim()}
-            >
-              Analizza carrello
-            </button>
-            <button
-              className="cta"
-              type="button"
-              onClick={doMatch}
-              disabled={matching || !cartText.trim()}
-            >
-              {matching ? 'Confronto...' : 'Confronta con inventario'}
-            </button>
-          </div>
-
-          {matchError ? <p className="error">{matchError}</p> : null}
         </div>
-      </article>
+      ) : null}
 
-      {matches.length > 0 ? (
-        <article className="card">
-          <h2>Risultati confronto</h2>
-          <p className="hint no-top" style={{ marginBottom: '1rem' }}>
-            Prodotti del carrello trovati nell'inventario condiviso.
-          </p>
+      <div className="cross-layout">
+        <div className="cross-main">
+          <article className="card">
+            <h2>Cross-Inventory</h2>
+            <p className="hint no-top" style={{ marginBottom: '1.2rem' }}>
+              Confronta il carrello fornitore con l'inventario degli altri negozi per evitare acquisti doppi.
+            </p>
 
-          {cartItemsMapToMatches(cartItems, matches)
-            .filter((item) => {
-              if (item.matches.length === 0) return true
-              if (testMode) return true
-              return collectStoreButtons(item.matches, selectedStore).length > 0
-            })
-            .map((item) => {
-              const storeButtons = collectStoreButtons(item.matches, testMode ? '' : selectedStore)
-              const hasNoMatch = item.matches.length === 0
-              return (
-                <div key={item.name} className="cross-match-item">
-                  <div className="cross-match-header">
-                    <span className="cross-match-cart-name">{item.name}</span>
-                    <span className={`cross-match-score${hasNoMatch ? ' none' : item.bestMatch!.score >= 0.7 ? ' high' : item.bestMatch!.score >= 0.4 ? ' medium' : ' low'}`}>
-                      {hasNoMatch ? 'nessun match' : `${Math.round(item.bestMatch!.score * 100)}%`}
-                    </span>
-                  </div>
-                  {hasNoMatch ? (
-                    <div className="cross-match-no-match">
-                      {searchingBarcode === item.name ? (
-                        <div className="cross-match-barcode-search">
-                          <input
-                            className="cross-barcode-input"
-                            value={barcodeInput}
-                            onChange={(e) => setBarcodeInput(e.target.value)}
-                            placeholder="Incolla barcode da Easyfatt..."
-                            autoFocus
-                            onKeyDown={(e) => { if (e.key === 'Enter') lookupBarcode(item.name) }}
-                          />
-                          <div className="cross-match-actions">
-                            <button className="ghost small" type="button" onClick={() => lookupBarcode(item.name)}>
-                              Cerca
-                            </button>
-                            <button className="ghost small" type="button" onClick={() => setSearchingBarcode(null)}>
-                              Annulla
-                            </button>
-                          </div>
-                          {barcodeError ? <p className="error">{barcodeError}</p> : null}
-                        </div>
-                      ) : manualMatches.has(item.name) ? (
-                        (() => {
-                          const manual = manualMatches.get(item.name)!
-                          const manualButtons = manual.stores
-                            .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()))
-                          return manualButtons.length > 0 ? (
-                            <>
-                              <p className="cross-match-product">{manual.entry.product_name}</p>
+            <form onSubmit={handleUploadCSV} className="stack split">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '0.96rem' }}>1. Carica inventario</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="cross-identified-store">
+                    Negozio: <strong>{selectedStore}</strong>
+                  </span>
+                  <button className="ghost small" type="button" onClick={handleChangeStore}>
+                    Cambia
+                  </button>
+                </div>
+              </div>
+
+              <label>
+                File CSV (export Easyfatt)
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+
+              {csvMessage ? (
+                <p className={csvStatus === 'error' ? 'error' : 'success'}>{csvMessage}</p>
+              ) : null}
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button className="cta" type="submit" disabled={uploading || !csvFile || !selectedStore}>
+                  {uploading ? 'Caricamento...' : 'Carica inventario'}
+                </button>
+                {inventoryCount > 0 ? (
+                  <span className="badge">{inventoryCount} prodotti a database</span>
+                ) : null}
+              </div>
+            </form>
+          </article>
+
+          <article className="card">
+            <div className="stack split">
+              <h3 style={{ margin: 0, fontSize: '0.96rem' }}>2. Carrello fornitore</h3>
+
+              <label>
+                Incolla qui il testo del carrello
+                <textarea
+                  className="cross-inventory-textarea"
+                  value={cartText}
+                  onChange={(e) => setCartText(e.target.value)}
+                  placeholder="Incolla il contenuto del carrello del fornitore..."
+                  rows={12}
+                />
+              </label>
+
+              {cartError ? <p className="error">{cartError}</p> : null}
+              {cartItems.length > 0 ? (
+                <p className="hint no-top">
+                  {cartItems.length} prodotti trovati nel carrello
+                </p>
+              ) : null}
+
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  className="ghost"
+                  type="button"
+                  onClick={handleParseCart}
+                  disabled={!cartText.trim()}
+                >
+                  Analizza carrello
+                </button>
+                <button
+                  className="cta"
+                  type="button"
+                  onClick={doMatch}
+                  disabled={matching || !cartText.trim()}
+                >
+                  {matching ? 'Confronto...' : 'Confronta con inventario'}
+                </button>
+              </div>
+
+              {matchError ? <p className="error">{matchError}</p> : null}
+            </div>
+          </article>
+
+          {matches.length > 0 ? (
+            <article className="card">
+              <h2>Risultati confronto</h2>
+              <p className="hint no-top" style={{ marginBottom: '1rem' }}>
+                Prodotti del carrello trovati nell'inventario condiviso.
+              </p>
+
+              {cartItemsMapToMatches(cartItems, matches)
+                .filter((item) => {
+                  if (item.matches.length === 0) return true
+                  if (testMode) return true
+                  return collectStoreButtons(item.matches, selectedStore).length > 0
+                })
+                .map((item) => {
+                  const storeButtons = collectStoreButtons(item.matches, testMode ? '' : selectedStore)
+                  const hasNoMatch = item.matches.length === 0
+                  return (
+                    <div key={item.name} className="cross-match-item">
+                      <div className="cross-match-header">
+                        <span className="cross-match-cart-name">{item.name}</span>
+                        <span className={`cross-match-score${hasNoMatch ? ' none' : item.bestMatch!.score >= 0.7 ? ' high' : item.bestMatch!.score >= 0.4 ? ' medium' : ' low'}`}>
+                          {hasNoMatch ? 'nessun match' : `${Math.round(item.bestMatch!.score * 100)}%`}
+                        </span>
+                      </div>
+                      {hasNoMatch ? (
+                        <div className="cross-match-no-match">
+                          {searchingBarcode === item.name ? (
+                            <div className="cross-match-barcode-search">
+                              <input
+                                className="cross-barcode-input"
+                                value={barcodeInput}
+                                onChange={(e) => setBarcodeInput(e.target.value)}
+                                placeholder="Incolla barcode da Easyfatt..."
+                                autoFocus
+                                onKeyDown={(e) => { if (e.key === 'Enter') lookupBarcode(item.name) }}
+                              />
                               <div className="cross-match-actions">
-                                {manualButtons.map((s) => (
-                                  <button key={s.store} className="ghost small" type="button" onClick={() => sendCrossRequest(s.label, manual.entry.product_name, manual.entry.barcode)}>
-                                    CHIEDI A {s.label.toUpperCase()}
-                                  </button>
-                                ))}
+                                <button className="ghost small" type="button" onClick={() => lookupBarcode(item.name)}>
+                                  Cerca
+                                </button>
+                                <button className="ghost small" type="button" onClick={() => setSearchingBarcode(null)}>
+                                  Annulla
+                                </button>
                               </div>
-                            </>
+                              {barcodeError ? <p className="error">{barcodeError}</p> : null}
+                            </div>
+                          ) : manualMatches.has(item.name) ? (
+                            (() => {
+                              const manual = manualMatches.get(item.name)!
+                              const manualButtons = manual.stores
+                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()))
+                              return manualButtons.length > 0 ? (
+                                <>
+                                  <p className="cross-match-product">{manual.entry.product_name}</p>
+                                  <div className="cross-match-actions">
+                                    {manualButtons.map((s) => (
+                                      <button key={s.store} className="ghost small" type="button" onClick={() => sendCrossRequest(s.label, manual.entry.product_name, manual.entry.barcode)}>
+                                        CHIEDI A {s.label.toUpperCase()}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </>
+                              ) : (
+                                <p className="hint">Trovato "{manual.entry.product_name}" ma nessun altro store ha giacenza</p>
+                              )
+                            })()
                           ) : (
-                            <p className="hint">Trovato "{manual.entry.product_name}" ma nessun altro store ha giacenza</p>
-                          )
-                        })()
-                      ) : (
-                        <div className="cross-match-actions">
-                          <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name)}>
-                            Cerca per barcode
-                          </button>
+                            <div className="cross-match-actions">
+                              <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name)}>
+                                Cerca per barcode
+                              </button>
+                            </div>
+                          )}
                         </div>
+                      ) : (
+                        <>
+                          <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
+                            <div className="cross-match-actions">
+                            {storeButtons.map((s) => (
+                              <button
+                                key={s.store}
+                                className="ghost small"
+                                type="button"
+                                onClick={() => sendCrossRequest(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
+                              >
+                                CHIEDI A {s.label.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                        </>
                       )}
                     </div>
-                  ) : (
-                    <>
-                      <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
-                        <div className="cross-match-actions">
-                        {storeButtons.map((s) => (
-                          <button
-                            key={s.store}
-                            className="ghost small"
-                            type="button"
-                            onClick={() => sendCrossRequest(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
-                          >
-                            CHIEDI A {s.label.toUpperCase()}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )
-            })}
-        </article>
-      ) : null}
+                  )
+                })}
+            </article>
+          ) : null}
+        </div>
+
+        <aside className="cross-sidebar">
+          <article className="card">
+            <div className="cross-received-header">
+              <h2>Richieste ricevute</h2>
+              {visibleReceived.length > 0 ? (
+                <button className="ghost small danger" type="button" onClick={() => setShowSvuotaConfirm(true)}>
+                  SVUOTA
+                </button>
+              ) : null}
+            </div>
+            {visibleReceived.length > 0 ? (
+              <ul className="cross-received-list">
+                {visibleReceived.map((req) => (
+                  <li key={req.id} className="cross-received-item">
+                    <div className="cross-received-item-main">
+                      <strong>{req.title}</strong>
+                      <p>{req.body}</p>
+                      <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                    </div>
+                    <button className="ghost small" type="button" title="Rispondi (in arrivo)">
+                      &#8630;
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hint no-top">Nessuna richiesta ricevuta.</p>
+            )}
+          </article>
+        </aside>
+      </div>
     </section>
   )
 }
