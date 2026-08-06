@@ -228,6 +228,10 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [replyRequest, setReplyRequest] = useState<ReceivedRequest | null>(null)
   const [replyItems, setReplyItems] = useState<{ productName: string; barcode: string | null; quantity: number }[]>([])
 
+  const [filter1, setFilter1] = useState(false)
+  const [filter2, setFilter2] = useState(false)
+  const [noFiltro, setNoFiltro] = useState(false)
+
   const openReply = (req: ReceivedRequest) => {
     const items = parseRequestBody(req.body)
     setReplyItems(items)
@@ -633,6 +637,21 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                 ) : null}
               </div>
             </form>
+          </article>
+          <article className="card">
+            <h2 style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Filtri</h2>
+            <label className="cross-filter-label">
+              <input type="checkbox" checked={filter1} onChange={(e) => setFilter1(e.target.checked)} />
+              <span>Filtro 1</span>
+            </label>
+            <label className="cross-filter-label">
+              <input type="checkbox" checked={filter2} onChange={(e) => setFilter2(e.target.checked)} />
+              <span>Filtro 2</span>
+            </label>
+            <label className="cross-filter-label">
+              <input type="checkbox" checked={noFiltro} onChange={(e) => setNoFiltro(e.target.checked)} />
+              <span>No filtro</span>
+            </label>
           </article>
         </div>
 
