@@ -640,6 +640,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           </article>
           <article className="card cross-filter-card">
             <h2>Filtri</h2>
+            <div className="stack split">
             <label className="cross-filter-label">
               <input type="checkbox" checked={filter1} onChange={(e) => setFilter1(e.target.checked)} />
               <span>Filtro 1</span>
@@ -652,6 +653,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
               <input type="checkbox" checked={noFiltro} onChange={(e) => setNoFiltro(e.target.checked)} />
               <span>No filtro</span>
             </label>
+            </div>
           </article>
         </div>
 
