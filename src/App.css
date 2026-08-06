@@ -1879,10 +1879,47 @@ time {
   accent-color: var(--accent);
 }
 
+.cross-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cross-filter-bar-opt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  border: 1px solid transparent;
+  transition: 0.15s;
+  user-select: none;
+  color: #7d8a8e;
+}
+
+.cross-filter-bar-opt input { display: none; }
+
+.cross-filter-bar-opt.active {
+  background: #e9f7fb;
+  border-color: #0f4c5c;
+  font-weight: 600;
+  color: #0f4c5c;
+}
+
+.cross-filter-bar-opt.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: #0f4c5c;
+  border-radius: 2px 0 0 2px;
+}
+
 .cross-filter-card {
   margin-top: 0.5rem;
 }
-
 .test-mode-float {
   position: fixed;
   bottom: 1rem;

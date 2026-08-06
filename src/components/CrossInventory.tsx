@@ -168,6 +168,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         return next
       })
       pushToast('success', `Richiesta inviata a ${toStore} (${items.length} prodotti)`)
+      setActiveFilter('filter1')
     } catch {
       pushToast('error', 'Invio richiesta non riuscito')
     }
@@ -228,9 +229,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [replyRequest, setReplyRequest] = useState<ReceivedRequest | null>(null)
   const [replyItems, setReplyItems] = useState<{ productName: string; barcode: string | null; quantity: number }[]>([])
 
-  const [filter1, setFilter1] = useState(false)
-  const [filter2, setFilter2] = useState(false)
-  const [noFiltro, setNoFiltro] = useState(false)
+  const [activeFilter, setActiveFilter] = useState('filter1')
 
   const openReply = (req: ReceivedRequest) => {
     const items = parseRequestBody(req.body)
@@ -641,18 +640,20 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           <article className="card cross-filter-card">
             <h2>Filtri</h2>
             <div className="stack split">
-            <label className="cross-filter-label">
-              <input type="checkbox" checked={filter1} onChange={(e) => setFilter1(e.target.checked)} />
-              <span>Filtro 1</span>
-            </label>
-            <label className="cross-filter-label">
-              <input type="checkbox" checked={filter2} onChange={(e) => setFilter2(e.target.checked)} />
-              <span>Filtro 2</span>
-            </label>
-            <label className="cross-filter-label">
-              <input type="checkbox" checked={noFiltro} onChange={(e) => setNoFiltro(e.target.checked)} />
-              <span>No filtro</span>
-            </label>
+              <div className="cross-filter-bar">
+                <label className={`cross-filter-bar-opt${activeFilter === 'filter1' ? ' active' : ''}`}>
+                  <input type="radio" name="cross-filter" checked={activeFilter === 'filter1'} onChange={() => setActiveFilter('filter1')} />
+                  <span>Filtro 1</span>
+                </label>
+                <label className={`cross-filter-bar-opt${activeFilter === 'filter2' ? ' active' : ''}`}>
+                  <input type="radio" name="cross-filter" checked={activeFilter === 'filter2'} onChange={() => setActiveFilter('filter2')} />
+                  <span>Filtro 2</span>
+                </label>
+                <label className={`cross-filter-bar-opt${activeFilter === 'nofiltro' ? ' active' : ''}`}>
+                  <input type="radio" name="cross-filter" checked={activeFilter === 'nofiltro'} onChange={() => setActiveFilter('nofiltro')} />
+                  <span>No filtro</span>
+                </label>
+              </div>
             </div>
           </article>
         </div>
