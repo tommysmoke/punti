@@ -1879,6 +1879,10 @@ time {
   accent-color: var(--accent);
 }
 
+.cross-filter-card {
+  margin-top: 0.5rem;
+}
+
 .test-mode-float {
   position: fixed;
   bottom: 1rem;

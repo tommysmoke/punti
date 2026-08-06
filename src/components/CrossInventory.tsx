@@ -638,8 +638,8 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
               </div>
             </form>
           </article>
-          <article className="card">
-            <h2 style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Filtri</h2>
+          <article className="card cross-filter-card">
+            <h2>Filtri</h2>
             <label className="cross-filter-label">
               <input type="checkbox" checked={filter1} onChange={(e) => setFilter1(e.target.checked)} />
               <span>Filtro 1</span>
