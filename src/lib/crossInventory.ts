@@ -189,11 +189,22 @@ function normalize(s: string): string {
 }
 
 function tokenize(s: string): string[] {
-  const tokens = normalize(s)
+  const raw = normalize(s)
     .split(/\s+/)
     .filter((t) => t.length >= 2)
 
-  return tokens.map((t) => {
+  // Merge "10 ml" → "10ml", "60 ml" → "60ml" etc.
+  const merged: string[] = []
+  for (let i = 0; i < raw.length; i++) {
+    if (i + 1 < raw.length && /^\d{2,3}$/.test(raw[i]) && raw[i + 1] === 'ml') {
+      merged.push(raw[i] + 'ml')
+      i++
+    } else {
+      merged.push(raw[i])
+    }
+  }
+
+  return merged.map((t) => {
     if (t === '20ml' || t === '30ml' || t === '60ml') return 'vol_ml'
     return t
   })
