@@ -7,6 +7,7 @@ import {
   getStoreColumnName,
   getStoreStocks,
   findEmptyAliasColumn,
+  storePassesFilter,
   STORE_NAMES,
   type InventoryEntry,
   type MatchResult,
@@ -706,10 +707,10 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                 .filter((item) => {
                   if (item.matches.length === 0) return true
                   if (testMode) return true
-                  return collectStoreButtons(item.matches, selectedStore).length > 0
+                  return collectStoreButtons(item.matches, selectedStore, activeFilter).length > 0
                 })
                 .map((item) => {
-                  const storeButtons = collectStoreButtons(item.matches, testMode ? '' : selectedStore)
+                  const storeButtons = collectStoreButtons(item.matches, testMode ? '' : selectedStore, activeFilter)
                   const hasNoMatch = item.matches.length === 0
                   return (
                     <div key={item.name} className="cross-match-item">
@@ -754,7 +755,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                             (() => {
                               const manual = manualMatches.get(item.name)!
                               const manualButtons = manual.stores
-                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()))
+                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()) && storePassesFilter(s, activeFilter))
                               return manualButtons.length > 0 ? (
                                 <>
                                   <p className="cross-match-product">{manual.entry.product_name}</p>
@@ -804,7 +805,7 @@ CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
                             (() => {
                               const manual = manualMatches.get(item.name)!
                               const manualButtons = manual.stores
-                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()))
+                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()) && storePassesFilter(s, activeFilter))
                               return manualButtons.length > 0 ? (
                                 <>
                                   <p className="cross-match-product">{manual.entry.product_name}</p>
@@ -1072,6 +1073,7 @@ function cartItemsMapToMatches(
 function collectStoreButtons(
   matches: MatchResult['matches'],
   currentStore: string,
+  filterName: string,
 ): StoreButton[] {
   const seen = new Set<string>()
   const buttons: StoreButton[] = []
@@ -1081,6 +1083,7 @@ function collectStoreButtons(
       if (s.quantity <= 0) continue
       if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
       if (seen.has(s.store)) continue
+      if (!storePassesFilter(s, filterName)) continue
       seen.add(s.store)
       buttons.push(s)
     }

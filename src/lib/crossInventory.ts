@@ -31,6 +31,8 @@ export interface StoreStock {
   store: string
   label: string
   quantity: number
+  lastCarico: string | null
+  lastScarico: string | null
 }
 
 export interface MatchResult {
@@ -42,11 +44,11 @@ export interface MatchResult {
   }[]
 }
 
-const STORE_COLUMNS: { store: string; label: string; col: keyof InventoryEntry }[] = [
-  { store: 'quarto', label: 'Quarto', col: 'quantity_quarto' },
-  { store: 'castenaso', label: 'Castenaso', col: 'quantity_castenaso' },
-  { store: 'bologna', label: 'Bologna', col: 'quantity_bologna' },
-  { store: 'san_lazzaro', label: 'San Lazzaro', col: 'quantity_san_lazzaro' },
+const STORE_COLUMNS: { store: string; label: string; col: keyof InventoryEntry; caricoCol: keyof InventoryEntry; scaricoCol: keyof InventoryEntry }[] = [
+  { store: 'quarto', label: 'Quarto', col: 'quantity_quarto', caricoCol: 'last_carico_quarto', scaricoCol: 'last_scarico_quarto' },
+  { store: 'castenaso', label: 'Castenaso', col: 'quantity_castenaso', caricoCol: 'last_carico_castenaso', scaricoCol: 'last_scarico_castenaso' },
+  { store: 'bologna', label: 'Bologna', col: 'quantity_bologna', caricoCol: 'last_carico_bologna', scaricoCol: 'last_scarico_bologna' },
+  { store: 'san_lazzaro', label: 'San Lazzaro', col: 'quantity_san_lazzaro', caricoCol: 'last_carico_san_lazzaro', scaricoCol: 'last_scarico_san_lazzaro' },
 ]
 
 const ALIAS_COLUMNS: (keyof InventoryEntry)[] = [
@@ -59,6 +61,8 @@ export function getStoreStocks(entry: InventoryEntry): StoreStock[] {
     store: s.store,
     label: s.label,
     quantity: entry[s.col] as number,
+    lastCarico: entry[s.caricoCol] as string | null,
+    lastScarico: entry[s.scaricoCol] as string | null,
   }))
 }
 
@@ -67,6 +71,46 @@ export function getStoreColumnName(storeName: string): string {
     (s) => s.store === storeName.toLowerCase() || s.label.toLowerCase() === storeName.toLowerCase(),
   )
   return found ? `quantity_${found.store}` : ''
+}
+
+const FILTER_START = new Date('2026-08-06T00:00:00+02:00')
+const MAX_SCARICO_DAYS = 90
+const MAX_CARICO_DAYS = 105
+
+function parseDate(d: string | null): Date | null {
+  if (!d) return null
+  const parts = d.split('/')
+  if (parts.length !== 3) return null
+  return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]))
+}
+
+function getFilterDays(): { scaricoDays: number; caricoDays: number } {
+  const now = new Date()
+  const daysSinceStart = Math.floor((now.getTime() - FILTER_START.getTime()) / (1000 * 60 * 60 * 24))
+  return {
+    scaricoDays: Math.min(7 + daysSinceStart, MAX_SCARICO_DAYS),
+    caricoDays: Math.min(14 + daysSinceStart, MAX_CARICO_DAYS),
+  }
+}
+
+export function storePassesFilter(stock: StoreStock, filterName: string): boolean {
+  if (filterName === 'nofiltro') return true
+  const now = new Date()
+  const { scaricoDays, caricoDays } = getFilterDays()
+
+  const caricoDate = parseDate(stock.lastCarico)
+  if (caricoDate) {
+    const daysSinceCarico = Math.floor((now.getTime() - caricoDate.getTime()) / (1000 * 60 * 60 * 24))
+    if (daysSinceCarico < caricoDays) return false
+  }
+
+  const scaricoDate = parseDate(stock.lastScarico)
+  if (scaricoDate) {
+    const daysSinceScarico = Math.floor((now.getTime() - scaricoDate.getTime()) / (1000 * 60 * 60 * 24))
+    if (daysSinceScarico < scaricoDays) return false
+  }
+
+  return true
 }
 
 export function getAliases(entry: InventoryEntry): string[] {
