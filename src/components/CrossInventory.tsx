@@ -9,6 +9,7 @@ import {
   findEmptyAliasColumn,
   storePassesFilter,
   getFilterRejection,
+  filterDebugSuffix,
   STORE_NAMES,
   type InventoryEntry,
   type MatchResult,
@@ -784,7 +785,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                                   <div className="cross-match-actions">
                                     {manualButtons.map((s) => (
                                       <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode)}>
-CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
+CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                       </button>
                                     ))}
                                   </div>
@@ -834,7 +835,7 @@ CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
                                   <div className="cross-match-actions">
                                     {manualButtons.map((s) => (
                                       <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode)}>
-                                        CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
+                                        CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                       </button>
                                     ))}
                                   </div>
@@ -854,7 +855,7 @@ CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
                                     type="button"
                                     onClick={() => addToBasket(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
                                   >
-                                    CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
+                                    CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                   </button>
                                 ))}
                               </div>
@@ -1090,6 +1091,8 @@ interface StoreButton {
   store: string
   label: string
   quantity: number
+  lastCarico: string | null
+  lastScarico: string | null
 }
 
 function cartItemsMapToMatches(

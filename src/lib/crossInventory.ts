@@ -133,6 +133,26 @@ export function getFilterRejection(stock: StoreStock, filterName: string): strin
   return null
 }
 
+export function filterDebugSuffix(stock: StoreStock, filterName: string, quantity: number): string {
+  const qty = `${quantity} disp.`
+  if (filterName === 'nofiltro') return qty
+
+  const passes = storePassesFilter(stock, filterName)
+  const label = passes ? 'pass' : 'not pass'
+
+  const caricoDate = parseDate(stock.lastCarico)
+  const scaricoDate = parseDate(stock.lastScarico)
+
+  const bestDate = scaricoDate || caricoDate
+  if (bestDate) {
+    const d = String(bestDate.getDate()).padStart(2, '0')
+    const m = String(bestDate.getMonth() + 1).padStart(2, '0')
+    return `${qty}, ${d}/${m} ${label}`
+  }
+
+  return `${qty}, no date ${label}`
+}
+
 export function getAliases(entry: InventoryEntry): string[] {
   return ALIAS_COLUMNS
     .map((col) => entry[col])
