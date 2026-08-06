@@ -835,9 +835,12 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                                   <div className="cross-match-actions">
                                     {manualButtons.map((s) => (
                                       <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode)}>
-                                        CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
+CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                       </button>
                                     ))}
+                                    <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name)} title="Correggi associazione">
+                                      Correggi
+                                    </button>
                                   </div>
                                 </>
                               ) : (
@@ -858,6 +861,9 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                                     CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                   </button>
                                 ))}
+                                <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name)} title="Correggi associazione">
+                                  Correggi
+                                </button>
                               </div>
                             </>
                           )}

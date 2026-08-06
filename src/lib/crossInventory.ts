@@ -189,9 +189,14 @@ function normalize(s: string): string {
 }
 
 function tokenize(s: string): string[] {
-  return normalize(s)
+  const tokens = normalize(s)
     .split(/\s+/)
     .filter((t) => t.length >= 2)
+
+  return tokens.map((t) => {
+    if (t === '20ml' || t === '30ml' || t === '60ml') return 'vol_ml'
+    return t
+  })
 }
 
 function tokenWeight(token: string): number {
@@ -212,6 +217,9 @@ function tokenWeight(token: string): number {
 
   // Medio-alto: formati ml con numero
   if (/^\d{2,3}ml$/.test(token)) return 2.0
+
+  // Medio-alto: volumi sinonimizzati (20/30/60ml)
+  if (token === 'vol_ml') return 2.0
 
   // Medio: 10+10
   if (token === '10+10') return 1.5
