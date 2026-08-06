@@ -27,6 +27,119 @@ export interface InventoryEntry {
   alias_10: string | null
 }
 
+export interface DuplicateGroup {
+  barcode: string
+  rows: InventoryEntry[]
+}
+
+const STORE_SUFFIXES = ['quarto', 'castenaso', 'bologna', 'san_lazzaro']
+
+export function findDuplicates(inventory: InventoryEntry[]): DuplicateGroup[] {
+  const byBarcode = new Map<string, InventoryEntry[]>()
+  for (const entry of inventory) {
+    if (!entry.barcode) continue
+    const group = byBarcode.get(entry.barcode)
+    if (group) {
+      group.push(entry)
+    } else {
+      byBarcode.set(entry.barcode, [entry])
+    }
+  }
+  const dupes: DuplicateGroup[] = []
+  for (const [barcode, rows] of byBarcode) {
+    if (rows.length > 1) {
+      dupes.push({ barcode, rows })
+    }
+  }
+  return dupes
+}
+
+function countAliases(entry: InventoryEntry): number {
+  return ALIAS_COLUMNS.filter((col) => {
+    const v = entry[col]
+    return typeof v === 'string' && v.trim() !== ''
+  }).length
+}
+
+function hasDates(entry: InventoryEntry): boolean {
+  for (const suffix of STORE_SUFFIXES) {
+    const caricoCol = `last_carico_${suffix}` as keyof InventoryEntry
+    const scaricoCol = `last_scarico_${suffix}` as keyof InventoryEntry
+    if (entry[caricoCol] || entry[scaricoCol]) return true
+  }
+  return false
+}
+
+function hasQuantity(entry: InventoryEntry): boolean {
+  for (const suffix of STORE_SUFFIXES) {
+    const qtyCol = `quantity_${suffix}` as keyof InventoryEntry
+    if ((entry[qtyCol] as number) > 0) return true
+  }
+  return false
+}
+
+function infoScore(entry: InventoryEntry): number {
+  let score = 0
+  score += countAliases(entry) * 2
+  if (entry.category) score += 1
+  if (hasDates(entry)) score += 2
+  if (hasQuantity(entry)) score += 1
+  if (entry.barcode) score += 1
+  return score
+}
+
+interface MergePayload {
+  keepId: number
+  removeId: number
+  updateFields: Record<string, string | number | null>
+  lostName: string
+}
+
+export function computeMerge(rows: InventoryEntry[]): MergePayload {
+  const sorted = [...rows].sort((a, b) => infoScore(b) - infoScore(a))
+  const keep = sorted[0]
+  const remove = sorted[1]
+
+  const updateFields: Record<string, string | number | null> = {}
+
+  for (const suffix of STORE_SUFFIXES) {
+    const qtyCol = `quantity_${suffix}` as keyof InventoryEntry
+    const caricoCol = `last_carico_${suffix}` as keyof InventoryEntry
+    const scaricoCol = `last_scarico_${suffix}` as keyof InventoryEntry
+
+    const keepQty = (keep[qtyCol] as number) || 0
+    const removeQty = (remove[qtyCol] as number) || 0
+    updateFields[qtyCol] = keepQty + removeQty
+
+    const keepCarico = keep[caricoCol] as string | null
+    const removeCarico = remove[caricoCol] as string | null
+    const caricoKeep = parseDate(keepCarico)
+    const caricoRemove = parseDate(removeCarico)
+    if (caricoRemove && (!caricoKeep || caricoRemove > caricoKeep)) {
+      updateFields[caricoCol] = removeCarico
+    }
+
+    const keepScarico = keep[scaricoCol] as string | null
+    const removeScarico = remove[scaricoCol] as string | null
+    const scaricoKeep = parseDate(keepScarico)
+    const scaricoRemove = parseDate(removeScarico)
+    if (scaricoRemove && (!scaricoKeep || scaricoRemove > scaricoKeep)) {
+      updateFields[scaricoCol] = removeScarico
+    }
+  }
+
+  const emptyAliasCol = findEmptyAliasColumn(keep)
+  if (emptyAliasCol) {
+    updateFields[emptyAliasCol] = remove.product_name
+  }
+
+  return {
+    keepId: keep.id,
+    removeId: remove.id,
+    updateFields,
+    lostName: remove.product_name,
+  }
+}
 export interface StoreStock {
   store: string
   label: string

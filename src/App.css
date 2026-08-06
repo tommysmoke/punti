@@ -1952,6 +1952,33 @@ time {
 .cross-filter-card {
   margin-top: 0.5rem;
 }
+.cross-dedup-card {
+  margin-top: 0.5rem;
+}
+.cross-dedup-item {
+  border-color: #d9534f;
+}
+.cross-dedup-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.cross-dedup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(217, 83, 79, 0.06);
+  border-radius: 4px;
+  border: 1px solid rgba(217, 83, 79, 0.15);
+}
+.cross-dedup-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
 .test-mode-float {
   position: fixed;
   bottom: 1rem;

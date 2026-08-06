@@ -11,8 +11,11 @@ import {
   getFilterRejection,
   filterDebugSuffix,
   STORE_NAMES,
+  findDuplicates,
+  computeMerge,
   type InventoryEntry,
   type MatchResult,
+  type DuplicateGroup,
 } from '../lib/crossInventory'
 import type { Profile, Toast } from '../hooks/useAppState'
 
@@ -123,6 +126,11 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [searchingBarcode, setSearchingBarcode] = useState<string | null>(null)
   const [barcodeInput, setBarcodeInput] = useState('')
   const [barcodeError, setBarcodeError] = useState('')
+
+  const [dedupResults, setDedupResults] = useState<DuplicateGroup[]>([])
+  const [deduping, setDeduping] = useState(false)
+  const [dedupError, setDedupError] = useState('')
+  const [mergingId, setMergingId] = useState<string | null>(null)
 
   const [receivedRequests, setReceivedRequests] = useState<ReceivedRequest[]>([])
   const [showSvuotaConfirm, setShowSvuotaConfirm] = useState(false)
@@ -373,14 +381,14 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
 
       const { data: existing, error: fetchErr } = await supabase
         .from('shared_inventory')
-        .select('id, product_name, barcode')
+        .select('id, product_name, barcode, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
       if (fetchErr) {
         setCsvStatus('error')
         setCsvMessage(`Errore lettura inventario: ${fetchErr.message}`)
         return
       }
 
-      const existingProducts = (existing ?? []) as { id: number; product_name: string; barcode: string | null }[]
+      const existingProducts = (existing ?? []) as { id: number; product_name: string; barcode: string | null; alias_1: string | null; alias_2: string | null; alias_3: string | null; alias_4: string | null; alias_5: string | null; alias_6: string | null; alias_7: string | null; alias_8: string | null; alias_9: string | null; alias_10: string | null }[]
 
       const updates: { id: number; [key: string]: number | string | null }[] = []
       const inserts: {
@@ -414,6 +422,25 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         if (nameMatch) {
           updates.push({ id: nameMatch.id, [columnName]: row.quantity, [caricoCol]: row.lastCarico || null, [scaricoCol]: row.lastScarico || null })
           matchedIds.add(nameMatch.id)
+          matched = true
+        }
+
+        if (matched) continue
+
+        const rowNameLower = row.name.toLowerCase()
+        const aliasMatch = existingProducts.find(
+          (p) => {
+            if (matchedIds.has(p.id)) return false
+            for (let i = 1; i <= 10; i++) {
+              const aliasVal = p[`alias_${i}` as keyof typeof p]
+              if (typeof aliasVal === 'string' && aliasVal.toLowerCase() === rowNameLower) return true
+            }
+            return false
+          },
+        )
+        if (aliasMatch) {
+          updates.push({ id: aliasMatch.id, [columnName]: row.quantity, [caricoCol]: row.lastCarico || null, [scaricoCol]: row.lastScarico || null })
+          matchedIds.add(aliasMatch.id)
           matched = true
         }
 
@@ -492,6 +519,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
 
     setMatching(true)
     setMatchError('')
+    setDedupResults([])
 
     try {
       const { data, error } = await supabase
@@ -512,6 +540,78 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       setMatchError(message)
     } finally {
       setMatching(false)
+    }
+  }
+
+  const handleDeduplicate = async () => {
+    if (!supabase) {
+      setDedupError('Supabase non configurato')
+      return
+    }
+    setDeduping(true)
+    setDedupError('')
+    setMatches([])
+    try {
+      const { data, error } = await supabase
+        .from('shared_inventory')
+        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10, last_carico_quarto, last_carico_castenaso, last_carico_bologna, last_carico_san_lazzaro, last_scarico_quarto, last_scarico_castenaso, last_scarico_bologna, last_scarico_san_lazzaro')
+        .not('barcode', 'is', null)
+        .neq('barcode', '')
+        .order('barcode')
+
+      if (error) {
+        setDedupError(`Errore lettura inventario: ${error.message}`)
+        return
+      }
+
+      const inventory = (data ?? []) as InventoryEntry[]
+      const dupes = findDuplicates(inventory)
+      setDedupResults(dupes)
+      if (dupes.length === 0) {
+        pushToast('success', 'Nessun duplicato trovato')
+      }
+    } catch (err) {
+      setDedupError(err instanceof Error ? err.message : 'Errore')
+    } finally {
+      setDeduping(false)
+    }
+  }
+
+  const handleMerge = async (group: DuplicateGroup, keepIdx: number) => {
+    if (!supabase) return
+    const key = `${group.barcode}|${keepIdx}`
+    setMergingId(key)
+    try {
+      const merge = computeMerge(group.rows)
+      const { error: updateErr } = await supabase
+        .from('shared_inventory')
+        .update(merge.updateFields)
+        .eq('id', merge.keepId)
+      if (updateErr) {
+        pushToast('error', `Erorre merge: ${updateErr.message}`)
+        return
+      }
+      const { error: deleteErr } = await supabase
+        .from('shared_inventory')
+        .delete()
+        .eq('id', merge.removeId)
+      if (deleteErr) {
+        pushToast('error', `Errore rimozione duplicato: ${deleteErr.message}`)
+        return
+      }
+      setDedupResults((prev) =>
+        prev
+          .map((g) => {
+            if (g.barcode !== group.barcode) return g
+            return { barcode: g.barcode, rows: g.rows.filter((r) => r.id !== merge.removeId) }
+          })
+          .filter((g) => g.rows.length > 1),
+      )
+      pushToast('success', `Merge completato: "${merge.lostName}" → alias di "${group.rows.find((r) => r.id === merge.keepId)?.product_name}"`)
+    } catch (err) {
+      pushToast('error', err instanceof Error ? err.message : 'Errore merge')
+    } finally {
+      setMergingId(null)
     }
   }
 
@@ -685,6 +785,18 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
               </div>
             </div>
           </article>
+          <article className="card cross-dedup-card">
+            <h2>Deduplica Database</h2>
+            <div className="stack split">
+              <button className="cta" type="button" onClick={handleDeduplicate} disabled={deduping}>
+                {deduping ? 'Cerco duplicati...' : 'Deduplica Database'}
+              </button>
+              {dedupError ? <p className="error">{dedupError}</p> : null}
+              {dedupResults.length > 0 ? (
+                <span className="badge">{dedupResults.length} duplicati trovati</span>
+              ) : null}
+            </div>
+          </article>
         </div>
 
         <div className="cross-main">
@@ -722,11 +834,44 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         </div>
 
         <div className="cross-main">
-          {matches.length > 0 ? (
+          {matches.length > 0 || dedupResults.length > 0 ? (
             <article className="card">
               <h2>Risultati ricerca</h2>
 
-              {cartItemsMapToMatches(cartItems, matches)
+              {dedupResults.length > 0 ? (
+                dedupResults.map((group) => (
+                  <div key={group.barcode} className="cross-match-item cross-dedup-item">
+                    <div className="cross-match-header">
+                      <span className="cross-match-cart-name">Barcode: {group.barcode}</span>
+                      <span className="cross-match-score none">{group.rows.length} duplicati</span>
+                    </div>
+                    <div className="cross-dedup-rows">
+                      {group.rows.map((row, idx) => {
+                        const stocks = getStoreStocks(row)
+                        const totalQty = stocks.reduce((s, st) => s + st.quantity, 0)
+                        return (
+                          <div key={row.id} className="cross-dedup-row">
+                            <div className="cross-dedup-row-info">
+                              <strong>{row.product_name}</strong>
+                              <span className="hint">ID: {row.id} — Giacenza tot: {totalQty}</span>
+                            </div>
+                            <button
+                              className="ghost small"
+                              type="button"
+                              onClick={() => handleMerge(group, idx)}
+                              disabled={mergingId !== null}
+                            >
+                              {mergingId === `${group.barcode}|${idx}` ? 'Merging...' : 'Unisci'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <>
+                  {cartItemsMapToMatches(cartItems, matches)
                 .filter((item) => {
                   if (item.matches.length === 0) return true
                   if (testMode) return true
@@ -892,6 +1037,8 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                     </div>
                   )
                 })}
+              </>
+              )}
             </article>
           ) : (
             <article className="card cross-results-placeholder">
