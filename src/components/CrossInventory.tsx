@@ -8,6 +8,7 @@ import {
   getStoreStocks,
   findEmptyAliasColumn,
   storePassesFilter,
+  getFilterRejection,
   STORE_NAMES,
   type InventoryEntry,
   type MatchResult,
@@ -63,6 +64,27 @@ function parseRequestBody(body: string): { productName: string; barcode: string 
 function extractSender(title: string): string | null {
   const match = title.match(/^Richiesta da (.+)$/)
   return match ? match[1] : null
+}
+
+function renderExcludedStores(
+  stocks: { store: string; label: string; quantity: number; lastCarico: string | null; lastScarico: string | null }[],
+  currentStore: string,
+  filterName: string,
+): { store: string; label: string; reason: string }[] {
+  if (filterName === 'nofiltro') return []
+  const seen = new Set<string>()
+  const excluded: { store: string; label: string; reason: string }[] = []
+  for (const s of stocks) {
+    if (s.quantity <= 0) continue
+    if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
+    if (seen.has(s.store)) continue
+    seen.add(s.store)
+    const reason = getFilterRejection(s, filterName)
+    if (reason) {
+      excluded.push({ store: s.store, label: s.label, reason })
+    }
+  }
+  return excluded
 }
 
 export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void }) {
@@ -840,6 +862,26 @@ CHIEDI A {s.label.toUpperCase()} ({s.quantity} disp.)
                           )}
                         </>
                       )}
+                      {testMode && activeFilter !== 'nofiltro' && item.matches.length > 0 ? (
+                        (() => {
+                          const excluded = renderExcludedStores(
+                            item.matches.flatMap((m) => m.stocks),
+                            testMode ? '' : selectedStore,
+                            activeFilter,
+                          )
+                          return excluded.length > 0 ? (
+                            <div className="cross-excluded-debug">
+                              <p className="cross-excluded-title">Esclusi dal filtro:</p>
+                              {excluded.map((e) => (
+                                <div key={e.store} className="cross-excluded-item">
+                                  <span className="cross-excluded-store">{e.label}</span>
+                                  <span className="cross-excluded-reason">{e.reason}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null
+                        })()
+                      ) : null}
                     </div>
                   )
                 })}
@@ -1089,5 +1131,5 @@ function collectStoreButtons(
     }
   }
 
-  return buttons
-}
+    return buttons
+  }

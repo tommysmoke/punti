@@ -1865,6 +1865,38 @@ time {
   flex-shrink: 0;
 }
 
+.cross-excluded-debug {
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.5rem;
+  background: #fff5f5;
+  border: 1px dashed #d9534f;
+}
+
+.cross-excluded-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #8b2e2e;
+  margin: 0 0 0.2rem;
+}
+
+.cross-excluded-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.7rem;
+  padding: 0.1rem 0;
+}
+
+.cross-excluded-store {
+  font-weight: 500;
+  color: #8b2e2e;
+}
+
+.cross-excluded-reason {
+  color: #7d8a8e;
+}
+
 .cross-filter-label {
   display: flex;
   align-items: center;

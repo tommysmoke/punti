@@ -113,6 +113,26 @@ export function storePassesFilter(stock: StoreStock, filterName: string): boolea
   return true
 }
 
+export function getFilterRejection(stock: StoreStock, filterName: string): string | null {
+  if (filterName === 'nofiltro') return null
+  const now = new Date()
+  const { scaricoDays, caricoDays } = getFilterDays()
+
+  const caricoDate = parseDate(stock.lastCarico)
+  if (caricoDate) {
+    const days = Math.floor((now.getTime() - caricoDate.getTime()) / (1000 * 60 * 60 * 24))
+    if (days < caricoDays) return `🕐 Ultimo carico: ${days}gg fa (min ${caricoDays}gg)`
+  }
+
+  const scaricoDate = parseDate(stock.lastScarico)
+  if (scaricoDate) {
+    const days = Math.floor((now.getTime() - scaricoDate.getTime()) / (1000 * 60 * 60 * 24))
+    if (days < scaricoDays) return `🕐 Ultimo scarico: ${days}gg fa (min ${scaricoDays}gg)`
+  }
+
+  return null
+}
+
 export function getAliases(entry: InventoryEntry): string[] {
   return ALIAS_COLUMNS
     .map((col) => entry[col])
