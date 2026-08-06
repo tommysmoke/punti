@@ -7,6 +7,14 @@ export interface InventoryEntry {
   quantity_bologna: number
   quantity_san_lazzaro: number
   category: string | null
+  last_carico_quarto: string | null
+  last_carico_castenaso: string | null
+  last_carico_bologna: string | null
+  last_carico_san_lazzaro: string | null
+  last_scarico_quarto: string | null
+  last_scarico_castenaso: string | null
+  last_scarico_bologna: string | null
+  last_scarico_san_lazzaro: string | null
   alias_1: string | null
   alias_2: string | null
   alias_3: string | null

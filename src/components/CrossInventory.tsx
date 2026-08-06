@@ -320,6 +320,9 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       setCsvStatus('error')
       return
     }
+    const storeSuffix = columnName.replace('quantity_', '')
+    const caricoCol = `last_carico_${storeSuffix}`
+    const scaricoCol = `last_scarico_${storeSuffix}`
 
     setUploading(true)
     setCsvStatus('loading')
@@ -355,12 +358,12 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
 
       const existingProducts = (existing ?? []) as { id: number; product_name: string; barcode: string | null }[]
 
-      const updates: { id: number; [key: string]: number }[] = []
+      const updates: { id: number; [key: string]: number | string | null }[] = []
       const inserts: {
         product_name: string
         barcode: string
         category: string
-        [key: string]: string | number
+        [key: string]: string | number | null
       }[] = []
 
       const matchedIds = new Set<number>()
@@ -373,7 +376,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
             (p) => p.barcode && p.barcode === row.barcode,
           )
           if (barcodeMatch && !matchedIds.has(barcodeMatch.id)) {
-            updates.push({ id: barcodeMatch.id, [columnName]: row.quantity })
+            updates.push({ id: barcodeMatch.id, [columnName]: row.quantity, [caricoCol]: row.lastCarico || null, [scaricoCol]: row.lastScarico || null })
             matchedIds.add(barcodeMatch.id)
             matched = true
           }
@@ -385,7 +388,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           (p) => p.product_name.toLowerCase() === row.name.toLowerCase() && !matchedIds.has(p.id),
         )
         if (nameMatch) {
-          updates.push({ id: nameMatch.id, [columnName]: row.quantity })
+          updates.push({ id: nameMatch.id, [columnName]: row.quantity, [caricoCol]: row.lastCarico || null, [scaricoCol]: row.lastScarico || null })
           matchedIds.add(nameMatch.id)
           matched = true
         }
@@ -397,6 +400,8 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           barcode: row.barcode,
           category: row.category,
           [columnName]: row.quantity,
+          [caricoCol]: row.lastCarico || null,
+          [scaricoCol]: row.lastScarico || null,
         })
       }
 
@@ -467,7 +472,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     try {
       const { data, error } = await supabase
         .from('shared_inventory')
-        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
+        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10, last_carico_quarto, last_carico_castenaso, last_carico_bologna, last_carico_san_lazzaro, last_scarico_quarto, last_scarico_castenaso, last_scarico_bologna, last_scarico_san_lazzaro')
 
       if (error) {
         setMatchError(`Errore nel recupero inventario: ${error.message}`)
@@ -506,7 +511,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     try {
       const { data, error } = await supabase
         .from('shared_inventory')
-        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
+        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10, last_carico_quarto, last_carico_castenaso, last_carico_bologna, last_carico_san_lazzaro, last_scarico_quarto, last_scarico_castenaso, last_scarico_bologna, last_scarico_san_lazzaro')
         .eq('barcode', barcodeInput.trim())
         .not('category', 'is', null)
         .neq('category', '')

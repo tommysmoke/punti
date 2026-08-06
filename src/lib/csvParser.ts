@@ -3,6 +3,8 @@ export interface EasyfattRow {
   name: string
   quantity: number
   category: string
+  lastCarico: string
+  lastScarico: string
 }
 
 interface ColumnMap {
@@ -10,6 +12,8 @@ interface ColumnMap {
   name: number
   quantity: number
   category: number
+  lastCarico: number
+  lastScarico: number
 }
 
 function detectDelimiter(header: string): string {
@@ -66,13 +70,17 @@ const HEADER_COLUMN_NAMES = new Map<string, string>([
   ['qta', 'quantity'],
   ['categoria', 'category'],
   ['cat', 'category'],
+  ['dataultimocarico', 'lastCarico'],
+  ['ultimocarico', 'lastCarico'],
+  ['dataultimoscarico', 'lastScarico'],
+  ['ultimoscarico', 'lastScarico'],
 ])
 
 const CATEGORY_SEPARATOR_RE = /^-\s*;.*Categoria\s*:/i
 const EMPTY_END_RE = /^;+$/
 
 function detectColumns(headerFields: string[]): ColumnMap {
-  const map: ColumnMap = { barcode: -1, name: -1, quantity: -1, category: -1 }
+  const map: ColumnMap = { barcode: -1, name: -1, quantity: -1, category: -1, lastCarico: -1, lastScarico: -1 }
 
   for (let i = 0; i < headerFields.length; i++) {
     const cleaned = headerFields[i]
@@ -141,11 +149,16 @@ export function parseEasyfattCSV(raw: string): EasyfattRow[] {
 
     if (!category) continue
 
+    const lastCarico = columns.lastCarico >= 0 ? (fields[columns.lastCarico]?.trim() ?? '') : ''
+    const lastScarico = columns.lastScarico >= 0 ? (fields[columns.lastScarico]?.trim() ?? '') : ''
+
     rows.push({
       barcode,
       name: cleanName(name),
       quantity: Math.round(quantity),
       category,
+      lastCarico,
+      lastScarico,
     })
   }
 
