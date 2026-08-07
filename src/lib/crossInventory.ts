@@ -441,19 +441,31 @@ export function matchCartAgainstInventory(
   )
   return cartItems.map((cartName) => {
     const cartTokens = tokenize(cartName)
+    const cartNorm = normalize(cartName)
+
+    const exactAliasMatches: { entry: InventoryEntry; score: number; stocks: StoreStock[] }[] = []
+    for (const entry of validInventory) {
+      const aliases = getAliases(entry)
+      for (const alias of aliases) {
+        if (normalize(alias) === cartNorm) {
+          exactAliasMatches.push({ entry, score: 1.0, stocks: getStoreStocks(entry) })
+          break
+        }
+      }
+    }
 
     const scored = validInventory
+      .filter((entry) => !exactAliasMatches.some((m) => m.entry.id === entry.id))
       .map((entry) => {
         const entryTokens = tokenize(entry.product_name)
         const js = jaccardSimilarity(cartTokens, entryTokens)
         let tokenScore = js.score
         const hasHighWeight = js.hasHighWeight
-        const substringScore = substringBonus(normalize(cartName), normalize(entry.product_name))
+        const substringScore = substringBonus(cartNorm, normalize(entry.product_name))
 
-        // Check aliases: exact match on alias gives a high score
         const aliases = getAliases(entry)
         for (const alias of aliases) {
-          if (normalize(alias) === normalize(cartName)) {
+          if (normalize(alias) === cartNorm) {
             tokenScore = Math.max(tokenScore, 0.95)
             break
           }
@@ -468,17 +480,18 @@ export function matchCartAgainstInventory(
           + brandBoost(cartName, entry)
           + prefixBonus(cartName, entry.product_name)
 
-        // Penalty: no high-weight token in common → mostly generic match
         if (!hasHighWeight) score *= 0.5
 
         return { entry, score, stocks: getStoreStocks(entry) }
       })
       .filter((m) => m.score >= adaptiveThreshold(cartTokens))
       .filter((m) => lcsRatio(cartTokens, tokenize(m.entry.product_name)) >= 0.25)
+
+    const allMatches = [...exactAliasMatches, ...scored]
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
 
-    return { cartName, matches: scored }
+    return { cartName, matches: allMatches }
   })
 }
 

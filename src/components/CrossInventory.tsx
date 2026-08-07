@@ -13,6 +13,7 @@ import {
   STORE_NAMES,
   findDuplicates,
   computeMerge,
+  getAliases,
   type InventoryEntry,
   type MatchResult,
   type DuplicateGroup,
@@ -769,15 +770,22 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       setSearchingBarcode(null)
       setBarcodeInput('')
 
-      const col = findEmptyAliasColumn(entry)
-      if (col) {
-        await supabase.from('shared_inventory').update({ [col]: cartName }).eq('id', entry.id)
-      } else {
-        const clearPayload: Record<string, null> = {}
-        for (let i = 1; i <= 10; i++) {
-          clearPayload[`alias_${i}`] = null
+      const existingAliases = getAliases(entry)
+      const alreadyHasAlias = existingAliases.some((a) => a.toLowerCase().trim() === cartName.toLowerCase().trim())
+
+      if (!alreadyHasAlias) {
+        const col = findEmptyAliasColumn(entry)
+        if (col) {
+          await supabase.from('shared_inventory').update({ [col]: cartName }).eq('id', entry.id)
+        } else {
+          const shiftPayload: Record<string, string | null> = {}
+          shiftPayload['alias_1'] = cartName
+          for (let i = 2; i <= 10; i++) {
+            const prev = entry[`alias_${i - 1}` as keyof InventoryEntry] as string | null
+            shiftPayload[`alias_${i}`] = prev
+          }
+          await supabase.from('shared_inventory').update(shiftPayload).eq('id', entry.id)
         }
-        await supabase.from('shared_inventory').update({ ...clearPayload, alias_1: cartName }).eq('id', entry.id)
       }
     } catch (err) {
       setBarcodeError(err instanceof Error ? err.message : 'Errore')
