@@ -16,6 +16,7 @@ const NICOTINA_EXTRACT = /nicotina:\s*(\d+mg)/i
 const ML_EXTRACT = /^ml:\s*(\d{2,3}ml)/i
 const OHM_EXTRACT = /^ohm:\s*([\d.]+)\s*ohm/i
 const QUANTITY_LINE_RE = /^\d+$/
+const PERCENT_RE = /^\d{1,3}%$/
 const LINE_TOTAL_RE = /^\d+[.,]\d{2}\s*€\s*$/
 
 function parseEuro(value: string): number {
@@ -123,6 +124,10 @@ export function parseCart(raw: string): CartItem[] {
       continue
     }
 
+    if (PERCENT_RE.test(line)) {
+      continue
+    }
+
     if (line.startsWith('(') && line.endsWith(')')) {
       continue
     }
@@ -136,6 +141,15 @@ export function parseCart(raw: string): CartItem[] {
     if (lastSeenPrice && lineAfterPrice) {
       lastSeenPrice = false
       lineAfterPrice = false
+      if (optionLike(line)) {
+        const nicMatch2 = line.match(NICOTINA_EXTRACT)
+        const mlMatch2 = line.match(ML_EXTRACT)
+        const ohmMatch2 = line.match(OHM_EXTRACT)
+        const isAroma2 = /aroma|concentrato|shot|mix\s*&\s*vape|mix\s*10\+10/i.test(currentName ?? '')
+        if (nicMatch2 && !isAroma2) pendingOptions.push(nicMatch2[1])
+        if (mlMatch2) pendingOptions.push(mlMatch2[1])
+        if (ohmMatch2) pendingOptions.push(`${ohmMatch2[1]}ohm`)
+      }
       continue
     }
 
@@ -143,18 +157,6 @@ export function parseCart(raw: string): CartItem[] {
     if (!currentName) {
       currentName = cleanName(line)
       nameBuffer = [line]
-    } else {
-      // Consecutive name lines - append
-      if (
-        !isPricePair(line) &&
-        !PRICE_LINE_RE.test(line) &&
-        !LINE_TOTAL_RE.test(line) &&
-        !QUANTITY_LINE_RE.test(line) &&
-        !optionLike(line)
-      ) {
-        currentName = cleanName(line)
-        nameBuffer.push(line)
-      }
     }
   }
 
