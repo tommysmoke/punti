@@ -759,7 +759,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   }
 
   const doMatch = () => {
-    if (!cartText.trim()) {
+    if (activeFilter !== 'filter2' && !cartText.trim()) {
       setMatchError('Incolla il testo del carrello')
       return
     }
