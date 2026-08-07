@@ -14,7 +14,8 @@ const SINGLE_PRICE_RE = /^(\d+[.,]\d{2})\s*€\s*$/m
 const OPTION_RE = /^(SCEGLI|ml:|OHM:|COLORE:|Opzione)/i
 const NICOTINA_EXTRACT = /nicotina:\s*(\d+mg)/i
 const ML_EXTRACT = /^ml:\s*(\d{2,3}ml)/i
-const OHM_EXTRACT = /^ohm:\s*([\d.]+)\s*ohm/i
+const OHM_EXTRACT = /^ohm:\s*(.+)$/i
+const COLOR_EXTRACT = /colore:\s*(.+)/i
 const QUANTITY_LINE_RE = /^\d+$/
 const PERCENT_RE = /^\d{1,3}%$/
 const LINE_TOTAL_RE = /^\d+[.,]\d{2}\s*€\s*$/
@@ -98,10 +99,15 @@ export function parseCart(raw: string): CartItem[] {
       const nicMatch = line.match(NICOTINA_EXTRACT)
       const mlMatch = line.match(ML_EXTRACT)
       const ohmMatch = line.match(OHM_EXTRACT)
+      const colorMatch = line.match(COLOR_EXTRACT)
       const isAroma = /aroma|concentrato|shot|mix\s*&\s*vape|mix\s*10\+10/i.test(currentName ?? '')
       if (nicMatch && !isAroma) pendingOptions.push(nicMatch[1])
       if (mlMatch) pendingOptions.push(mlMatch[1])
-      if (ohmMatch) pendingOptions.push(`${ohmMatch[1]}ohm`)
+      if (ohmMatch) {
+        const val = ohmMatch[1].replace(/\s*ohm\b/gi, '').trim()
+        pendingOptions.push(`${val}ohm`)
+      }
+      if (colorMatch) pendingOptions.push(colorMatch[1].trim())
       lastSeenPrice = false
       lineAfterPrice = false
       continue
@@ -145,10 +151,15 @@ export function parseCart(raw: string): CartItem[] {
         const nicMatch2 = line.match(NICOTINA_EXTRACT)
         const mlMatch2 = line.match(ML_EXTRACT)
         const ohmMatch2 = line.match(OHM_EXTRACT)
+        const colorMatch2 = line.match(COLOR_EXTRACT)
         const isAroma2 = /aroma|concentrato|shot|mix\s*&\s*vape|mix\s*10\+10/i.test(currentName ?? '')
         if (nicMatch2 && !isAroma2) pendingOptions.push(nicMatch2[1])
         if (mlMatch2) pendingOptions.push(mlMatch2[1])
-        if (ohmMatch2) pendingOptions.push(`${ohmMatch2[1]}ohm`)
+        if (ohmMatch2) {
+          const val2 = ohmMatch2[1].replace(/\s*ohm\b/gi, '').trim()
+          pendingOptions.push(`${val2}ohm`)
+        }
+        if (colorMatch2) pendingOptions.push(colorMatch2[1].trim())
       }
       continue
     }
