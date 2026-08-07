@@ -14,6 +14,7 @@ import {
   findDuplicates,
   computeMerge,
   getAliases,
+  getFilterDays,
   type InventoryEntry,
   type MatchResult,
   type DuplicateGroup,
@@ -934,14 +935,21 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
             <h2>Filtri</h2>
             <div className="stack split">
               <div className="cross-filter-bar">
-                <label className={`cross-filter-bar-opt${activeFilter === 'filter1' ? ' active' : ''}`}>
-                  <input type="radio" name="cross-filter" checked={activeFilter === 'filter1'} onChange={() => setActiveFilter('filter1')} />
-                  <span>Filtro 1</span>
-                </label>
-                <label className={`cross-filter-bar-opt${activeFilter === 'filter2' ? ' active' : ''}`}>
-                  <input type="radio" name="cross-filter" checked={activeFilter === 'filter2'} onChange={() => setActiveFilter('filter2')} />
-                  <span>Filtro 2</span>
-                </label>
+                {(() => {
+                  const { caricoDays, scaricoDays } = getFilterDays()
+                  return (
+                    <>
+                      <label className={`cross-filter-bar-opt${activeFilter === 'filter1' ? ' active' : ''}`}>
+                        <input type="radio" name="cross-filter" checked={activeFilter === 'filter1'} onChange={() => setActiveFilter('filter1')} />
+                        <span>Filtro 1 ({caricoDays}g. carica, {scaricoDays}g. scarica)</span>
+                      </label>
+                      <label className={`cross-filter-bar-opt${activeFilter === 'filter2' ? ' active' : ''}`}>
+                        <input type="radio" name="cross-filter" checked={activeFilter === 'filter2'} onChange={() => setActiveFilter('filter2')} />
+                        <span>Filtro 2 ({caricoDays}g. carica, {scaricoDays}g. scarica)</span>
+                      </label>
+                    </>
+                  )
+                })()}
                 <label className={`cross-filter-bar-opt${activeFilter === 'nofiltro' ? ' active' : ''}`}>
                   <input type="radio" name="cross-filter" checked={activeFilter === 'nofiltro'} onChange={() => setActiveFilter('nofiltro')} />
                   <span>No filtro</span>

@@ -221,7 +221,7 @@ function parseDate(d: string | null): Date | null {
   return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]))
 }
 
-function getFilterDays(): { scaricoDays: number; caricoDays: number } {
+export function getFilterDays(): { scaricoDays: number; caricoDays: number } {
   const now = new Date()
   const daysSinceStart = Math.floor((now.getTime() - FILTER_START.getTime()) / (1000 * 60 * 60 * 24))
   return {
