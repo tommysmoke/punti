@@ -387,6 +387,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       const { data: existing, error: fetchErr } = await supabase
         .from('shared_inventory')
         .select('id, product_name, barcode, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
+        .limit(10000)
       if (fetchErr) {
         setCsvStatus('error')
         setCsvMessage(`Errore lettura inventario: ${fetchErr.message}`)
