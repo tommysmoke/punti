@@ -90,9 +90,9 @@ function infoScore(entry: InventoryEntry): number {
 
 interface MergePayload {
   keepId: number
-  removeId: number
+  removeIds: number[]
   updateFields: Record<string, string | number | null>
-  lostName: string
+  lostNames: string[]
 }
 
 function totalQuantity(entry: InventoryEntry): number {
@@ -111,47 +111,57 @@ export function computeMerge(rows: InventoryEntry[]): MergePayload {
     return totalQuantity(b) - totalQuantity(a)
   })
   const keep = sorted[0]
-  const remove = sorted[1]
+  const toRemove = sorted.slice(1)
 
   const updateFields: Record<string, string | number | null> = {}
+  const lostNames: string[] = []
 
   for (const suffix of STORE_SUFFIXES) {
     const qtyCol = `quantity_${suffix}` as keyof InventoryEntry
     const caricoCol = `last_carico_${suffix}` as keyof InventoryEntry
     const scaricoCol = `last_scarico_${suffix}` as keyof InventoryEntry
 
-    const keepQty = (keep[qtyCol] as number) || 0
-    const removeQty = (remove[qtyCol] as number) || 0
-    updateFields[qtyCol] = keepQty + removeQty
+    let totalQty = (keep[qtyCol] as number) || 0
+    let bestCarico: string | null = keep[caricoCol] as string | null
+    let bestCaricoDate = parseDate(bestCarico)
+    let bestScarico: string | null = keep[scaricoCol] as string | null
+    let bestScaricoDate = parseDate(bestScarico)
 
-    const keepCarico = keep[caricoCol] as string | null
-    const removeCarico = remove[caricoCol] as string | null
-    const caricoKeep = parseDate(keepCarico)
-    const caricoRemove = parseDate(removeCarico)
-    if (caricoRemove && (!caricoKeep || caricoRemove > caricoKeep)) {
-      updateFields[caricoCol] = removeCarico
+    for (const r of toRemove) {
+      totalQty += (r[qtyCol] as number) || 0
+      const rCaricoDate = parseDate(r[caricoCol] as string | null)
+      if (rCaricoDate && (!bestCaricoDate || rCaricoDate > bestCaricoDate)) {
+        bestCarico = r[caricoCol] as string | null
+        bestCaricoDate = rCaricoDate
+      }
+      const rScaricoDate = parseDate(r[scaricoCol] as string | null)
+      if (rScaricoDate && (!bestScaricoDate || rScaricoDate > bestScaricoDate)) {
+        bestScarico = r[scaricoCol] as string | null
+        bestScaricoDate = rScaricoDate
+      }
     }
 
-    const keepScarico = keep[scaricoCol] as string | null
-    const removeScarico = remove[scaricoCol] as string | null
-    const scaricoKeep = parseDate(keepScarico)
-    const scaricoRemove = parseDate(removeScarico)
-    if (scaricoRemove && (!scaricoKeep || scaricoRemove > scaricoKeep)) {
-      updateFields[scaricoCol] = removeScarico
-    }
+    updateFields[qtyCol] = totalQty
+    if (bestCarico) updateFields[caricoCol] = bestCarico
+    if (bestScarico) updateFields[scaricoCol] = bestScarico
   }
 
-  const emptyAliasCol = findEmptyAliasColumn(keep)
-  const namesDiffer = remove.product_name.toLowerCase().trim() !== keep.product_name.toLowerCase().trim()
-  if (emptyAliasCol && namesDiffer) {
-    updateFields[emptyAliasCol] = remove.product_name
+  for (const r of toRemove) {
+    const namesDiffer = r.product_name.toLowerCase().trim() !== keep.product_name.toLowerCase().trim()
+    if (!namesDiffer) continue
+    const alreadyAdded = lostNames.some((n) => n.toLowerCase().trim() === r.product_name.toLowerCase().trim())
+    if (alreadyAdded) continue
+    const emptyAliasCol = findEmptyAliasColumn(keep)
+    if (!emptyAliasCol) break
+    updateFields[emptyAliasCol] = r.product_name
+    lostNames.push(r.product_name)
   }
 
   return {
     keepId: keep.id,
-    removeId: remove.id,
+    removeIds: toRemove.map((r) => r.id),
     updateFields,
-    lostName: remove.product_name,
+    lostNames,
   }
 }
 export interface StoreStock {

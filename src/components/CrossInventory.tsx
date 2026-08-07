@@ -629,23 +629,26 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         pushToast('error', `Erorre merge: ${updateErr.message}`)
         return
       }
-      const { error: deleteErr } = await supabase
-        .from('shared_inventory')
-        .delete()
-        .eq('id', merge.removeId)
-      if (deleteErr) {
-        pushToast('error', `Errore rimozione duplicato: ${deleteErr.message}`)
-        return
+      for (const rid of merge.removeIds) {
+        const { error: deleteErr } = await supabase
+          .from('shared_inventory')
+          .delete()
+          .eq('id', rid)
+        if (deleteErr) {
+          pushToast('error', `Errore rimozione duplicato: ${deleteErr.message}`)
+          return
+        }
       }
       setDedupResults((prev) =>
         prev
           .map((g) => {
             if (g.barcode !== group.barcode) return g
-            return { barcode: g.barcode, rows: g.rows.filter((r) => r.id !== merge.removeId) }
+            const removeIdSet = new Set(merge.removeIds)
+            return { barcode: g.barcode, rows: g.rows.filter((r) => !removeIdSet.has(r.id)) }
           })
           .filter((g) => g.rows.length > 1),
       )
-      pushToast('success', `Merge completato: "${merge.lostName}" → alias di "${group.rows.find((r) => r.id === merge.keepId)?.product_name}"`)
+      pushToast('success', `Merge completato: ${merge.removeIds.length} righe → ${group.rows.find((r) => r.id === merge.keepId)?.product_name}`)
     } catch (err) {
       pushToast('error', err instanceof Error ? err.message : 'Errore merge')
     } finally {
@@ -702,16 +705,22 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
             pushToast('error', `Errore merge auto: ${updateErr.message}`)
             continue
           }
-          const { error: deleteErr } = await supabase
-            .from('shared_inventory')
-            .delete()
-            .eq('id', merge.removeId)
-          if (deleteErr) {
-            pushToast('error', `Errore rimozione auto: ${deleteErr.message}`)
-            continue
+          let deleteFailed = false
+          for (const rid of merge.removeIds) {
+            const { error: deleteErr } = await supabase
+              .from('shared_inventory')
+              .delete()
+              .eq('id', rid)
+            if (deleteErr) {
+              pushToast('error', `Errore rimozione auto: ${deleteErr.message}`)
+              deleteFailed = true
+              break
+            }
           }
+          if (deleteFailed) continue
           mergedCount++
-          results.push({ barcode: group.barcode, rows: group.rows.filter((r) => r.id !== merge.removeId) })
+          const removeIdSet = new Set(merge.removeIds)
+          results.push({ barcode: group.barcode, rows: group.rows.filter((r) => !removeIdSet.has(r.id)) })
         } catch (err) {
           pushToast('error', err instanceof Error ? err.message : 'Errore merge auto')
         }
