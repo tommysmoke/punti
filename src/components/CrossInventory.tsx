@@ -384,17 +384,27 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         return
       }
 
-      const { data: existing, error: fetchErr } = await supabase
-        .from('shared_inventory')
-        .select('id, product_name, barcode, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
-        .limit(10000)
-      if (fetchErr) {
-        setCsvStatus('error')
-        setCsvMessage(`Errore lettura inventario: ${fetchErr.message}`)
-        return
+      const allExisting: { id: number; product_name: string; barcode: string | null; alias_1: string | null; alias_2: string | null; alias_3: string | null; alias_4: string | null; alias_5: string | null; alias_6: string | null; alias_7: string | null; alias_8: string | null; alias_9: string | null; alias_10: string | null }[] = []
+      let page = 0
+      const pageSize = 1000
+      while (true) {
+        const { data, error: fetchErr } = await supabase
+          .from('shared_inventory')
+          .select('id, product_name, barcode, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .order('id')
+        if (fetchErr) {
+          setCsvStatus('error')
+          setCsvMessage(`Errore lettura inventario: ${fetchErr.message}`)
+          return
+        }
+        if (!data || data.length === 0) break
+        allExisting.push(...data as typeof allExisting)
+        if (data.length < pageSize) break
+        page++
       }
 
-      const existingProducts = (existing ?? []) as { id: number; product_name: string; barcode: string | null; alias_1: string | null; alias_2: string | null; alias_3: string | null; alias_4: string | null; alias_5: string | null; alias_6: string | null; alias_7: string | null; alias_8: string | null; alias_9: string | null; alias_10: string | null }[]
+      const existingProducts = allExisting
 
       const updates: { id: number; [key: string]: number | string | null }[] = []
       const inserts: {
