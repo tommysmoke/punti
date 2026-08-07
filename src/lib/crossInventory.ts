@@ -95,8 +95,21 @@ interface MergePayload {
   lostName: string
 }
 
+function totalQuantity(entry: InventoryEntry): number {
+  let sum = 0
+  for (const suffix of STORE_SUFFIXES) {
+    const qtyCol = `quantity_${suffix}` as keyof InventoryEntry
+    sum += (entry[qtyCol] as number) || 0
+  }
+  return sum
+}
+
 export function computeMerge(rows: InventoryEntry[]): MergePayload {
-  const sorted = [...rows].sort((a, b) => infoScore(b) - infoScore(a))
+  const sorted = [...rows].sort((a, b) => {
+    const scoreDiff = infoScore(b) - infoScore(a)
+    if (scoreDiff !== 0) return scoreDiff
+    return totalQuantity(b) - totalQuantity(a)
+  })
   const keep = sorted[0]
   const remove = sorted[1]
 
