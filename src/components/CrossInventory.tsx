@@ -125,6 +125,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
 
   const [manualMatches, setManualMatches] = useState<Map<string, { entry: InventoryEntry; stores: ReturnType<typeof getStoreStocks> }>>(new Map())
   const [searchingBarcode, setSearchingBarcode] = useState<string | null>(null)
+  const [correctingOldEntryId, setCorrectingOldEntryId] = useState<number | null>(null)
   const [barcodeInput, setBarcodeInput] = useState('')
   const [barcodeError, setBarcodeError] = useState('')
 
@@ -757,8 +758,9 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     handleMatch()
   }
 
-  const startBarcodeSearch = (cartName: string) => {
+  const startBarcodeSearch = (cartName: string, oldEntryId?: number) => {
     setSearchingBarcode(cartName)
+    setCorrectingOldEntryId(oldEntryId ?? null)
     setBarcodeInput('')
     setBarcodeError('')
   }
@@ -790,6 +792,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       next.set(cartName, { entry, stores: getStoreStocks(entry) })
       setManualMatches(next)
       setSearchingBarcode(null)
+      setCorrectingOldEntryId(null)
       setBarcodeInput('')
 
       const existingAliases = getAliases(entry)
@@ -807,6 +810,26 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
             shiftPayload[`alias_${i}`] = prev
           }
           await supabase.from('shared_inventory').update(shiftPayload).eq('id', entry.id)
+        }
+      }
+
+      if (correctingOldEntryId && correctingOldEntryId !== entry.id) {
+        const { data: oldData } = await supabase
+          .from('shared_inventory')
+          .select('alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10')
+          .eq('id', correctingOldEntryId)
+          .limit(1)
+
+        const oldEntry = (oldData ?? [])[0] as Record<string, string | null> | undefined
+        if (oldEntry) {
+          const cartNorm = cartName.toLowerCase().trim()
+          for (let i = 1; i <= 10; i++) {
+            const col = `alias_${i}` as const
+            if (oldEntry[col]?.toLowerCase().trim() === cartNorm) {
+              await supabase.from('shared_inventory').update({ [col]: null }).eq('id', correctingOldEntryId)
+              break
+            }
+          }
         }
       }
     } catch (err) {
@@ -1066,9 +1089,9 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                           <button
                             className={`cross-match-score-btn cross-match-score${item.bestMatch!.score >= 0.7 ? ' high' : item.bestMatch!.score >= 0.4 ? ' medium' : ' low'}`}
                             type="button"
-                            onClick={() => startBarcodeSearch(item.name)}
+                             onClick={() => startBarcodeSearch(item.name, item.bestMatch?.entry.id)}
                             title="Cerca per barcode manuale"
-                          >
+                           >
                             {Math.round(item.bestMatch!.score * 100)}%
                           </button>
                         )}
@@ -1159,7 +1182,7 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
 CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                       </button>
                                     ))}
-                                    <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name)} title="Correggi associazione">
+                                    <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name, manual.entry.id)} title="Correggi associazione">
                                       Correggi
                                     </button>
                                   </div>
@@ -1182,7 +1205,7 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                                     CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                   </button>
                                 ))}
-                                <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name)} title="Correggi associazione">
+                                <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name, item.bestMatch!.entry.id)} title="Correggi associazione">
                                   Correggi
                                 </button>
                               </div>
