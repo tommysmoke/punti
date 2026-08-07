@@ -571,17 +571,27 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     setAutoDedupResults([])
 
     try {
-      const { data, error } = await supabase
-        .from('shared_inventory')
-        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10, last_carico_quarto, last_carico_castenaso, last_carico_bologna, last_carico_san_lazzaro, last_scarico_quarto, last_scarico_castenaso, last_scarico_bologna, last_scarico_san_lazzaro')
+      const allInventory: InventoryEntry[] = []
+      let page = 0
+      const pageSize = 1000
+      while (true) {
+        const { data, error } = await supabase
+          .from('shared_inventory')
+          .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10, last_carico_quarto, last_carico_castenaso, last_carico_bologna, last_carico_san_lazzaro, last_scarico_quarto, last_scarico_castenaso, last_scarico_bologna, last_scarico_san_lazzaro')
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+          .order('id')
 
-      if (error) {
-        setMatchError(`Errore nel recupero inventario: ${error.message}`)
-        return
+        if (error) {
+          setMatchError(`Errore nel recupero inventario: ${error.message}`)
+          return
+        }
+        if (!data || data.length === 0) break
+        allInventory.push(...(data as InventoryEntry[]))
+        if (data.length < pageSize) break
+        page++
       }
 
-      const inventory = (data ?? []) as InventoryEntry[]
-      const results = matchCartAgainstInventory(names, inventory)
+      const results = matchCartAgainstInventory(names, allInventory)
       setCartItems(names)
       setMatches(results)
     } catch (err) {
