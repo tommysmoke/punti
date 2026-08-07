@@ -11,14 +11,15 @@ interface PriceLine {
 
 const PRICE_LINE_RE = /^(\d+[.,]\d{2})\s*€\s*(\d+[.,]\d{2})\s*€\s*$/m
 const SINGLE_PRICE_RE = /^(\d+[.,]\d{2})\s*€\s*$/m
-const OPTION_RE = /^(SCEGLI|ml:|OHM:|COLORE:|Opzione)/i
+const OPTION_RE = /^(SCEGLI|ml:|OHM:|COLORE:|Opzione|Nic\s*\()/i
 const NICOTINA_EXTRACT = /nicotina:\s*(\d+mg)/i
+const NIC2_EXTRACT = /nic\s*\(mg\/ml\)\s*([\d,.]+)/i
 const ML_EXTRACT = /^ml:\s*(\d{2,3}ml)/i
 const OHM_EXTRACT = /^ohm:\s*(.+)$/i
 const COLOR_EXTRACT = /colore:\s*(.+)/i
 const QUANTITY_LINE_RE = /^\d+$/
 const PERCENT_RE = /^\d{1,3}%$/
-const LINE_TOTAL_RE = /^\d+[.,]\d{2}\s*€\s*$/
+const LINE_TOTAL_RE = /^\d+[.,]\d{2}\s*€/
 
 function parseEuro(value: string): number {
   return Number.parseFloat(value.replace(',', '.'))
@@ -56,11 +57,19 @@ function isPricePair(line: string): PriceLine | null {
     }
   }
 
+  const parts = line.trim().split(/\s{2,}/)
+  for (const part of parts) {
+    const m = part.match(SINGLE_PRICE_RE)
+    if (m) {
+      return { kind: 'price', original: parseEuro(m[1]), discounted: null }
+    }
+  }
+
   return null
 }
 
 export function parseCart(raw: string): CartItem[] {
-  const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\t/g, '  ')
   const lines = normalized.split('\n')
 
   const items: CartItem[] = []
@@ -73,6 +82,8 @@ export function parseCart(raw: string): CartItem[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
     if (!line) continue
+
+    if (UI_NOISE_RE.test(line)) continue
 
     if (QUANTITY_LINE_RE.test(line)) {
       const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : ''
@@ -97,11 +108,13 @@ export function parseCart(raw: string): CartItem[] {
 
     if (optionLike(line)) {
       const nicMatch = line.match(NICOTINA_EXTRACT)
+      const nic2Match = line.match(NIC2_EXTRACT)
       const mlMatch = line.match(ML_EXTRACT)
       const ohmMatch = line.match(OHM_EXTRACT)
       const colorMatch = line.match(COLOR_EXTRACT)
       const isAroma = /aroma|concentrato|shot|mix\s*&\s*vape|mix\s*10\+10/i.test(currentName ?? '')
       if (nicMatch && !isAroma) pendingOptions.push(nicMatch[1])
+      if (nic2Match && !isAroma) pendingOptions.push(`${nic2Match[1]}mg`)
       if (mlMatch) pendingOptions.push(mlMatch[1])
       if (ohmMatch) {
         const val = ohmMatch[1].replace(/\s*ohm\b/gi, '').trim()
@@ -149,11 +162,13 @@ export function parseCart(raw: string): CartItem[] {
       lineAfterPrice = false
       if (optionLike(line)) {
         const nicMatch2 = line.match(NICOTINA_EXTRACT)
+        const nic2Match2 = line.match(NIC2_EXTRACT)
         const mlMatch2 = line.match(ML_EXTRACT)
         const ohmMatch2 = line.match(OHM_EXTRACT)
         const colorMatch2 = line.match(COLOR_EXTRACT)
         const isAroma2 = /aroma|concentrato|shot|mix\s*&\s*vape|mix\s*10\+10/i.test(currentName ?? '')
         if (nicMatch2 && !isAroma2) pendingOptions.push(nicMatch2[1])
+        if (nic2Match2 && !isAroma2) pendingOptions.push(`${nic2Match2[1]}mg`)
         if (mlMatch2) pendingOptions.push(mlMatch2[1])
         if (ohmMatch2) {
           const val2 = ohmMatch2[1].replace(/\s*ohm\b/gi, '').trim()
@@ -168,6 +183,8 @@ export function parseCart(raw: string): CartItem[] {
     if (!currentName) {
       currentName = cleanName(line)
       nameBuffer = [line]
+    } else if (line.length <= 50 && line.split(/\s+/).length <= 3) {
+      pendingOptions.push(line)
     }
   }
 
@@ -181,6 +198,7 @@ export function parseCart(raw: string): CartItem[] {
 }
 
 const TAX_LINE_RE = /escl\.\s*imp|escl\.\s*iva|imposta\s+di\s+consumo/i
+const UI_NOISE_RE = /^(Modifica|Rimuovi\s|Continua\s|Aggiorna\s|Ci sono\s|Il tuo carrello|Carrello$|Totale|Subtotale|IVA|Spedizione|Sconto|Coupon|Codice\s|Buono|Pagamento|Checkout)/i
 
 function optionLike(line: string): boolean {
   return OPTION_RE.test(line)
