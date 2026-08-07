@@ -142,7 +142,8 @@ export function computeMerge(rows: InventoryEntry[]): MergePayload {
   }
 
   const emptyAliasCol = findEmptyAliasColumn(keep)
-  if (emptyAliasCol) {
+  const namesDiffer = remove.product_name.toLowerCase().trim() !== keep.product_name.toLowerCase().trim()
+  if (emptyAliasCol && namesDiffer) {
     updateFields[emptyAliasCol] = remove.product_name
   }
 

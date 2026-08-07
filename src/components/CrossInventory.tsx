@@ -407,9 +407,16 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           const barcodeMatch = existingProducts.find(
             (p) => p.barcode && p.barcode === row.barcode,
           )
-          if (barcodeMatch && !matchedIds.has(barcodeMatch.id)) {
-            updates.push({ id: barcodeMatch.id, [columnName]: row.quantity, [caricoCol]: row.lastCarico || null, [scaricoCol]: row.lastScarico || null })
-            matchedIds.add(barcodeMatch.id)
+          if (barcodeMatch) {
+            if (!matchedIds.has(barcodeMatch.id)) {
+              updates.push({ id: barcodeMatch.id, [columnName]: row.quantity, [caricoCol]: row.lastCarico || null, [scaricoCol]: row.lastScarico || null })
+              matchedIds.add(barcodeMatch.id)
+            } else {
+              const existingUpdate = updates.find((u) => u.id === barcodeMatch.id)
+              if (existingUpdate) {
+                existingUpdate[columnName] = ((existingUpdate[columnName] as number) || 0) + row.quantity
+              }
+            }
             matched = true
           }
         }
@@ -424,7 +431,6 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           matchedIds.add(nameMatch.id)
           matched = true
         }
-
         if (matched) continue
 
         const rowNameLower = row.name.toLowerCase()
@@ -441,6 +447,32 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         if (aliasMatch) {
           updates.push({ id: aliasMatch.id, [columnName]: row.quantity, [caricoCol]: row.lastCarico || null, [scaricoCol]: row.lastScarico || null })
           matchedIds.add(aliasMatch.id)
+          matched = true
+        }
+        if (matched) continue
+
+        const barcodeAlreadyMatched = row.barcode && existingProducts.find(
+          (p) => p.barcode && p.barcode === row.barcode && matchedIds.has(p.id),
+        )
+        const nameAlreadyMatched = existingProducts.find(
+          (p) => p.product_name.toLowerCase() === row.name.toLowerCase() && matchedIds.has(p.id),
+        )
+        const aliasAlreadyMatched = existingProducts.find(
+          (p) => {
+            if (!matchedIds.has(p.id)) return false
+            for (let i = 1; i <= 10; i++) {
+              const aliasVal = p[`alias_${i}` as keyof typeof p]
+              if (typeof aliasVal === 'string' && aliasVal.toLowerCase() === rowNameLower) return true
+            }
+            return false
+          },
+        )
+        const alreadyMatchedRow = barcodeAlreadyMatched ?? nameAlreadyMatched ?? aliasAlreadyMatched
+        if (alreadyMatchedRow) {
+          const existingUpdate = updates.find((u) => u.id === alreadyMatchedRow.id)
+          if (existingUpdate) {
+            existingUpdate[columnName] = ((existingUpdate[columnName] as number) || 0) + row.quantity
+          }
           matched = true
         }
 
