@@ -11,15 +11,20 @@ interface PriceLine {
 
 const PRICE_LINE_RE = /^(\d+[.,]\d{2})\s*€\s*(\d+[.,]\d{2})\s*€\s*$/m
 const SINGLE_PRICE_RE = /^(\d+[.,]\d{2})\s*€\s*$/m
-const OPTION_RE = /^(SCEGLI|ml:|OHM:|COLORE:|Opzione|Nic\s*\(|Nicotina:|Millilitri:)/i
+const OPTION_RE = /^(SCEGLI|ml:|OHM:|COLORE:|Opzione|Nic\s*\(|Nicotina:|Millilitri:|Formato:|Taglia:|Size:|Gradi:|Pezzi:)/i
 const NICOTINA_EXTRACT = /nicotina:\s*([\d.]+)/i
 const NIC2_EXTRACT = /nic\s*\(mg\/ml\)\s*([\d,.]+)/i
 const ML_EXTRACT = /^ml:\s*(\d{2,3})ml/i
 const ML2_EXTRACT = /millilitri:\s*(\d{2,3})/i
 const OHM_EXTRACT = /^ohm:\s*(.+)$/i
 const COLOR_EXTRACT = /colore:\s*(.+)/i
+const FORMATO_EXTRACT = /formato:\s*(.+)/i
+const TAGLIA_EXTRACT = /taglia:\s*(.+)/i
+const SIZE_EXTRACT = /size:\s*(.+)/i
+const GRADI_EXTRACT = /gradi:\s*(.+)/i
+const PEZZI_EXTRACT = /pezzi:\s*(.+)/i
 const QUANTITY_LINE_RE = /^\d+$/
-const PERCENT_RE = /^\d{1,3}%$/
+const PERCENT_RE = /^-?\d{1,3}%$/
 const LINE_TOTAL_RE = /^\d+[.,]\d{2}\s*€/
 
 function parseEuro(value: string): number {
@@ -58,11 +63,20 @@ function isPricePair(line: string): PriceLine | null {
     }
   }
 
+  const revMatch = line.match(/€\s*(\d+[.,]\d{2})/)
+  if (revMatch) {
+    return { kind: 'price', original: parseEuro(revMatch[1]), discounted: null }
+  }
+
   const parts = line.trim().split(/\s{2,}/)
   for (const part of parts) {
     const m = part.match(SINGLE_PRICE_RE)
     if (m) {
       return { kind: 'price', original: parseEuro(m[1]), discounted: null }
+    }
+    const r = part.match(/€\s*(\d+[.,]\d{2})/)
+    if (r) {
+      return { kind: 'price', original: parseEuro(r[1]), discounted: null }
     }
   }
 
@@ -114,9 +128,14 @@ export function parseCart(raw: string): CartItem[] {
       const ml2Match = line.match(ML2_EXTRACT)
       const ohmMatch = line.match(OHM_EXTRACT)
       const colorMatch = line.match(COLOR_EXTRACT)
+      const formatoMatch = line.match(FORMATO_EXTRACT)
+      const tagliaMatch = line.match(TAGLIA_EXTRACT)
+      const sizeMatch = line.match(SIZE_EXTRACT)
+      const gradiMatch = line.match(GRADI_EXTRACT)
+      const pezziMatch = line.match(PEZZI_EXTRACT)
       const isAroma = /aroma|concentrato|shot|mix\s*&\s*vape|mix\s*10\+10/i.test(currentName ?? '')
       if (nicMatch && !isAroma) pendingOptions.push(`${nicMatch[1]}mg`)
-      if (nic2Match && !isAroma) pendingOptions.push(`${nic2Match[1]}mg`)
+      if (nic2Match && !isAroma) pendingOptions.push(`${nic2Match[1].replace(',', '.')}mg`)
       if (mlMatch) pendingOptions.push(mlMatch[1])
       if (ml2Match) pendingOptions.push(`${ml2Match[1]}ml`)
       if (ohmMatch) {
@@ -124,6 +143,11 @@ export function parseCart(raw: string): CartItem[] {
         pendingOptions.push(`${val}ohm`)
       }
       if (colorMatch) pendingOptions.push(colorMatch[1].trim())
+      if (formatoMatch) pendingOptions.push(formatoMatch[1].trim())
+      if (tagliaMatch) pendingOptions.push(tagliaMatch[1].trim())
+      if (sizeMatch) pendingOptions.push(sizeMatch[1].trim())
+      if (gradiMatch) pendingOptions.push(gradiMatch[1].trim())
+      if (pezziMatch) pendingOptions.push(pezziMatch[1].trim())
       lastSeenPrice = false
       lineAfterPrice = false
       continue
@@ -170,9 +194,14 @@ export function parseCart(raw: string): CartItem[] {
         const ml2Match2 = line.match(ML2_EXTRACT)
         const ohmMatch2 = line.match(OHM_EXTRACT)
         const colorMatch2 = line.match(COLOR_EXTRACT)
+        const formatoMatch2 = line.match(FORMATO_EXTRACT)
+        const tagliaMatch2 = line.match(TAGLIA_EXTRACT)
+        const sizeMatch2 = line.match(SIZE_EXTRACT)
+        const gradiMatch2 = line.match(GRADI_EXTRACT)
+        const pezziMatch2 = line.match(PEZZI_EXTRACT)
         const isAroma2 = /aroma|concentrato|shot|mix\s*&\s*vape|mix\s*10\+10/i.test(currentName ?? '')
         if (nicMatch2 && !isAroma2) pendingOptions.push(`${nicMatch2[1]}mg`)
-        if (nic2Match2 && !isAroma2) pendingOptions.push(`${nic2Match2[1]}mg`)
+        if (nic2Match2 && !isAroma2) pendingOptions.push(`${nic2Match2[1].replace(',', '.')}mg`)
         if (mlMatch2) pendingOptions.push(mlMatch2[1])
         if (ml2Match2) pendingOptions.push(`${ml2Match2[1]}ml`)
         if (ohmMatch2) {
@@ -180,6 +209,11 @@ export function parseCart(raw: string): CartItem[] {
           pendingOptions.push(`${val2}ohm`)
         }
         if (colorMatch2) pendingOptions.push(colorMatch2[1].trim())
+        if (formatoMatch2) pendingOptions.push(formatoMatch2[1].trim())
+        if (tagliaMatch2) pendingOptions.push(tagliaMatch2[1].trim())
+        if (sizeMatch2) pendingOptions.push(sizeMatch2[1].trim())
+        if (gradiMatch2) pendingOptions.push(gradiMatch2[1].trim())
+        if (pezziMatch2) pendingOptions.push(pezziMatch2[1].trim())
       }
       continue
     }
@@ -203,7 +237,7 @@ export function parseCart(raw: string): CartItem[] {
 }
 
 const TAX_LINE_RE = /escl\.\s*imp|escl\.\s*iva|imposta\s+di\s+consumo/i
-const UI_NOISE_RE = /^(Modifica|Rimuovi\s|Continua\s|Aggiorna\s|Ci sono\s|Il tuo carrello|Carrello$|Totale|Subtotale|IVA|Spedizione|Sconto|Coupon|Codice\s|Buono|Pagamento|Checkout|Guadagna)/i
+const UI_NOISE_RE = /^(Modifica|Rimuovi\s|Continua\s|Aggiorna\s|Ci sono\s|Il tuo carrello|Carrello$|Totale|Subtotale|IVA|Spedizione|Sconto|Coupon|Codice\s|Buono|Pagamento|Checkout|Guadagna|Disponibile|Esaurito|Disponibilità|In\sstock|Out\sof\sstock)/i
 
 function optionLike(line: string): boolean {
   return OPTION_RE.test(line)
