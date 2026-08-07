@@ -132,6 +132,10 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [dedupError, setDedupError] = useState('')
   const [mergingId, setMergingId] = useState<string | null>(null)
 
+  const [autoDedupResults, setAutoDedupResults] = useState<DuplicateGroup[]>([])
+  const [autoDeduping, setAutoDeduping] = useState(false)
+  const [autoDedupError, setAutoDedupError] = useState('')
+
   const [receivedRequests, setReceivedRequests] = useState<ReceivedRequest[]>([])
   const [showSvuotaConfirm, setShowSvuotaConfirm] = useState(false)
 
@@ -549,9 +553,10 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       return
     }
 
-    setMatching(true)
+      setMatching(true)
     setMatchError('')
     setDedupResults([])
+    setAutoDedupResults([])
 
     try {
       const { data, error } = await supabase
@@ -644,6 +649,80 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       pushToast('error', err instanceof Error ? err.message : 'Errore merge')
     } finally {
       setMergingId(null)
+    }
+  }
+
+  const handleAutoDeduplicate = async () => {
+    if (!supabase) {
+      setAutoDedupError('Supabase non configurato')
+      return
+    }
+    setAutoDeduping(true)
+    setAutoDedupError('')
+    setMatches([])
+    setDedupResults([])
+    try {
+      const { data, error } = await supabase
+        .from('shared_inventory')
+        .select('id, product_name, barcode, quantity_quarto, quantity_castenaso, quantity_bologna, quantity_san_lazzaro, category, alias_1, alias_2, alias_3, alias_4, alias_5, alias_6, alias_7, alias_8, alias_9, alias_10, last_carico_quarto, last_carico_castenaso, last_carico_bologna, last_carico_san_lazzaro, last_scarico_quarto, last_scarico_castenaso, last_scarico_bologna, last_scarico_san_lazzaro')
+        .not('barcode', 'is', null)
+        .neq('barcode', '')
+        .order('barcode')
+
+      if (error) {
+        setAutoDedupError(`Errore lettura inventario: ${error.message}`)
+        return
+      }
+
+      const inventory = (data ?? []) as InventoryEntry[]
+      const allDupes = findDuplicates(inventory)
+
+      const sameNameDupes = allDupes.filter((group) => {
+        const firstName = group.rows[0].product_name.toLowerCase().trim()
+        return group.rows.every((r) => r.product_name.toLowerCase().trim() === firstName)
+      })
+
+      if (sameNameDupes.length === 0) {
+        setAutoDedupResults([])
+        pushToast('success', 'Nessun duplicato automatico trovato')
+        return
+      }
+
+      let mergedCount = 0
+      const results: DuplicateGroup[] = []
+      for (const group of sameNameDupes) {
+        try {
+          const merge = computeMerge(group.rows)
+          const { error: updateErr } = await supabase
+            .from('shared_inventory')
+            .update(merge.updateFields)
+            .eq('id', merge.keepId)
+          if (updateErr) {
+            pushToast('error', `Errore merge auto: ${updateErr.message}`)
+            continue
+          }
+          const { error: deleteErr } = await supabase
+            .from('shared_inventory')
+            .delete()
+            .eq('id', merge.removeId)
+          if (deleteErr) {
+            pushToast('error', `Errore rimozione auto: ${deleteErr.message}`)
+            continue
+          }
+          mergedCount++
+          results.push({ barcode: group.barcode, rows: group.rows.filter((r) => r.id !== merge.removeId) })
+        } catch (err) {
+          pushToast('error', err instanceof Error ? err.message : 'Errore merge auto')
+        }
+      }
+      setAutoDedupResults(results)
+      if (mergedCount > 0) {
+        pushToast('success', `Auto-merge completato: ${mergedCount} duplicati risolti`)
+      }
+    } catch (err) {
+      setAutoDedupError(err instanceof Error ? err.message : 'Errore')
+    } finally {
+      setAutoDeduping(false)
     }
   }
 
@@ -818,15 +897,26 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
             </div>
           </article>
           <article className="card cross-dedup-card">
-            <h2>Deduplica Database</h2>
+            <h2>Deduplica</h2>
             <div className="stack split">
-              <button className="cta" type="button" onClick={handleDeduplicate} disabled={deduping}>
-                {deduping ? 'Cerco duplicati...' : 'Deduplica Database'}
-              </button>
-              {dedupError ? <p className="error">{dedupError}</p> : null}
-              {dedupResults.length > 0 ? (
-                <span className="badge">{dedupResults.length} duplicati trovati</span>
-              ) : null}
+              <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+                <button className="cta" type="button" onClick={handleAutoDeduplicate} disabled={autoDeduping}>
+                  {autoDeduping ? 'Merge in corso...' : 'Dedup. Auto.'}
+                </button>
+                {autoDedupError ? <p className="error">{autoDedupError}</p> : null}
+                {autoDedupResults.length > 0 ? (
+                  <span className="badge">{autoDedupResults.length} mergiati</span>
+                ) : null}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+                <button className="cta" type="button" onClick={handleDeduplicate} disabled={deduping || autoDeduping}>
+                  {deduping ? 'Cerco duplicati...' : 'Dedup. Man.'}
+                </button>
+                {dedupError ? <p className="error">{dedupError}</p> : null}
+                {dedupResults.length > 0 ? (
+                  <span className="badge">{dedupResults.length} duplicati trovati</span>
+                ) : null}
+              </div>
             </div>
           </article>
         </div>
@@ -866,11 +956,35 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         </div>
 
         <div className="cross-main">
-          {matches.length > 0 || dedupResults.length > 0 ? (
+          {matches.length > 0 || dedupResults.length > 0 || autoDedupResults.length > 0 ? (
             <article className="card">
               <h2>Risultati ricerca</h2>
 
-              {dedupResults.length > 0 ? (
+              {autoDedupResults.length > 0 ? (
+                autoDedupResults.map((group) => (
+                  <div key={group.barcode} className="cross-match-item cross-dedup-item cross-dedup-auto">
+                    <div className="cross-match-header">
+                      <span className="cross-match-cart-name">Barcode: {group.barcode}</span>
+                      <span className="cross-match-score high">Mergiato</span>
+                    </div>
+                    <div className="cross-dedup-rows">
+                      {group.rows.map((row) => {
+                        const stocks = getStoreStocks(row)
+                        const totalQty = stocks.reduce((s, st) => s + st.quantity, 0)
+                        return (
+                          <div key={row.id} className="cross-dedup-row">
+                            <div className="cross-dedup-row-info">
+                              <strong>{row.product_name}</strong>
+                              <span className="hint">ID: {row.id} — Giacenza tot: {totalQty}</span>
+                            </div>
+                            <span className="badge" style={{ background: '#5cb85c' }}>OK</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              ) : dedupResults.length > 0 ? (
                 dedupResults.map((group) => (
                   <div key={group.barcode} className="cross-match-item cross-dedup-item">
                     <div className="cross-match-header">
