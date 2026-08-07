@@ -213,6 +213,7 @@ export function getStoreColumnName(storeName: string): string {
 const FILTER_START = new Date('2026-08-06T00:00:00+02:00')
 const MAX_SCARICO_DAYS = 90
 const MAX_CARICO_DAYS = 105
+const FILTER2_IDLE_DAYS = 120
 
 function parseDate(d: string | null): Date | null {
   if (!d) return null
@@ -246,6 +247,26 @@ export function storePassesFilter(stock: StoreStock, filterName: string): boolea
     const daysSinceScarico = Math.floor((now.getTime() - scaricoDate.getTime()) / (1000 * 60 * 60 * 24))
     if (daysSinceScarico < scaricoDays) return false
   }
+
+  return true
+}
+
+export function isProductAbsentFromStore(entry: InventoryEntry, storeKey: string): boolean {
+  const col = STORE_COLUMNS.find(
+    (s) => s.store === storeKey || s.label.toLowerCase() === storeKey.toLowerCase(),
+  )
+  if (!col) return true
+
+  const caricoDate = parseDate(entry[col.caricoCol] as string | null)
+  const scaricoDate = parseDate(entry[col.scaricoCol] as string | null)
+
+  if (!caricoDate && !scaricoDate) return true
+
+  const now = new Date()
+  const cutoff = new Date(now.getTime() - FILTER2_IDLE_DAYS * 24 * 60 * 60 * 1000)
+
+  if (caricoDate && caricoDate >= cutoff) return false
+  if (scaricoDate && scaricoDate >= cutoff) return false
 
   return true
 }

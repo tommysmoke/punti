@@ -2010,3 +2010,35 @@ time {
   color: #8b2e2e;
 }
 
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #cross-print-area,
+  #cross-print-area * {
+    visibility: visible;
+  }
+  #cross-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 1rem;
+  }
+  .print-hide {
+    display: none !important;
+  }
+  .cross-match-item {
+    break-inside: avoid;
+    border: 1px solid #ccc;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+  }
+  .cross-match-actions button {
+    border: 1px solid #999;
+    background: #fff;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+  }
+}

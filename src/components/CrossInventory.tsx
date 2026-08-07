@@ -15,6 +15,7 @@ import {
   computeMerge,
   getAliases,
   getFilterDays,
+  isProductAbsentFromStore,
   type InventoryEntry,
   type MatchResult,
   type DuplicateGroup,
@@ -119,6 +120,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [cartError, setCartError] = useState('')
 
   const [matches, setMatches] = useState<MatchResult[]>([])
+  const [allInventory, setAllInventory] = useState<InventoryEntry[]>([])
   const [matching, setMatching] = useState(false)
   const [matchError, setMatchError] = useState('')
 
@@ -552,7 +554,9 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     }
 
     const names =
-      cartItems.length > 0 ? cartItems : (() => {
+      activeFilter === 'filter2'
+        ? ['__filter2__']
+        : cartItems.length > 0 ? cartItems : (() => {
         try {
           const parsed = parseCart(cartText)
           if (parsed.length > 0) return parsed.map((i) => i.name)
@@ -593,9 +597,12 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         page++
       }
 
-      const results = matchCartAgainstInventory(names, allInventory)
-      setCartItems(names)
+      const results = names[0] === '__filter2__'
+        ? []
+        : matchCartAgainstInventory(names, allInventory)
+      setCartItems(names[0] === '__filter2__' ? [] : names)
       setMatches(results)
+      setAllInventory(allInventory)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Errore durante il confronto'
       setMatchError(message)
@@ -945,7 +952,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                       </label>
                       <label className={`cross-filter-bar-opt${activeFilter === 'filter2' ? ' active' : ''}`}>
                         <input type="radio" name="cross-filter" checked={activeFilter === 'filter2'} onChange={() => setActiveFilter('filter2')} />
-                        <span>Filtro 2 ({caricoDays}g. carica, {scaricoDays}g. scarica)</span>
+                        <span>Filtro 2 (assente o +120g. inattivo)</span>
                       </label>
                     </>
                   )
@@ -1005,7 +1012,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                   className="cta"
                   type="button"
                   onClick={doMatch}
-                  disabled={matching || !cartText.trim()}
+                   disabled={matching || (activeFilter !== 'filter2' && !cartText.trim())}
                 >
                   {matching ? 'Confronto...' : 'Confronta con inventario'}
                 </button>
@@ -1017,7 +1024,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         </div>
 
         <div className="cross-main">
-          {matches.length > 0 || dedupResults.length > 0 || autoDedupResults.length > 0 ? (
+          {matches.length > 0 || dedupResults.length > 0 || autoDedupResults.length > 0 || allInventory.length > 0 ? (
             <article className="card">
               <h2>Risultati ricerca</h2>
 
@@ -1077,14 +1084,32 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                   </div>
                 ))
               ) : (
-                <>
-                  {cartItemsMapToMatches(cartItems, matches)
-                .filter((item) => {
-                  if (item.matches.length === 0) return true
-                  if (testMode) return true
-                  return collectStoreButtons(item.matches, selectedStore, activeFilter).length > 0
-                })
-                .map((item) => {
+                <div id="cross-print-area">
+                  {(() => {
+                    const baseItems =
+                      activeFilter === 'filter2' && allInventory.length > 0
+                        ? allInventory
+                            .filter((entry) => isProductAbsentFromStore(entry, selectedStore))
+                            .map((entry): CartItemMatch => ({
+                              name: entry.product_name,
+                              matches: [{ entry, score: 1, stocks: getStoreStocks(entry) }],
+                              bestMatch: { entry, score: 1, stocks: getStoreStocks(entry) },
+                            }))
+                        : cartItemsMapToMatches(cartItems, matches)
+                    const filtered = baseItems
+                      .filter((item) => {
+                        if (item.matches.length === 0) return true
+                        if (testMode) return true
+                        const buttons = collectStoreButtons(item.matches, selectedStore, activeFilter)
+                        return buttons.length > 0
+                      })
+                    return (
+                      <>
+                        <div className="cross-print-header">
+                          <span className="hint">{filtered.length} risultati</span>
+                          <button className="cta print-hide" type="button" onClick={() => window.print()}>Stampa</button>
+                        </div>
+                        {filtered.map((item) => {
                   const storeButtons = collectStoreButtons(item.matches, testMode ? '' : selectedStore, activeFilter)
                   const hasNoMatch = item.matches.length === 0
                   return (
@@ -1244,7 +1269,10 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                     </div>
                   )
                 })}
-              </>
+                      </>
+                    )
+                  })()}
+              </div>
               )}
             </article>
           ) : (
