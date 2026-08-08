@@ -1116,6 +1116,24 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                     <div key={item.name} className="cross-match-item">
                       <div className="cross-match-header">
                         <span className="cross-match-cart-name">{item.name}</span>
+                        {activeFilter === 'filter2' && item.bestMatch ? (() => {
+                          const e = item.bestMatch.entry
+                          const storeMap: Record<string, {c: keyof InventoryEntry; s: keyof InventoryEntry}> = {
+                            quarto: {c:'last_carico_quarto',s:'last_scarico_quarto'},
+                            castenaso: {c:'last_carico_castenaso',s:'last_scarico_castenaso'},
+                            bologna: {c:'last_carico_bologna',s:'last_scarico_bologna'},
+                            'san lazzaro': {c:'last_carico_san_lazzaro',s:'last_scarico_san_lazzaro'},
+                          }
+                          const keys = storeMap[selectedStore.toLowerCase()]
+                          if (!keys) return null
+                          const c = e[keys.c] as string | null
+                          const s = e[keys.s] as string | null
+                          return (c || s) ? (
+                            <span className="hint" style={{marginLeft:'0.5rem',fontSize:'0.7rem'}}>
+                              c: {c || '-'} / s: {s || '-'}
+                            </span>
+                          ) : null
+                        })() : null}
                         {hasNoMatch ? (
                           <span className="cross-match-score none">nessun match</span>
                         ) : (

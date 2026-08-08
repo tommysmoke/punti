@@ -72,8 +72,12 @@ const HEADER_COLUMN_NAMES = new Map<string, string>([
   ['cat', 'category'],
   ['dataultimocarico', 'lastCarico'],
   ['ultimocarico', 'lastCarico'],
+  ['datacarico', 'lastCarico'],
+  ['carico', 'lastCarico'],
   ['dataultimoscarico', 'lastScarico'],
   ['ultimoscarico', 'lastScarico'],
+  ['datascarico', 'lastScarico'],
+  ['scarico', 'lastScarico'],
 ])
 
 const CATEGORY_SEPARATOR_RE = /^-\s*;.*Categoria\s*:/i
