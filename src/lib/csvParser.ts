@@ -64,20 +64,12 @@ const HEADER_COLUMN_NAMES = new Map<string, string>([
   ['nome', 'name'],
   ['articolo', 'name'],
   ['giacenza', 'quantity'],
-  ['qtà', 'quantity'],
-  ['q.tà', 'quantity'],
   ['quantità', 'quantity'],
-  ['qta', 'quantity'],
   ['categoria', 'category'],
-  ['cat', 'category'],
-  ['dataultimocarico', 'lastCarico'],
-  ['ultimocarico', 'lastCarico'],
   ['datacarico', 'lastCarico'],
-  ['carico', 'lastCarico'],
-  ['dataultimoscarico', 'lastScarico'],
-  ['ultimoscarico', 'lastScarico'],
+  ['ultimocarico', 'lastCarico'],
   ['datascarico', 'lastScarico'],
-  ['scarico', 'lastScarico'],
+  ['ultimoscarico', 'lastScarico'],
 ])
 
 const CATEGORY_SEPARATOR_RE = /^-\s*;.*Categoria\s*:/i
