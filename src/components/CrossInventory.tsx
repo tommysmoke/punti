@@ -1176,7 +1176,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                              onClick={() => startBarcodeSearch(item.name, item.bestMatch?.entry.id)}
                             title="Cerca per barcode manuale"
                            >
-                            {Math.round(item.bestMatch!.score * 100)}%
+                             {Math.min(Math.round(item.bestMatch!.score * 100), 100)}%
                           </button>
                         )}
                       </div>
