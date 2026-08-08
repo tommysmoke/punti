@@ -96,7 +96,7 @@ function renderExcludedStores(
   return excluded
 }
 
-export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest: _onRequestToggleTest }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void }) {
+export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
       return localStorage.getItem(STORE_KEY) ?? ''
@@ -927,16 +927,25 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
 
 
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span className="cross-identified-store">
-                    Negozio: <strong>{selectedStore}</strong>
-                  </span>
-                  <button className="ghost small" type="button" onClick={handleChangeStore}>
-                    Cambia
-                  </button>
-                </div>
-              </div>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                   <span className="cross-identified-store">
+                     Negozio: <strong>{selectedStore}</strong>
+                   </span>
+                   <button className="ghost small" type="button" onClick={handleChangeStore}>
+                     Cambia
+                   </button>
+                 </div>
+                 <button
+                   className="ghost small"
+                   type="button"
+                   style={testMode ? { background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : undefined}
+                   onClick={onRequestToggleTest}
+                   title={testMode ? 'Disattiva modalità test' : 'Attiva modalità test (mostra anche il proprio negozio)'}
+                 >
+                   {testMode ? 'TEST ON' : 'TEST OFF'}
+                 </button>
+               </div>
 
               <label>
                 File CSV (export Easyfatt)
