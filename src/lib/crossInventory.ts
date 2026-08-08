@@ -215,7 +215,7 @@ const MAX_SCARICO_DAYS = 90
 const MAX_CARICO_DAYS = 105
 const FILTER2_IDLE_DAYS = 120
 
-function parseDate(d: string | null): Date | null {
+export function parseDate(d: string | null): Date | null {
   if (!d) return null
 
   const raw = d.trim()
@@ -271,21 +271,27 @@ export function getFilterDays(): { scaricoDays: number; caricoDays: number } {
   }
 }
 
-export function storePassesFilter(stock: StoreStock, filterName: string): boolean {
+export function storePassesFilter(stock: StoreStock, filterName: string, requestedQty?: number): boolean {
   if (filterName === 'nofiltro') return true
   const now = new Date()
   const { scaricoDays, caricoDays } = getFilterDays()
 
   const caricoDate = parseDate(stock.lastCarico)
-  if (caricoDate) {
-    const daysSinceCarico = Math.floor((now.getTime() - caricoDate.getTime()) / (1000 * 60 * 60 * 24))
-    if (daysSinceCarico < caricoDays) return false
-  }
+  const caricoRecent = caricoDate
+    ? Math.floor((now.getTime() - caricoDate.getTime()) / (1000 * 60 * 60 * 24)) < caricoDays
+    : false
 
   const scaricoDate = parseDate(stock.lastScarico)
-  if (scaricoDate) {
-    const daysSinceScarico = Math.floor((now.getTime() - scaricoDate.getTime()) / (1000 * 60 * 60 * 24))
-    if (daysSinceScarico < scaricoDays) return false
+  const scaricoRecent = scaricoDate
+    ? Math.floor((now.getTime() - scaricoDate.getTime()) / (1000 * 60 * 60 * 24)) < scaricoDays
+    : false
+
+  if (caricoRecent) return false
+
+  if (scaricoRecent && !caricoRecent) {
+    if (stock.quantity >= 4) return true
+    if (requestedQty !== undefined && requestedQty >= 3 && stock.quantity >= requestedQty * 2) return true
+    return false
   }
 
   return true
@@ -325,7 +331,10 @@ export function getFilterRejection(stock: StoreStock, filterName: string): strin
   const scaricoDate = parseDate(stock.lastScarico)
   if (scaricoDate) {
     const days = Math.floor((now.getTime() - scaricoDate.getTime()) / (1000 * 60 * 60 * 24))
-    if (days < scaricoDays) return `🕐 Ultimo scarico: ${days}gg fa (min ${scaricoDays}gg)`
+    if (days < scaricoDays && !caricoDate) return `🕐 Ultimo scarico: ${days}gg fa (min ${scaricoDays}gg)`
+    if (days < scaricoDays && caricoDate && (Math.floor((now.getTime() - caricoDate.getTime()) / (1000 * 60 * 60 * 24)) >= caricoDays)) {
+      if (stock.quantity < 4) return `🕐 Giacenza bassa per smaltimento (${stock.quantity} disp.)`
+    }
   }
 
   return null

@@ -1,6 +1,7 @@
 export interface CartItem {
   name: string
   raw: string
+  qty: number
 }
 
 interface PriceLine {
@@ -111,7 +112,7 @@ export function parseCart(raw: string): CartItem[] {
 
       if (isRealQty && currentName) {
         const options = pendingOptions.length > 0 ? ` ${pendingOptions.join(' ')}` : ''
-        items.push({ name: currentName + options, raw: nameBuffer.join('\n') })
+        items.push({ name: currentName + options, raw: nameBuffer.join('\n'), qty: parseInt(line, 10) || 1 })
         currentName = null
         nameBuffer = []
         pendingOptions = []
@@ -230,7 +231,7 @@ export function parseCart(raw: string): CartItem[] {
       const newLower = clean.toLowerCase()
       if (!currLower.includes(newLower) && !newLower.includes(currLower)) {
         const options = pendingOptions.length > 0 ? ` ${pendingOptions.join(' ')}` : ''
-        items.push({ name: currentName + options, raw: nameBuffer.join('\n') })
+        items.push({ name: currentName + options, raw: nameBuffer.join('\n'), qty: 1 })
         currentName = clean
         nameBuffer = [line]
         pendingOptions = []
@@ -246,7 +247,7 @@ export function parseCart(raw: string): CartItem[] {
   // Flush last item if exists
   if (currentName) {
     const options = pendingOptions.length > 0 ? ` ${pendingOptions.join(' ')}` : ''
-    items.push({ name: currentName + options, raw: nameBuffer.join('\n') })
+    items.push({ name: currentName + options, raw: nameBuffer.join('\n'), qty: 1 })
   }
 
   return deduplicate(items)

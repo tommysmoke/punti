@@ -15,10 +15,12 @@ import {
   computeMerge,
   getAliases,
   getFilterDays,
+  parseDate,
   isProductAbsentFromStore,
   type InventoryEntry,
   type MatchResult,
   type DuplicateGroup,
+  type StoreStock,
 } from '../lib/crossInventory'
 import type { Profile, Toast } from '../hooks/useAppState'
 
@@ -117,6 +119,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
 
   const [cartText, setCartText] = useState('')
   const [cartItems, setCartItems] = useState<string[]>([])
+  const [cartQtys, setCartQtys] = useState<Map<string, number>>(new Map())
   const [cartError, setCartError] = useState('')
 
   const [matches, setMatches] = useState<MatchResult[]>([])
@@ -147,11 +150,25 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [requestBasket, setRequestBasket] = useState<Map<string, { productName: string; barcode: string | null; quantity: number }[]>>(new Map())
   const [basketMinimized, setBasketMinimized] = useState(false)
 
-  const addToBasket = (toStore: string, productName: string, barcode: string | null) => {
+  const addToBasket = (toStore: string, productName: string, barcode: string | null, qty = 1, stock: StoreStock) => {
+    let allowed = stock.quantity
+    if (storePassesFilter(stock, 'filter1')) {
+      const caricoDate = parseDate(stock.lastCarico)
+      const scaricoDate = parseDate(stock.lastScarico)
+      const now = new Date()
+      const { caricoDays, scaricoDays } = getFilterDays()
+      const caricoOld = !caricoDate || Math.floor((now.getTime() - caricoDate.getTime()) / 86400000) >= caricoDays
+      const scaricoRecent = scaricoDate && Math.floor((now.getTime() - scaricoDate.getTime()) / 86400000) < scaricoDays
+      if (caricoOld && scaricoRecent) {
+        if (qty < 3) allowed = Math.min(allowed, 4)
+        else allowed = Math.min(allowed, qty * 2)
+      }
+    }
+    const capped = Math.min(qty, allowed)
     setRequestBasket((prev) => {
       const next = new Map(prev)
       const items = next.get(toStore) ?? []
-      items.push({ productName, barcode, quantity: 1 })
+      items.push({ productName, barcode, quantity: capped })
       next.set(toStore, items)
       return next
     })
@@ -567,18 +584,18 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       return
     }
 
-    const names =
-      activeFilter === 'filter2'
-        ? ['__filter2__']
-        : cartItems.length > 0 ? cartItems : (() => {
-        try {
+    const names = activeFilter === 'filter2'
+      ? ['__filter2__']
+      : (() => {
           const parsed = parseCart(cartText)
+          const qtyMap = new Map<string, number>()
+          for (const item of parsed) {
+            qtyMap.set(item.name, item.qty)
+          }
+          setCartQtys(qtyMap)
           if (parsed.length > 0) return parsed.map((i) => i.name)
           return cartText.split('\n').map((l) => l.trim()).filter(Boolean)
-        } catch {
-          return cartText.split('\n').map((l) => l.trim()).filter(Boolean)
-        }
-      })()
+        })()
 
     if (names.length === 0) {
       setMatchError('Nessun prodotto da confrontare. Parsa prima il carrello.')
@@ -1114,7 +1131,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                       .filter((item) => {
                         if (item.matches.length === 0) return true
                         if (testMode) return true
-                        const buttons = collectStoreButtons(item.matches, selectedStore, activeFilter)
+                        const buttons = collectStoreButtons(item.matches, selectedStore, activeFilter, cartQtys.get(item.name))
                         return buttons.length > 0
                       })
                     return (
@@ -1124,7 +1141,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                           <button className="cta print-hide" type="button" onClick={() => window.print()}>Stampa</button>
                         </div>
                         {filtered.map((item) => {
-                  const storeButtons = collectStoreButtons(item.matches, testMode ? '' : selectedStore, activeFilter)
+                  const storeButtons = collectStoreButtons(item.matches, testMode ? '' : selectedStore, activeFilter, cartQtys.get(item.name))
                   const hasNoMatch = item.matches.length === 0
                   return (
                     <div key={item.name} className="cross-match-item">
@@ -1195,7 +1212,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                                   <p className="cross-match-product">{manual.entry.product_name}</p>
                                   <div className="cross-match-actions">
                                     {manualButtons.map((s) => (
-                                      <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode)}>
+                                      <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode, cartQtys.get(item.name) ?? 1, s)}>
 CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                       </button>
                                     ))}
@@ -1245,7 +1262,7 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                                   <p className="cross-match-product">{manual.entry.product_name}</p>
                                   <div className="cross-match-actions">
                                     {manualButtons.map((s) => (
-                                      <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode)}>
+                                       <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode, cartQtys.get(item.name) ?? 1, s)}>
 CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                       </button>
                                     ))}
@@ -1267,7 +1284,7 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                                     key={s.store}
                                     className="ghost small"
                                     type="button"
-                                    onClick={() => addToBasket(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode)}
+                                    onClick={() => addToBasket(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode, cartQtys.get(item.name) ?? 1, s)}
                                   >
                                     CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
                                   </button>
@@ -1541,6 +1558,7 @@ function collectStoreButtons(
   matches: MatchResult['matches'],
   currentStore: string,
   filterName: string,
+  cartQty?: number,
 ): StoreButton[] {
   const seen = new Set<string>()
   const buttons: StoreButton[] = []
@@ -1550,7 +1568,7 @@ function collectStoreButtons(
       if (s.quantity <= 0) continue
       if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
       if (seen.has(s.store)) continue
-      if (!storePassesFilter(s, filterName)) continue
+      if (!storePassesFilter(s, filterName, cartQty)) continue
       seen.add(s.store)
       buttons.push(s)
     }
