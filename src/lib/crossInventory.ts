@@ -218,23 +218,45 @@ const FILTER2_IDLE_DAYS = 120
 function parseDate(d: string | null): Date | null {
   if (!d) return null
 
-  const iso = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (iso) {
-    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+  const raw = d.trim()
+  if (!raw) return null
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) {
+    const y = Number(isoMatch[1])
+    const m = Number(isoMatch[2])
+    const day = Number(isoMatch[3])
+    if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12 && day >= 1 && day <= 31) {
+      const date = new Date(y, m - 1, day)
+      if (date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === day) {
+        return date
+      }
+    }
   }
 
-  const parts = d.split(/[\/\.\-]/)
-  if (parts.length === 3) {
+  const parts = raw.split(/[\/\.\-\s]+/)
+  if (parts.length >= 3) {
     const a = Number(parts[0])
     const b = Number(parts[1])
     const c = Number(parts[2])
-    if (a > 1000) {
-      return new Date(a, b - 1, c)
+
+    if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c)) return null
+
+    if (a > 31 && b >= 1 && b <= 12 && c >= 1 && c <= 31) {
+      const date = new Date(a, b - 1, c)
+      if (date.getFullYear() === a) return date
     }
-    if (b > 12) {
-      return new Date(c, a - 1, b)
+
+    if (a === 2 && b >= 1 && b <= 12 && c >= 1000) {
+      return null
     }
-    return new Date(c, b - 1, a)
+
+    if (c >= 1000 && c <= 2100 && a >= 1 && a <= 31 && b >= 1 && b <= 12) {
+      const date = new Date(c, b - 1, a)
+      if (date.getFullYear() === c) return date
+    }
+
+    return null
   }
 
   return null
