@@ -519,6 +519,21 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           setCsvMessage(`Errore aggiornamento: ${error.message}`)
           return
         }
+
+        const dateUpdates = updates
+          .filter((u) => u[caricoCol] || u[scaricoCol])
+          .map((u) => ({ id: u.id, carico: u[caricoCol as keyof typeof u], scarico: u[scaricoCol as keyof typeof u] }))
+        if (dateUpdates.length > 0) {
+          for (const du of dateUpdates) {
+            const { error: dateErr } = await supabase.from('shared_inventory').update({
+              [caricoCol]: du.carico || null,
+              [scaricoCol]: du.scarico || null,
+            }).eq('id', du.id)
+            if (dateErr) {
+              console.error('Errore aggiornamento date:', dateErr.message)
+            }
+          }
+        }
       }
 
       if (inserts.length > 0) {
