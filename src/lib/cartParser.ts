@@ -224,6 +224,22 @@ export function parseCart(raw: string): CartItem[] {
       nameBuffer = [line]
     } else if (line.length <= 50 && line.split(/\s+/).length <= 3) {
       pendingOptions.push(line)
+    } else if (line.split(/\s+/).length >= 4) {
+      const clean = cleanName(line)
+      const currLower = currentName.toLowerCase()
+      const newLower = clean.toLowerCase()
+      if (!currLower.includes(newLower) && !newLower.includes(currLower)) {
+        const options = pendingOptions.length > 0 ? ` ${pendingOptions.join(' ')}` : ''
+        items.push({ name: currentName + options, raw: nameBuffer.join('\n') })
+        currentName = clean
+        nameBuffer = [line]
+        pendingOptions = []
+        lastSeenPrice = false
+        lineAfterPrice = false
+      } else {
+        currentName = clean
+        nameBuffer.push(line)
+      }
     }
   }
 
