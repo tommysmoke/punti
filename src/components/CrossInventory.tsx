@@ -520,13 +520,17 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           return
         }
 
-        for (const u of updates) {
-          if (u[caricoCol] || u[scaricoCol]) {
-            const { error: dateErr } = await supabase.from('shared_inventory').update({
-              [caricoCol]: u[caricoCol] || null,
-              [scaricoCol]: u[scaricoCol] || null,
-            }).eq('id', u.id)
-            if (dateErr) console.error('Errore aggiornamento date:', dateErr.message)
+        const datePayload = updates
+          .filter((u) => u[caricoCol] || u[scaricoCol])
+          .map((u) => ({ id: u.id, c: u[caricoCol] || null, s: u[scaricoCol] || null }))
+        if (datePayload.length > 0) {
+          const { error: dateErr } = await supabase.rpc('batch_update_store_dates', {
+            p_carico_col: caricoCol,
+            p_scarico_col: scaricoCol,
+            p_updates: datePayload,
+          })
+          if (dateErr) {
+            console.error('Errore aggiornamento date:', dateErr.message)
           }
         }
       }
