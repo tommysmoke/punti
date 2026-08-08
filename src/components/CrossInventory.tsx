@@ -1432,23 +1432,22 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                                  <li key={i} className="cross-reply-li">
                                    <button className="ghost small danger" type="button" onClick={() => removeReplyItem(i)} title="Rimuovi">&minus;</button>
                                    <input className="cross-basket-qty" type="number" min="0" value={item.quantity} onChange={(e) => updateReplyQuantity(i, parseInt(e.target.value, 10) || 0)} />
-                                   <span className="cross-reply-name">{item.productName}</span>
-                                   {item.barcode ? <span className="cross-reply-barcode">{item.barcode}</span> : null}
-                                 </li>
-                               ))}
-                             </ul>
-                             {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
-                             <div className="modal-actions">
-                               <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
-                               <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
-                             </div>
-                           </div>
-                         ) : null}
-                       </li>
-                     ))}
-                   </ul>
-                 </div>
-               ) : basketMinimized ? (
+                                  <span className="cross-reply-name">{item.productName}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
+                            <div className="modal-actions">
+                              <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
+                              <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : basketMinimized ? (
                  <p className="hint">Nessuna richiesta ricevuta.</p>
                ) : null}
             </article>
@@ -1483,24 +1482,23 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                                <li key={i} className="cross-reply-li">
                                  <button className="ghost small danger" type="button" onClick={() => removeReplyItem(i)} title="Rimuovi">&minus;</button>
                                  <input className="cross-basket-qty" type="number" min="0" value={item.quantity} onChange={(e) => updateReplyQuantity(i, parseInt(e.target.value, 10) || 0)} />
-                                 <span className="cross-reply-name">{item.productName}</span>
-                                 {item.barcode ? <span className="cross-reply-barcode">{item.barcode}</span> : null}
-                               </li>
-                             ))}
-                           </ul>
-                           {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
-                           <div className="modal-actions">
-                             <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
-                             <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
-                           </div>
-                         </div>
-                       ) : null}
-                     </li>
-                   ))}
-                 </ul>
-               ) : (
-                 <p className="hint no-top">Nessuna richiesta ricevuta.</p>
-               )}
+                               <span className="cross-reply-name">{item.productName}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
+                          <div className="modal-actions">
+                            <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
+                            <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="hint no-top">Nessuna richiesta ricevuta.</p>
+              )}
             </article>
           )}
         </aside>
