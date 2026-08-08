@@ -644,7 +644,7 @@ function substringBonus(a: string, b: string): number {
   if (!a || !b) return 0
 
   if (b.includes(a)) return 1.0
-  if (a.includes(b)) return 0.95
+  if (a.includes(b)) return 0.95 * Math.min(b.length / a.length, 1.0)
 
   const tokensB = b.split(/\s+/)
   const tokensA = a.split(/\s+/)
