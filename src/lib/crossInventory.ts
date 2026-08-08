@@ -522,6 +522,15 @@ function colorBonus(cartName: string, entryName: string): number {
   return allMatch ? 0.06 : 0
 }
 
+function categoryBoost(cartName: string, entry: InventoryEntry): number {
+  if (!entry.category) return 0
+  const catNorm = normalize(entry.category)
+  const cartNorm = normalize(cartName)
+  if (/\bmah\b/i.test(cartNorm) && /\bhardware\b/i.test(catNorm)) return 0.03
+  if (/\bohm\b/i.test(cartNorm) && /\b(hardware|accessori)\b/i.test(catNorm)) return 0.03
+  return 0
+}
+
 export function matchCartAgainstInventory(
   cartItems: string[],
   allInventory: InventoryEntry[],
@@ -571,6 +580,7 @@ export function matchCartAgainstInventory(
           + prefixBonus(cartName, entry.product_name)
           + ohmBonus(cartName, entry.product_name)
           + colorBonus(cartName, entry.product_name)
+          + categoryBoost(cartName, entry)
 
         if (!hasHighWeight) score *= 0.5
 
