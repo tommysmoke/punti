@@ -96,7 +96,7 @@ function renderExcludedStores(
   return excluded
 }
 
-export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void }) {
+export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest: _onRequestToggleTest }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
       return localStorage.getItem(STORE_KEY) ?? ''
@@ -284,7 +284,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
 
   const visibleReceived = receivedRequests.filter((r) => !getFulfilledIds().has(r.id))
 
-  const [replyRequest, setReplyRequest] = useState<ReceivedRequest | null>(null)
+  const [expandedReplyId, setExpandedReplyId] = useState<number | null>(null)
   const [replyItems, setReplyItems] = useState<{ productName: string; barcode: string | null; quantity: number }[]>([])
 
   const [activeFilter, setActiveFilter] = useState('filter1')
@@ -292,7 +292,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const openReply = (req: ReceivedRequest) => {
     const items = parseRequestBody(req.body)
     setReplyItems(items)
-    setReplyRequest(req)
+    setExpandedReplyId(req.id)
   }
 
   const updateReplyQuantity = (index: number, qty: number) => {
@@ -313,10 +313,9 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   }
 
   const confirmReply = async () => {
-    if (!supabase || !profile?.store_id || !replyRequest) return
-    const fromStore = extractSender(replyRequest.title)
+    const fromStore = expandedReplyId ? extractSender(visibleReceived.find((r) => r.id === expandedReplyId)?.title ?? '') : ''
     const items = replyItems.filter((item) => item.quantity > 0)
-    if (!fromStore || items.length === 0) return
+    if (!supabase || !profile?.store_id || !fromStore || items.length === 0) return
     const bodyLines = items.map((item) => `${item.quantity} ${item.productName}${item.barcode ? ` (${item.barcode})` : ''}`)
     const body = `Conferma invio:\n${bodyLines.join('\n')}`
     try {
@@ -329,19 +328,18 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         created_by: profile.id,
       })
       if (error) {
-        pushToast('error', 'Invio risposta non riuscito')
+        pushToast('error', `Invio risposta a ${fromStore} non riuscito`)
         return
       }
       pushToast('success', `Risposta inviata a ${fromStore}`)
-      setReplyRequest(null)
-      setReplyItems([])
+      closeReply()
     } catch {
-      pushToast('error', 'Invio risposta non riuscito')
+      pushToast('error', `Invio risposta a ${fromStore} non riuscito`)
     }
   }
 
   const closeReply = () => {
-    setReplyRequest(null)
+    setExpandedReplyId(null)
     setReplyItems([])
   }
 
@@ -1405,24 +1403,45 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                       </button>
                     ) : null}
                   </div>
-                  <ul className="cross-received-list">
-                    {visibleReceived.map((req) => (
-                      <li key={req.id} className="cross-received-item">
-                        <div className="cross-received-item-main">
-                          <strong>{req.title}</strong>
-                          <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
-                          <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
-                        </div>
-                        <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
-                          &#8630;
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : basketMinimized ? (
-                <p className="hint">Nessuna richiesta ricevuta.</p>
-              ) : null}
+                   <ul className="cross-received-list">
+                     {visibleReceived.map((req) => (
+                       <li key={req.id}>
+                         <div className="cross-received-item">
+                           <div className="cross-received-item-main">
+                             <strong>{req.title}</strong>
+                             <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
+                             <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                           </div>
+                           <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
+                             &#8630;
+                           </button>
+                         </div>
+                         {expandedReplyId === req.id ? (
+                           <div className="cross-reply-inline">
+                             <ul className="cross-reply-items">
+                               {replyItems.map((item, i) => (
+                                 <li key={i} className="cross-reply-li">
+                                   <button className="ghost small danger" type="button" onClick={() => removeReplyItem(i)} title="Rimuovi">&minus;</button>
+                                   <input className="cross-basket-qty" type="number" min="0" value={item.quantity} onChange={(e) => updateReplyQuantity(i, parseInt(e.target.value, 10) || 0)} />
+                                   <span className="cross-reply-name">{item.productName}</span>
+                                   {item.barcode ? <span className="cross-reply-barcode">{item.barcode}</span> : null}
+                                 </li>
+                               ))}
+                             </ul>
+                             {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
+                             <div className="modal-actions">
+                               <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
+                               <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
+                             </div>
+                           </div>
+                         ) : null}
+                       </li>
+                     ))}
+                   </ul>
+                 </div>
+               ) : basketMinimized ? (
+                 <p className="hint">Nessuna richiesta ricevuta.</p>
+               ) : null}
             </article>
           ) : (
             <article className="card">
@@ -1434,90 +1453,53 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                   </button>
                 ) : null}
               </div>
-              {visibleReceived.length > 0 ? (
-                <ul className="cross-received-list">
-                  {visibleReceived.map((req) => (
-                    <li key={req.id} className="cross-received-item">
-                      <div className="cross-received-item-main">
-                        <strong>{req.title}</strong>
-                        <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
-                        <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
-                      </div>
-                      <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
-                        &#8630;
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="hint no-top">Nessuna richiesta ricevuta.</p>
-              )}
+               {visibleReceived.length > 0 ? (
+                 <ul className="cross-received-list">
+                   {visibleReceived.map((req) => (
+                     <li key={req.id}>
+                       <div className="cross-received-item">
+                         <div className="cross-received-item-main">
+                           <strong>{req.title}</strong>
+                           <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
+                           <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
+                         </div>
+                         <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
+                           &#8630;
+                         </button>
+                       </div>
+                       {expandedReplyId === req.id ? (
+                         <div className="cross-reply-inline">
+                           <ul className="cross-reply-items">
+                             {replyItems.map((item, i) => (
+                               <li key={i} className="cross-reply-li">
+                                 <button className="ghost small danger" type="button" onClick={() => removeReplyItem(i)} title="Rimuovi">&minus;</button>
+                                 <input className="cross-basket-qty" type="number" min="0" value={item.quantity} onChange={(e) => updateReplyQuantity(i, parseInt(e.target.value, 10) || 0)} />
+                                 <span className="cross-reply-name">{item.productName}</span>
+                                 {item.barcode ? <span className="cross-reply-barcode">{item.barcode}</span> : null}
+                               </li>
+                             ))}
+                           </ul>
+                           {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
+                           <div className="modal-actions">
+                             <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
+                             <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
+                           </div>
+                         </div>
+                       ) : null}
+                     </li>
+                   ))}
+                 </ul>
+               ) : (
+                 <p className="hint no-top">Nessuna richiesta ricevuta.</p>
+               )}
             </article>
           )}
         </aside>
         {requestBasket.size > 0 ? null : null}
       </div>
-
-      {replyRequest ? (
-        <div className="modal-overlay" onClick={closeReply}>
-          <div className="modal-content cross-reply-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Rispondi a {extractSender(replyRequest.title)}</h3>
-            <p className="hint" style={{ marginBottom: '1rem' }}>
-              Modifica le quantità che puoi inviare. Imposta a 0 o usa <strong>&minus;</strong> per rimuovere un prodotto.
-            </p>
-            <ul className="cross-reply-items">
-              {replyItems.map((item, i) => (
-                <li key={i} className="cross-reply-li">
-                  <button
-                    className="ghost small danger"
-                    type="button"
-                    onClick={() => removeReplyItem(i)}
-                    title="Rimuovi"
-                  >
-                    &minus;
-                  </button>
-                  <input
-                    className="cross-basket-qty"
-                    type="number"
-                    min="0"
-                    value={item.quantity}
-                    onChange={(e) => updateReplyQuantity(i, parseInt(e.target.value, 10) || 0)}
-                  />
-                  <span className="cross-reply-name">{item.productName}</span>
-                  {item.barcode ? <span className="cross-reply-barcode">{item.barcode}</span> : null}
-                </li>
-              ))}
-            </ul>
-            {replyItems.length === 0 ? (
-              <p className="error">Nessun prodotto da confermare.</p>
-            ) : null}
-            <div className="modal-actions">
-              <button className="ghost" type="button" onClick={closeReply}>
-                Annulla
-              </button>
-              <button
-                className="cta"
-                type="button"
-                onClick={confirmReply}
-                disabled={replyItems.length === 0}
-              >
-                Conferma invio
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <label className="test-mode-float" title="Abilita test cross-inventory (invio a sé stessi)">
-        <input
-          type="checkbox"
-          checked={testMode}
-          onChange={onRequestToggleTest}
-        />
-        <span>Test cross</span>
-      </label>
     </>
   )
+
 }
 
 interface CartItemMatch {
