@@ -391,7 +391,8 @@ function normalize(s: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[^a-z0-9.]+/g, ' ')
+    .replace(/\b(\d+)\.(\d+)\b/g, '$1.$2')
     .trim()
 }
 
@@ -412,6 +413,7 @@ function tokenize(s: string): string[] {
 
   return merged.map((t) => {
     if (t === '20ml' || t === '30ml' || t === '60ml') return 'vol_ml'
+    t = t.replace(/^(\d+)\.0(mg|ohm)$/i, '$1$2')
     return t
   })
 }

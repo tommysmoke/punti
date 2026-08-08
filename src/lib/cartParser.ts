@@ -254,7 +254,7 @@ export function parseCart(raw: string): CartItem[] {
 }
 
 const TAX_LINE_RE = /escl\.\s*imp|escl\.\s*iva|imposta\s+di\s+consumo/i
-const UI_NOISE_RE = /^(Modifica|Rimuovi\s|Continua\s|Aggiorna\s|Ci sono\s|Il tuo carrello|Carrello$|Totale|Subtotale|IVA|Spedizione|Sconto|Coupon|Codice\s|Buono|Pagamento|Checkout|Guadagna|Disponibile|Esaurito|Disponibilità|In\sstock|Out\sof\sstock)/i
+const UI_NOISE_RE = /^(Modifica|Rimuovi\s|Continua\s|Aggiorna\s|Ci sono\s|Il tuo carrello|Carrello$|Totale|Subtotale|IVA|Spedizione|Sconto|Coupon|Codice\s|Buono|Pagamento|Checkout|Guadagna|Disponibile|Esaurito|Disponibilità|In\sstock|Out\sof\sstock|Nome\sprodotto|Prezzo\sunitario|Qtà|Qtà\s|Nome$)/i
 
 function optionLike(line: string): boolean {
   return OPTION_RE.test(line)
