@@ -217,9 +217,27 @@ const FILTER2_IDLE_DAYS = 120
 
 function parseDate(d: string | null): Date | null {
   if (!d) return null
-  const parts = d.split('/')
-  if (parts.length !== 3) return null
-  return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]))
+
+  const iso = d.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) {
+    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+  }
+
+  const parts = d.split(/[\/\.\-]/)
+  if (parts.length === 3) {
+    const a = Number(parts[0])
+    const b = Number(parts[1])
+    const c = Number(parts[2])
+    if (a > 1000) {
+      return new Date(a, b - 1, c)
+    }
+    if (b > 12) {
+      return new Date(c, a - 1, b)
+    }
+    return new Date(c, b - 1, a)
+  }
+
+  return null
 }
 
 export function getFilterDays(): { scaricoDays: number; caricoDays: number } {
