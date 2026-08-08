@@ -431,9 +431,11 @@ function tokenWeight(token: string): number {
 
   if (token.length === 1) return 1.5
 
+  if (/^[a-z]\d+$/i.test(token)) return 2.0
+
   if (token.length === 2) return 1.5
 
-  if (/^(di|da|su|in|con|per|tra|fra|del|dal|nel|col|sul|al|il|lo|la|i|gli|le|un|una|pezzi|ricambio|pz|pezzo|kit|mod|pod)$/i.test(token)) return 0.5
+  if (/^(di|da|su|in|con|per|tra|fra|del|dal|nel|col|sul|al|il|lo|la|i|gli|le|un|una|pezzi|ricambio|pz|pezzo|kit|mod|pod)$/i.test(token)) return 0.3
 
   return 3.0
 }
@@ -533,6 +535,19 @@ function categoryBoost(cartName: string, entry: InventoryEntry): number {
   return 0
 }
 
+function coverageBonus(cartTokens: Set<string>, entryTokens: string[]): number {
+  if (entryTokens.length === 0) return 0
+  const covered = entryTokens.filter((t) => cartTokens.has(t)).length
+  return covered / entryTokens.length >= 0.8 ? 0.02 : 0
+}
+
+function missingDistinctivePenalty(cartTokens: string[], entryTokens: Set<string>): number {
+  const distinctive = cartTokens.filter((t) => t.length === 1 || /^\d{1,2}[,.]?\d*ohm$/i.test(t))
+  if (distinctive.length === 0) return 0
+  const missing = distinctive.filter((t) => !entryTokens.has(t)).length
+  return missing > 0 ? -0.02 : 0
+}
+
 export function matchCartAgainstInventory(
   cartItems: string[],
   allInventory: InventoryEntry[],
@@ -583,6 +598,8 @@ export function matchCartAgainstInventory(
           + ohmBonus(cartName, entry.product_name)
           + colorBonus(cartName, entry.product_name)
           + categoryBoost(cartName, entry)
+          + coverageBonus(new Set(cartTokens), entryTokens)
+          + missingDistinctivePenalty(cartTokens, new Set(entryTokens))
 
         if (!hasHighWeight) score *= 0.5
 
