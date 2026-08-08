@@ -389,9 +389,8 @@ function normalize(s: string): string {
 function tokenize(s: string): string[] {
   const raw = normalize(s)
     .split(/\s+/)
-    .filter((t) => t.length >= 2)
+    .filter((t) => t.length >= 1)
 
-  // Merge "10 ml" → "10ml", "60 ml" → "60ml" etc.
   const merged: string[] = []
   for (let i = 0; i < raw.length; i++) {
     if (i + 1 < raw.length && /^\d{2,3}$/.test(raw[i]) && raw[i + 1] === 'ml') {
@@ -409,37 +408,33 @@ function tokenize(s: string): string[] {
 }
 
 function tokenWeight(token: string): number {
-  // Molto basso: filler words che appaiono in quasi tutti i prodotti
   if (token === 'nicotina' || token === 'concentrato') return 0.3
 
-  // Basso: mg/ml standalone (senza numero davanti)
   if (token === 'mg' || token === 'ml') return 0.5
 
-  // Medio: aroma
   if (token === 'aroma') return 1.5
 
-  // Medio-alto: dosi di nicotina con numero
   if (/^\d{1,2}mg$/.test(token)) {
     const n = parseInt(token, 10)
     if (n >= 0 && n <= 20) return 2.0
   }
 
-  // Medio-alto: formati ml con numero
   if (/^\d{2,3}ml$/.test(token)) return 2.0
 
-  // Medio-alto: volumi sinonimizzati (20/30/60ml)
   if (token === 'vol_ml') return 2.0
 
-  // Medio: 10+10
   if (token === '10+10') return 1.5
 
-  // Medio: termini descrittivi che appaiono in molti prodotti
+  if (/^\d{1,2}[,.]?\d*ohm$/i.test(token)) return 3.0
+
   if (token === 'shot' || token === 'extra' || token === 'dry' || token === 'line' || token === 'mixture') return 1.5
 
-  // Token di esattamente 2 caratteri: spesso codici interni, meno distintivi
+  if (token.length === 1) return 1.5
+
   if (token.length === 2) return 1.5
 
-  // Alto (default): parole distintive del prodotto
+  if (/^(di|da|su|in|con|per|tra|fra|del|dal|nel|col|sul|al|il|lo|la|i|gli|le|un|una|pezzi|ricambio|pz|pezzo|kit|mod|pod)$/i.test(token)) return 0.5
+
   return 3.0
 }
 
@@ -503,6 +498,18 @@ function prefixBonus(cartName: string, entryName: string): number {
   return 0
 }
 
+function extractOhm(s: string): string | null {
+  const m = s.match(/(\d{1,2}[,.]?\d*)\s*ohm/i)
+  return m ? m[1].replace(',', '.') : null
+}
+
+function ohmBonus(cartName: string, entryName: string): number {
+  const cartOhm = extractOhm(cartName)
+  const entryOhm = extractOhm(entryName)
+  if (cartOhm && entryOhm && cartOhm === entryOhm) return 0.05
+  return 0
+}
+
 export function matchCartAgainstInventory(
   cartItems: string[],
   allInventory: InventoryEntry[],
@@ -550,6 +557,7 @@ export function matchCartAgainstInventory(
         let score = Math.max(tokenScore, substringScore * 0.85, tokenScore * 0.7 + substringScore * 0.3)
           + brandBoost(cartName, entry)
           + prefixBonus(cartName, entry.product_name)
+          + ohmBonus(cartName, entry.product_name)
 
         if (!hasHighWeight) score *= 0.5
 
