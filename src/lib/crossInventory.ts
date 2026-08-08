@@ -506,8 +506,10 @@ function extractOhm(s: string): string | null {
 function ohmBonus(cartName: string, entryName: string): number {
   const cartOhm = extractOhm(cartName)
   const entryOhm = extractOhm(entryName)
-  if (cartOhm && entryOhm && cartOhm === entryOhm) return 0.05
-  return 0
+  if (!cartOhm) return 0
+  if (!entryOhm) return -0.04
+  if (cartOhm !== entryOhm) return -0.04
+  return 0.05
 }
 
 const COLOR_SUFFIX_RE = /design\s*(\S+(?:\s+\S+)?)\s*$/i
