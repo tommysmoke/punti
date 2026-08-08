@@ -510,6 +510,18 @@ function ohmBonus(cartName: string, entryName: string): number {
   return 0
 }
 
+const COLOR_SUFFIX_RE = /design\s*(\S+(?:\s+\S+)?)\s*$/i
+
+function colorBonus(cartName: string, entryName: string): number {
+  const m = cartName.match(COLOR_SUFFIX_RE)
+  if (!m) return 0
+  const colorWords = normalize(m[1]).split(/\s+/).filter(Boolean)
+  if (colorWords.length === 0) return 0
+  const entryNorm = normalize(entryName)
+  const allMatch = colorWords.every((w) => entryNorm.includes(w))
+  return allMatch ? 0.06 : 0
+}
+
 export function matchCartAgainstInventory(
   cartItems: string[],
   allInventory: InventoryEntry[],
@@ -558,6 +570,7 @@ export function matchCartAgainstInventory(
           + brandBoost(cartName, entry)
           + prefixBonus(cartName, entry.product_name)
           + ohmBonus(cartName, entry.product_name)
+          + colorBonus(cartName, entry.product_name)
 
         if (!hasHighWeight) score *= 0.5
 
