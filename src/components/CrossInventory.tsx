@@ -282,6 +282,12 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     pushToast('success', 'Richieste svuotate')
   }
 
+  const dismissRequest = (id: number) => {
+    const fulfilledIds = getFulfilledIds()
+    fulfilledIds.add(id)
+    setFulfilledIds(fulfilledIds)
+  }
+
   const visibleReceived = receivedRequests.filter((r) => !getFulfilledIds().has(r.id))
 
   const [expandedReplyId, setExpandedReplyId] = useState<number | null>(null)
@@ -1421,6 +1427,13 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                              <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
                              <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                             </div>
+                            <button
+                              className="ghost small danger"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); dismissRequest(req.id) }}
+                              title="Nascondi"
+                              style={{ fontSize: '0.85rem', lineHeight: 1, padding: '0.2rem 0.35rem' }}
+                            >&#10005;</button>
                             {!req.title.startsWith('Risposta') ? (
                               <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
                                 &#8630;
@@ -1472,37 +1485,44 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                            <strong>{req.title}</strong>
                            <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
                            <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
-                          </div>
-                          {!req.title.startsWith('Risposta') ? (
-                            <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
-                              &#8630;
-                            </button>
-                          ) : null}
-                        </div>
-                        {expandedReplyId === req.id ? (
-                          <div className="cross-reply-inline">
-                            <ul className="cross-reply-items">
-                              {replyItems.map((item, i) => (
-                                <li key={i} className="cross-reply-li">
-                                  <button className="ghost small danger" type="button" onClick={() => removeReplyItem(i)} title="Rimuovi">&minus;</button>
-                                  <input className="cross-basket-qty" type="number" min="0" value={item.quantity} onChange={(e) => updateReplyQuantity(i, parseInt(e.target.value, 10) || 0)} />
-                                  <span className="cross-reply-name">{item.productName}</span>
-                                </li>
-                              ))}
-                            </ul>
-                            {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
-                            <div className="modal-actions">
-                              <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
-                              <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
-                            </div>
-                          </div>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="hint no-top">Nessuna richiesta ricevuta.</p>
-                )}
+                           </div>
+                           <button
+                             className="ghost small danger"
+                             type="button"
+                             onClick={(e) => { e.stopPropagation(); dismissRequest(req.id) }}
+                             title="Nascondi"
+                             style={{ fontSize: '0.85rem', lineHeight: 1, padding: '0.2rem 0.35rem' }}
+                           >&#10005;</button>
+                           {!req.title.startsWith('Risposta') ? (
+                             <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
+                               &#8630;
+                             </button>
+                           ) : null}
+                         </div>
+                         {expandedReplyId === req.id ? (
+                           <div className="cross-reply-inline">
+                             <ul className="cross-reply-items">
+                               {replyItems.map((item, i) => (
+                                 <li key={i} className="cross-reply-li">
+                                   <button className="ghost small danger" type="button" onClick={() => removeReplyItem(i)} title="Rimuovi">&minus;</button>
+                                   <input className="cross-basket-qty" type="number" min="0" value={item.quantity} onChange={(e) => updateReplyQuantity(i, parseInt(e.target.value, 10) || 0)} />
+                                   <span className="cross-reply-name">{item.productName}</span>
+                                 </li>
+                               ))}
+                             </ul>
+                             {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
+                             <div className="modal-actions">
+                               <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
+                               <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
+                             </div>
+                           </div>
+                         ) : null}
+                       </li>
+                     ))}
+                   </ul>
+                 ) : (
+                   <p className="hint no-top">Nessuna richiesta ricevuta.</p>
+                 )}
             </article>
           )}
         </aside>
