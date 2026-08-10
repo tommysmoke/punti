@@ -1747,19 +1747,21 @@ function collectStoreButtons(
   filterName: string,
   cartQty?: number,
 ): StoreButton[] {
-  const seen = new Set<string>()
-  const buttons: StoreButton[] = []
+  const storeMap = new Map<string, StoreButton>()
 
   for (const m of matches) {
     for (const s of m.stocks) {
       if (s.quantity <= 0) continue
       if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
-      if (seen.has(s.store)) continue
       if (!storePassesFilter(s, filterName, cartQty)) continue
-      seen.add(s.store)
-      buttons.push(s)
+      const existing = storeMap.get(s.store)
+      if (existing) {
+        existing.quantity += s.quantity
+      } else {
+        storeMap.set(s.store, { ...s })
+      }
     }
   }
 
-    return buttons
-  }
+  return [...storeMap.values()]
+}
