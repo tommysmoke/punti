@@ -9,18 +9,16 @@ import {
   findEmptyAliasColumn,
   storePassesFilter,
   getFilterRejection,
-  filterDebugSuffix,
   STORE_NAMES,
   findDuplicates,
   computeMerge,
   getAliases,
   getFilterDays,
-  parseDate,
   isProductAbsentFromStore,
+  rankStoresForBasket,
   type InventoryEntry,
   type MatchResult,
   type DuplicateGroup,
-  type StoreStock,
 } from '../lib/crossInventory'
 import type { Profile, Toast } from '../hooks/useAppState'
 
@@ -147,85 +145,103 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [receivedRequests, setReceivedRequests] = useState<ReceivedRequest[]>([])
   const [showSvuotaConfirm, setShowSvuotaConfirm] = useState(false)
 
-  const [requestBasket, setRequestBasket] = useState<Map<string, { productName: string; barcode: string | null; quantity: number }[]>>(new Map())
+  const [requestBasket, setRequestBasket] = useState<
+    { productName: string; barcode: string | null; quantity: number }[]
+  >([])
   const [basketMinimized, setBasketMinimized] = useState(false)
 
-  const addToBasket = (toStore: string, productName: string, barcode: string | null, qty = 1, stock: StoreStock) => {
-    let allowed = stock.quantity
-    if (storePassesFilter(stock, 'filter1')) {
-      const caricoDate = parseDate(stock.lastCarico)
-      const scaricoDate = parseDate(stock.lastScarico)
-      const now = new Date()
-      const { caricoDays, scaricoDays } = getFilterDays()
-      const caricoOld = !caricoDate || Math.floor((now.getTime() - caricoDate.getTime()) / 86400000) >= caricoDays
-      const scaricoRecent = scaricoDate && Math.floor((now.getTime() - scaricoDate.getTime()) / 86400000) < scaricoDays
-      if (caricoOld && scaricoRecent) {
-        if (qty < 3) allowed = Math.min(allowed, 4)
-        else allowed = Math.min(allowed, qty * 2)
-      }
-    }
-    const capped = Math.min(qty, allowed)
+  const addToBasket = (productName: string, barcode: string | null, qty = 1, maxQty?: number) => {
+    const capped = maxQty != null ? Math.min(qty, maxQty) : qty
+    if (capped <= 0) return
     setRequestBasket((prev) => {
-      const next = new Map(prev)
-      const items = next.get(toStore) ?? []
-      items.push({ productName, barcode, quantity: capped })
-      next.set(toStore, items)
-      return next
+      const idx = prev.findIndex((i) => i.productName === productName && i.barcode === barcode)
+      if (idx >= 0) {
+        const next = [...prev]
+        next[idx] = { ...next[idx], quantity: next[idx].quantity + capped }
+        return next
+      }
+      return [...prev, { productName, barcode, quantity: capped }]
     })
   }
 
-  const updateBasketQuantity = (toStore: string, index: number, quantity: number) => {
+  const updateBasketQuantity = (index: number, quantity: number) => {
     if (quantity < 1) return
     setRequestBasket((prev) => {
-      const next = new Map(prev)
-      const items = [...(next.get(toStore) ?? [])]
-      if (index >= 0 && index < items.length) {
-        items[index] = { ...items[index], quantity }
-      }
-      next.set(toStore, items)
-      return next
-    })
-  }
-
-  const removeFromBasket = (toStore: string, index: number) => {
-    setRequestBasket((prev) => {
-      const next = new Map(prev)
-      const items = (next.get(toStore) ?? []).filter((_, i) => i !== index)
-      if (items.length === 0) {
-        next.delete(toStore)
-      } else {
-        next.set(toStore, items)
+      const next = [...prev]
+      if (index >= 0 && index < next.length) {
+        next[index] = { ...next[index], quantity }
       }
       return next
     })
   }
 
-  const sendBasketRequest = async (toStore: string) => {
-    if (!supabase || !profile?.store_id) return
-    const items = requestBasket.get(toStore)
-    if (!items || items.length === 0) return
-    const fromStore = selectedStore
-    const bodyLines = items.map((item) => `${item.quantity} ${item.productName}${item.barcode ? ` (${item.barcode})` : ''}`)
+  const removeFromBasket = (index: number) => {
+    setRequestBasket((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const sendBasketRequest = async () => {
+    if (!supabase || !profile?.store_id || requestBasket.length === 0) return
+    const items = requestBasket.map((i) => ({ name: i.productName, quantity: i.quantity, barcode: i.barcode }))
+    const ranking = rankStoresForBasket(items, allInventory, selectedStore, activeFilter)
+    if (ranking.length === 0) {
+      pushToast('error', 'Nessun negozio disponibile per gli item nel carrello')
+      return
+    }
+
+    const firstStore = ranking[0]
+    const bodyLines = items.map((item) => `${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
     const body = `Chiede:\n${bodyLines.join('\n')}`
+
     try {
-      const { error } = await supabase.from('store_notifications').insert({
+      const { error: notifError } = await supabase.from('store_notifications').insert({
         store_id: profile.store_id,
         kind: 'cross_request',
-        target_store: toStore,
-        title: `Richiesta da ${fromStore}`,
+        target_store: firstStore,
+        title: `Richiesta da ${selectedStore}`,
         body,
         created_by: profile.id,
       })
-      if (error) {
+      if (notifError) {
         pushToast('error', 'Invio richiesta non riuscito')
         return
       }
-      setRequestBasket((prev) => {
-        const next = new Map(prev)
-        next.delete(toStore)
-        return next
+
+      const aggBody = `Richiesta a ${ranking.join(', ')}\n\nIn attesa di risposta da ${firstStore}...`
+      const { data: aggData, error: aggError } = await supabase.from('store_notifications').insert({
+        store_id: profile.store_id,
+        kind: 'cross_request',
+        target_store: selectedStore,
+        title: `Riepilogo richiesta`,
+        body: aggBody,
+        created_by: profile.id,
+      }).select('id').single()
+
+      if (aggError) {
+        pushToast('error', 'Invio richiesta non riuscito (aggregato)')
+        return
+      }
+
+      const { error: activeError } = await supabase.from('active_cross_requests').insert({
+        requesting_store: selectedStore,
+        requesting_store_id: profile.store_id,
+        created_by: profile.id,
+        items,
+        remaining: items.map((i) => ({ ...i })),
+        confirmed: [],
+        ranking,
+        current_index: 0,
+        timer_started: new Date().toISOString(),
+        status: 'active',
+        aggregate_notification_id: aggData.id,
       })
-      pushToast('success', `Richiesta inviata a ${toStore} (${items.length} prodotti)`)
+
+      if (activeError) {
+        pushToast('error', 'Errore creazione richiesta attiva')
+        return
+      }
+
+      setRequestBasket([])
+      pushToast('success', `Richiesta inviata a ${firstStore} (${items.length} prodotti)`)
       setActiveFilter('filter1')
     } catch {
       pushToast('error', 'Invio richiesta non riuscito')
@@ -347,6 +363,177 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const closeReply = () => {
     setExpandedReplyId(null)
     setReplyItems([])
+  }
+
+  useEffect(() => {
+    const interval = setInterval(() => { processActiveRequests() }, 30000)
+    return () => clearInterval(interval)
+  }, [selectedStore])
+
+  const processActiveRequests = async () => {
+    if (!supabase || !selectedStore) return
+    const { data: activeRequests } = await supabase
+      .from('active_cross_requests')
+      .select('*')
+      .eq('status', 'active')
+    if (!activeRequests || activeRequests.length === 0) return
+
+    for (const req of activeRequests) {
+      await processOneActiveRequest(req)
+    }
+    if (activeRequests.length > 0) loadReceivedRequests()
+  }
+
+  const processOneActiveRequest = async (req: any) => {
+    if (!supabase) return
+    const currentStore = req.ranking[req.current_index] as string | undefined
+    if (!currentStore) {
+      await completeActiveRequest(req)
+      return
+    }
+
+    const timerExpired = new Date().getTime() - new Date(req.timer_started).getTime() > 90 * 60 * 1000
+
+    if (timerExpired) {
+      if (req.current_index + 1 >= req.ranking.length) {
+        await completeActiveRequest(req)
+      } else {
+        await advanceToNextStore(req)
+      }
+      return
+    }
+
+    const { data: responses } = await supabase
+      .from('store_notifications')
+      .select('*')
+      .eq('kind', 'cross_request')
+      .eq('target_store', req.requesting_store)
+      .eq('title', `Risposta da ${currentStore}`)
+      .gte('created_at', req.timer_started)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (responses && responses.length > 0) {
+      await handleStoreResponse(req, currentStore, responses[0])
+    }
+  }
+
+  const handleStoreResponse = async (req: any, storeName: string, response: any) => {
+    if (!supabase) return
+    const confirmedItemsFromBody = parseRequestBody(response.body)
+    const remaining = (req.remaining as { name: string; quantity: number; barcode: string | null }[]).map((r) => ({ ...r }))
+
+    const newConfirmed: { name: string; quantity: number; barcode: string | null }[] = []
+
+    for (const confirmed of confirmedItemsFromBody) {
+      const remainingIdx = remaining.findIndex(
+        (r) => r.name === confirmed.productName || (confirmed.barcode && r.barcode === confirmed.barcode),
+      )
+      if (remainingIdx >= 0) {
+        const taken = Math.min(confirmed.quantity, remaining[remainingIdx].quantity)
+        if (taken > 0) {
+          newConfirmed.push({ name: confirmed.productName, quantity: taken, barcode: confirmed.barcode })
+          remaining[remainingIdx].quantity -= taken
+          if (remaining[remainingIdx].quantity <= 0) {
+            remaining.splice(remainingIdx, 1)
+          }
+        }
+      }
+    }
+
+    const allConfirmed = [...(req.confirmed as any[]), { store: storeName, items: newConfirmed }]
+
+    if (remaining.length === 0 || req.current_index + 1 >= req.ranking.length) {
+      const unconfirmed = remaining.length > 0 ? remaining : []
+      await updateAggregateNotification(req, allConfirmed, unconfirmed)
+      await supabase.from('active_cross_requests').update({
+        remaining,
+        confirmed: allConfirmed,
+        status: 'completed',
+      }).eq('id', req.id).eq('current_index', req.current_index)
+    } else {
+      await updatePartialAggregate(req, allConfirmed, remaining)
+      await advanceToNextStoreInChain(req, remaining)
+    }
+  }
+
+  const advanceToNextStore = async (req: any) => {
+    const remaining = (req.remaining as { name: string; quantity: number; barcode: string | null }[]).map((r) => ({ ...r }))
+    await advanceToNextStoreInChain(req, remaining)
+  }
+
+  const advanceToNextStoreInChain = async (req: any, remaining: { name: string; quantity: number; barcode: string | null }[]) => {
+    if (!supabase) return
+    const nextIndex = req.current_index + 1
+    const nextStore = req.ranking[nextIndex] as string
+    const bodyLines = remaining.map((r) => `${r.quantity} ${r.name}${r.barcode ? ` (${r.barcode})` : ''}`)
+    const body = `Chiede:\n${bodyLines.join('\n')}`
+
+    await supabase.from('store_notifications').insert({
+      store_id: req.requesting_store_id,
+      kind: 'cross_request',
+      target_store: nextStore,
+      title: `Richiesta da ${req.requesting_store}`,
+      body,
+      created_by: req.created_by,
+    })
+
+    await supabase.from('active_cross_requests').update({
+      current_index: nextIndex,
+      timer_started: new Date().toISOString(),
+    }).eq('id', req.id).eq('current_index', req.current_index)
+  }
+
+  const completeActiveRequest = async (req: any) => {
+    const remaining = (req.remaining as { name: string; quantity: number; barcode: string | null }[]).map((r) => ({ ...r }))
+    const unconfirmed = remaining.filter((r) => r.quantity > 0)
+    await updateAggregateNotification(req, req.confirmed, unconfirmed)
+    if (!supabase) return
+    await supabase.from('active_cross_requests').update({
+      status: 'completed',
+    }).eq('id', req.id).eq('current_index', req.current_index)
+  }
+
+  const updatePartialAggregate = async (
+    req: any,
+    confirmed: any[],
+    remaining: { name: string; quantity: number; barcode: string | null }[],
+  ) => {
+    if (!req.aggregate_notification_id || !supabase) return
+    const body = buildAggregateBody(confirmed, remaining)
+    await supabase.from('store_notifications').update({ body }).eq('id', req.aggregate_notification_id)
+  }
+
+  const updateAggregateNotification = async (
+    req: any,
+    confirmed: any[],
+    unconfirmed: { name: string; quantity: number; barcode: string | null }[],
+  ) => {
+    if (!req.aggregate_notification_id || !supabase) return
+    const body = buildAggregateBody(confirmed, unconfirmed)
+    await supabase.from('store_notifications').update({ body }).eq('id', req.aggregate_notification_id)
+  }
+
+  function buildAggregateBody(
+    confirmed: { store: string; items: { name: string; quantity: number; barcode: string | null }[] }[],
+    unconfirmed: { name: string; quantity: number; barcode: string | null }[],
+  ): string {
+    const sections: string[] = []
+    for (const c of confirmed) {
+      if (c.items.length === 0) continue
+      sections.push(`Ricevuto da ${c.store}:`)
+      for (const item of c.items) {
+        sections.push(`${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
+      }
+      sections.push('')
+    }
+    if (unconfirmed.length > 0) {
+      sections.push('NON CONFERMATI:')
+      for (const item of unconfirmed) {
+        sections.push(`${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
+      }
+    }
+    return sections.join('\n')
   }
 
   useEffect(() => {
@@ -1222,14 +1409,13 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                                 .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()) && storePassesFilter(s, activeFilter))
                               return manualButtons.length > 0 ? (
                                 <>
-                                  <p className="cross-match-product">{manual.entry.product_name}</p>
-                                  <div className="cross-match-actions">
-                                    {manualButtons.map((s) => (
-                                      <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode, cartQtys.get(item.name) ?? 1, s)}>
-CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
-                                      </button>
-                                    ))}
-                                  </div>
+                                   <p className="cross-match-product">{manual.entry.product_name}</p>
+                                   <div className="cross-match-actions">
+                                     <button className="ghost small" type="button" onClick={() => addToBasket(manual.entry.product_name, manual.entry.barcode, cartQtys.get(item.name) ?? 1, manualButtons.reduce((sum, s) => sum + s.quantity, 0))}>
+                                       Aggiungi
+                                     </button>
+                                     <span className="hint">{manualButtons.map((s) => `${s.label}:${s.quantity}`).join(', ')}</span>
+                                   </div>
                                 </>
                               ) : (
                                 <p className="hint">Trovato "{manual.entry.product_name}" ma nessun altro store ha giacenza</p>
@@ -1272,13 +1458,12 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                                 .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()) && storePassesFilter(s, activeFilter))
                               return manualButtons.length > 0 ? (
                                 <>
-                                  <p className="cross-match-product">{manual.entry.product_name}</p>
-                                  <div className="cross-match-actions">
-                                    {manualButtons.map((s) => (
-                                       <button key={s.store} className="ghost small" type="button" onClick={() => addToBasket(s.label, manual.entry.product_name, manual.entry.barcode, cartQtys.get(item.name) ?? 1, s)}>
-CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
+                                   <p className="cross-match-product">{manual.entry.product_name}</p>
+                                   <div className="cross-match-actions">
+                                      <button className="ghost small" type="button" onClick={() => addToBasket(manual.entry.product_name, manual.entry.barcode, cartQtys.get(item.name) ?? 1, manualButtons.reduce((sum, s) => sum + s.quantity, 0))}>
+                                        Aggiungi
                                       </button>
-                                    ))}
+                                      <span className="hint">{manualButtons.map((s) => `${s.label}:${s.quantity}`).join(', ')}</span>
                                     <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name, manual.entry.id)} title="Correggi associazione">
                                       Correggi
                                     </button>
@@ -1290,18 +1475,12 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                             })()
                           ) : (
                             <>
-                              <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
-                              <div className="cross-match-actions">
-                                {storeButtons.map((s) => (
-                                  <button
-                                    key={s.store}
-                                    className="ghost small"
-                                    type="button"
-                                    onClick={() => addToBasket(s.label, item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode, cartQtys.get(item.name) ?? 1, s)}
-                                  >
-                                    CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter, s.quantity) : `${s.quantity} disp.`})
-                                  </button>
-                                ))}
+                               <p className="cross-match-product">{item.bestMatch!.entry.product_name}</p>
+                               <div className="cross-match-actions">
+                                 <button className="ghost small" type="button" onClick={() => addToBasket(item.bestMatch!.entry.product_name, item.bestMatch!.entry.barcode, cartQtys.get(item.name) ?? 1, storeButtons.reduce((sum, s) => sum + s.quantity, 0))}>
+                                   Aggiungi
+                                 </button>
+                                 <span className="hint">{storeButtons.map((s) => `${s.label}:${s.quantity}`).join(', ')}</span>
                                 <button className="ghost small" type="button" onClick={() => startBarcodeSearch(item.name, item.bestMatch!.entry.id)} title="Correggi associazione">
                                   Correggi
                                 </button>
@@ -1350,16 +1529,16 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
         <div className="cross-divider" aria-hidden="true"></div>
 
         <aside className="cross-sidebar">
-          {requestBasket.size > 0 ? (
+          {requestBasket.length > 0 ? (
             <article className="card cross-basket-card">
               <div className="cross-basket-header">
                 <h2>
                   Carrello richieste
-                  {!basketMinimized ? null : (
+                  {basketMinimized ? (
                     <span className="badge" style={{ marginLeft: '0.4rem' }}>
-                      {[...requestBasket].reduce((sum, [, items]) => sum + items.length, 0)}
+                      {requestBasket.length}
                     </span>
-                  )}
+                  ) : null}
                 </h2>
                 <button
                   className="ghost small"
@@ -1372,40 +1551,36 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
               </div>
               {!basketMinimized ? (
                 <>
-                  {[...requestBasket].map(([store, items]) => (
-                    <div key={store} className="cross-basket-store">
-                      <div className="cross-basket-store-header">
-                        <span>
-                          Per <strong>{store}</strong> ({items.length})
-                        </span>
-                        <button className="cta" type="button" onClick={() => sendBasketRequest(store)}>
-                          Invia
+                  <ul className="cross-basket-items">
+                    {requestBasket.map((item, i) => (
+                      <li key={i} className="cross-basket-li">
+                        <input
+                          className="cross-basket-qty"
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateBasketQuantity(i, parseInt(e.target.value, 10) || 1)}
+                        />
+                        <span className="cross-basket-name">{item.productName}</span>
+                        <button
+                          className="ghost small"
+                          type="button"
+                          onClick={() => removeFromBasket(i)}
+                          title="Rimuovi"
+                        >
+                          &#10005;
                         </button>
-                      </div>
-                      <ul className="cross-basket-items">
-                        {items.map((item, i) => (
-                          <li key={i} className="cross-basket-li">
-                            <input
-                              className="cross-basket-qty"
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => updateBasketQuantity(store, i, parseInt(e.target.value, 10) || 1)}
-                            />
-                            <span className="cross-basket-name">{item.productName}</span>
-                            <button
-                              className="ghost small"
-                              type="button"
-                              onClick={() => removeFromBasket(store, i)}
-                              title="Rimuovi"
-                            >
-                              &#10005;
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    className="cta"
+                    type="button"
+                    onClick={() => sendBasketRequest()}
+                    style={{ marginTop: '0.5rem', width: '100%' }}
+                  >
+                    Invia richiesta
+                  </button>
                 </>
               ) : null}
               {visibleReceived.length > 0 ? (
@@ -1434,7 +1609,7 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                               title="Nascondi"
                               style={{ fontSize: '0.85rem', lineHeight: 1, padding: '0.2rem 0.35rem' }}
                             >&#10005;</button>
-                            {!req.title.startsWith('Risposta') ? (
+                            {req.title.startsWith('Richiesta da') ? (
                               <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
                                 &#8630;
                               </button>
@@ -1493,7 +1668,7 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
                              title="Nascondi"
                              style={{ fontSize: '0.85rem', lineHeight: 1, padding: '0.2rem 0.35rem' }}
                            >&#10005;</button>
-                           {!req.title.startsWith('Risposta') ? (
+                            {req.title.startsWith('Richiesta da') ? (
                              <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
                                &#8630;
                              </button>
@@ -1526,7 +1701,6 @@ CHIEDI A {s.label.toUpperCase()} ({testMode ? filterDebugSuffix(s, activeFilter,
             </article>
           )}
         </aside>
-        {requestBasket.size > 0 ? null : null}
       </div>
     </>
   )

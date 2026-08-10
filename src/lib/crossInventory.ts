@@ -677,3 +677,51 @@ function substringBonus(a: string, b: string): number {
 
   return matched / max
 }
+
+/**
+ * Ranks other stores by how well they can fulfill a basket of items.
+ * Bologna gets a 0.7 penalty to stay near the bottom.
+ */
+export function rankStoresForBasket(
+  basket: { name: string; barcode: string | null; quantity: number }[],
+  allInventory: InventoryEntry[],
+  currentStore: string,
+  filterName: string,
+): string[] {
+  const cartNames = basket.map((item) => item.name)
+  const results = matchCartAgainstInventory(cartNames, allInventory)
+
+  const resultMap = new Map<string, MatchResult>()
+  for (const r of results) {
+    resultMap.set(r.cartName, r)
+  }
+
+  const storeScores: Record<string, number> = {}
+
+  for (const item of basket) {
+    const result = resultMap.get(item.name)
+    if (!result || result.matches.length === 0) continue
+
+    const bestMatch = result.matches[0]
+    const seen = new Set<string>()
+
+    for (const stock of bestMatch.stocks) {
+      if (stock.store === currentStore.toLowerCase()) continue
+      if (stock.quantity <= 0) continue
+      if (seen.has(stock.store)) continue
+      if (!storePassesFilter(stock, filterName, item.quantity)) continue
+      seen.add(stock.store)
+
+      const label = stock.label
+      storeScores[label] = (storeScores[label] ?? 0) + bestMatch.score * item.quantity
+    }
+  }
+
+  if (storeScores['Bologna']) {
+    storeScores['Bologna'] *= 0.7
+  }
+
+  return Object.entries(storeScores)
+    .sort(([, a], [, b]) => b - a)
+    .map(([store]) => store)
+}

@@ -45,3 +45,15 @@ for insert with check (
   )
   and created_by = auth.uid()
 );
+
+-- Stores can update their own notifications (needed for aggregated cross-request responses)
+DROP POLICY IF EXISTS "store_notifications_store_update" ON public.store_notifications;
+CREATE POLICY "store_notifications_store_update" ON public.store_notifications
+FOR UPDATE USING (
+  EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id = auth.uid()
+      AND p.role = 'store'
+      AND p.store_id = store_notifications.store_id
+  )
+);
