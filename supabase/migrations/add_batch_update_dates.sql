@@ -32,7 +32,7 @@ begin
     return;
   end if;
 
-  select string_agg(format('(%s, %L, %L)', (item->>'id'), (item->>'c'), (item->>'s')), ', ')
+  select string_agg(format('(%s, %L, %L)', (item->>'id')::bigint, (item->>'c'), (item->>'s')), ', ')
   into v_pairs
   from jsonb_array_elements(p_updates) as item;
 

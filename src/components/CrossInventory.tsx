@@ -193,15 +193,15 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     const body = `Chiede:\n${bodyLines.join('\n')}`
 
     try {
-      const { error: notifError } = await supabase.from('store_notifications').insert({
+      const { data: requestData, error: notifError } = await supabase.from('store_notifications').insert({
         store_id: profile.store_id,
         kind: 'cross_request',
         target_store: firstStore,
         title: `Richiesta da ${selectedStore}`,
         body,
         created_by: profile.id,
-      })
-      if (notifError) {
+      }).select('id').single()
+      if (notifError || !requestData) {
         pushToast('error', 'Invio richiesta non riuscito')
         return
       }
@@ -233,6 +233,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         timer_started: new Date().toISOString(),
         status: 'active',
         aggregate_notification_id: aggData.id,
+        current_request_notification_id: requestData.id,
       })
 
       if (activeError) {
@@ -348,6 +349,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         title: `Risposta da ${selectedStore}`,
         body,
         created_by: profile.id,
+        response_to_request_id: expandedReplyId,
       })
       if (error) {
         pushToast('error', `Invio risposta a ${fromStore} non riuscito`)
@@ -403,18 +405,42 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       return
     }
 
-    const { data: responses } = await supabase
-      .from('store_notifications')
-      .select('*')
-      .eq('kind', 'cross_request')
-      .eq('target_store', req.requesting_store)
-      .eq('title', `Risposta da ${currentStore}`)
-      .gte('created_at', req.timer_started)
-      .order('created_at', { ascending: false })
-      .limit(1)
+    let response: any = null
 
-    if (responses && responses.length > 0) {
-      await handleStoreResponse(req, currentStore, responses[0])
+    if (req.current_request_notification_id) {
+      const { data: byId } = await supabase
+        .from('store_notifications')
+        .select('*')
+        .eq('kind', 'cross_request')
+        .eq('target_store', req.requesting_store)
+        .eq('response_to_request_id', req.current_request_notification_id)
+        .gte('created_at', req.timer_started)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (byId && byId.length > 0) {
+        response = byId[0]
+      }
+    }
+
+    if (!response) {
+      const { data: byTitle } = await supabase
+        .from('store_notifications')
+        .select('*')
+        .eq('kind', 'cross_request')
+        .eq('target_store', req.requesting_store)
+        .eq('title', `Risposta da ${currentStore}`)
+        .gte('created_at', req.timer_started)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (byTitle && byTitle.length > 0) {
+        response = byTitle[0]
+      }
+    }
+
+    if (response) {
+      await handleStoreResponse(req, currentStore, response)
     }
   }
 
@@ -469,19 +495,49 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     const bodyLines = remaining.map((r) => `${r.quantity} ${r.name}${r.barcode ? ` (${r.barcode})` : ''}`)
     const body = `Chiede:\n${bodyLines.join('\n')}`
 
-    await supabase.from('store_notifications').insert({
+    // Opzione B: avanzamento atomico nel database (evita i doppioni).
+    try {
+      const { error } = await supabase.rpc('advance_cross_request', {
+        p_request_id: req.id,
+        p_current_index: req.current_index,
+        p_body: body,
+      })
+      if (!error) return
+      console.warn('[CROSS] advance_cross_request fallita, uso il fallback:', error.message)
+    } catch (err) {
+      console.warn('[CROSS] advance_cross_request fallback, errore inatteso:', err)
+    }
+
+    // Fallback (Opzione A): prenota il passo prima, solo il vincitore invia.
+    const { data: claimed } = await supabase
+      .from('active_cross_requests')
+      .update({
+        current_index: nextIndex,
+        timer_started: new Date().toISOString(),
+        current_request_notification_id: null,
+      })
+      .eq('id', req.id)
+      .eq('current_index', req.current_index)
+      .eq('status', 'active')
+      .select('id')
+
+    if (!claimed || claimed.length === 0) return
+
+    const { data: requestData } = await supabase.from('store_notifications').insert({
       store_id: req.requesting_store_id,
       kind: 'cross_request',
       target_store: nextStore,
       title: `Richiesta da ${req.requesting_store}`,
       body,
       created_by: req.created_by,
-    })
+    }).select('id').single()
 
-    await supabase.from('active_cross_requests').update({
-      current_index: nextIndex,
-      timer_started: new Date().toISOString(),
-    }).eq('id', req.id).eq('current_index', req.current_index)
+    if (requestData) {
+      await supabase.from('active_cross_requests')
+        .update({ current_request_notification_id: requestData.id })
+        .eq('id', req.id)
+        .eq('current_index', nextIndex)
+    }
   }
 
   const completeActiveRequest = async (req: any) => {

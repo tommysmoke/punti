@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS active_cross_requests (
   current_index INT DEFAULT 0,
   timer_started TIMESTAMPTZ NOT NULL DEFAULT now(),
   status TEXT DEFAULT 'active',
-  aggregate_notification_id INT,
+  aggregate_notification_id BIGINT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

@@ -151,7 +151,7 @@ export function parseEasyfattCSV(raw: string): EasyfattRow[] {
     rows.push({
       barcode,
       name: cleanName(name),
-      quantity: Math.round(quantity),
+      quantity: Math.max(0, Math.round(quantity)),
       category,
       lastCarico,
       lastScarico,

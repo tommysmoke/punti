@@ -131,12 +131,12 @@ begin
     return;
   end if;
 
-  select string_agg(format('(%s, %s)', (item->>'id'), (item->>'q')), ', ')
+  select string_agg(format('(%s, %s)', (item->>'id')::bigint, (item->>'q')::int), ', ')
   into v_pairs
   from jsonb_array_elements(p_updates) as item;
 
   execute format(
-    'update public.shared_inventory si set %I = v.q from (values %s) as v(id, q) where si.id = v.id',
+    'update public.shared_inventory si set %I = greatest(v.q, 0) from (values %s) as v(id, q) where si.id = v.id',
     p_column, v_pairs
   );
 end;
