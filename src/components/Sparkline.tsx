@@ -229,9 +229,9 @@ export function formatYAxisLabel(value: number, bounds: VisualBounds): string {
 const GEOMETRY: ChartGeometry = { width: 600, height: 80, padding: 4 }
 
 export function Sparkline({ movements, currentPoints, embedded }: Props) {
-  const [range, setRange] = useState<'7' | '30' | 'all'>('all')
+  const [range, setRange] = useState<'30' | '365' | 'all'>('all')
 
-  const limitDays = range === '7' ? 7 : range === '30' ? 30 : null
+  const limitDays = range === '30' ? 30 : range === '365' ? 365 : null
   const data = useMemo(
     () => computeGraphSeries(movements, currentPoints, limitDays),
     [movements, currentPoints, limitDays],
@@ -277,17 +277,17 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
       <div className="sparkline-range">
         <button
           type="button"
-          className={range === '7' ? 'active' : ''}
-          onClick={() => setRange('7')}
-        >
-          7gg
-        </button>
-        <button
-          type="button"
           className={range === '30' ? 'active' : ''}
           onClick={() => setRange('30')}
         >
           30gg
+        </button>
+        <button
+          type="button"
+          className={range === '365' ? 'active' : ''}
+          onClick={() => setRange('365')}
+        >
+          1 anno
         </button>
         <button
           type="button"
