@@ -4,7 +4,7 @@ import './App.css'
 import { createClient } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { CUSTOMERS_PAGE_SIZE, DEBOUNCE_SEARCH_MS, MAX_CUSTOMER_MOVEMENTS_VISIBLE, MAX_VISIBLE_NOTIFICATIONS, NOTIFICATIONS_MAX_COUNT, NOTIFICATIONS_RECENT_HOURS, POINTS_DIVISOR, TOAST_DURATION_MS } from './lib/constants'
-import { buildUsername } from './lib/username'
+import { buildUsername, isValidBirthDayMonth } from './lib/username'
 import { loadSoundPreference, playEarnSound, playRedeemSound, playSuccessSound, saveSoundPreference, setSoundEnabled } from './lib/sounds'
 import { useAppState } from './hooks/useAppState'
 import { useHashRoute } from './hooks/useHashRoute'
@@ -1348,8 +1348,8 @@ function App() {
       return
     }
 
-    if (birthDayMonth && !/^\d{2}\/\d{2}$/.test(birthDayMonth)) {
-      setEditCustomerError('Formato giorno/mese non valido (usa GG/MM)')
+    if (!isValidBirthDayMonth(birthDayMonth)) {
+      setEditCustomerError('Formato giorno/mese non valido (usa GG/MM, es. 23/07)')
       return
     }
 
@@ -1438,8 +1438,8 @@ function App() {
       return
     }
 
-    if (!/^\d{2}\/\d{2}$/.test(birthDayMonth)) {
-      setNewCustomerError('Inserisci giorno/mese nel formato GG/MM')
+    if (!isValidBirthDayMonth(birthDayMonth)) {
+      setNewCustomerError('Inserisci un giorno/mese valido nel formato GG/MM (es. 23/07)')
       return
     }
 

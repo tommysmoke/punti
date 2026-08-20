@@ -226,6 +226,8 @@ export function formatYAxisLabel(value: number, bounds: VisualBounds): string {
   return labelValue.toFixed(canUseDecimals ? 1 : 0).replace(/\.0+$/, '')
 }
 
+const GEOMETRY: ChartGeometry = { width: 600, height: 80, padding: 4 }
+
 export function Sparkline({ movements, currentPoints, embedded }: Props) {
   const [range, setRange] = useState<'7' | '30' | 'all'>('all')
 
@@ -235,26 +237,39 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
     [movements, currentPoints, limitDays],
   )
 
+  const visualBounds = useMemo(() => computeVisualBounds(data.map((point) => point.value)), [data])
+  const xPositions = useMemo(() => computeHybridXPositions(data, GEOMETRY), [data])
+  const yLabels = useMemo(() => {
+    const steps = 6
+    const result: { label: string; topPct: number }[] = []
+
+    for (let index = 0; index < steps; index++) {
+      const value = visualBounds.min + ((visualBounds.max - visualBounds.min) / (steps - 1)) * index
+      result.push({
+        label: formatYAxisLabel(value, visualBounds),
+        topPct: 100 - (index / (steps - 1)) * 100,
+      })
+    }
+
+    return result
+  }, [visualBounds])
+
   if (movements.length === 0) return null
   if (data.length < 2) return null
-
-  const geometry = { width: 600, height: 80, padding: 4 }
-  const visualBounds = useMemo(() => computeVisualBounds(data.map((point) => point.value)), [data])
-  const xPositions = useMemo(() => computeHybridXPositions(data, geometry), [data])
 
   const points = data
     .map((point, index) => {
       const x = xPositions[index]
-      const y = mapValueToY(point.value, visualBounds, geometry)
+      const y = mapValueToY(point.value, visualBounds, GEOMETRY)
       return `${x},${y}`
     })
     .join(' ')
 
   const startX = xPositions[0]
   const lastX = xPositions[xPositions.length - 1]
-  const areaPath = `M${points} L${lastX},${geometry.height - geometry.padding} L${startX},${geometry.height - geometry.padding} Z`
+  const areaPath = `M${points} L${lastX},${GEOMETRY.height - GEOMETRY.padding} L${startX},${GEOMETRY.height - GEOMETRY.padding} Z`
   const linePath = `M${points}`
-  const lastY = mapValueToY(data[data.length - 1].value, visualBounds, geometry)
+  const lastY = mapValueToY(data[data.length - 1].value, visualBounds, GEOMETRY)
 
   const header = (
     <div className="sparkline-header">
@@ -285,21 +300,6 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
     </div>
   )
 
-  const yLabels = useMemo(() => {
-    const steps = 6
-    const result: { label: string; topPct: number }[] = []
-
-    for (let index = 0; index < steps; index++) {
-      const value = visualBounds.min + ((visualBounds.max - visualBounds.min) / (steps - 1)) * index
-      result.push({
-        label: formatYAxisLabel(value, visualBounds),
-        topPct: 100 - (index / (steps - 1)) * 100,
-      })
-    }
-
-    return result
-  }, [visualBounds])
-
   const chartContent = (
     <div className="sparkline-chart">
       <div className="sparkline-y-axis">
@@ -314,7 +314,7 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
         ))}
       </div>
       <svg
-        viewBox={`0 0 ${geometry.width} ${geometry.height}`}
+        viewBox={`0 0 ${GEOMETRY.width} ${GEOMETRY.height}`}
         className="sparkline-canvas"
         preserveAspectRatio="none"
       >
