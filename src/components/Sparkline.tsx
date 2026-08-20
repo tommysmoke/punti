@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { Movement } from '../hooks/useAppState'
 
 type Props = {
@@ -230,6 +231,8 @@ const GEOMETRY: ChartGeometry = { width: 600, height: 80, padding: 4 }
 
 export function Sparkline({ movements, currentPoints, embedded }: Props) {
   const [range, setRange] = useState<30 | 365 | 1095>(1095)
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
 
   const limitDays = range
   const data = useMemo(
@@ -254,22 +257,77 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
     return result
   }, [visualBounds])
 
+  const gridY = useMemo(() => {
+    const steps = 6
+    const ys: number[] = []
+    for (let index = 0; index < steps; index++) {
+      const value = visualBounds.min + ((visualBounds.max - visualBounds.min) / (steps - 1)) * index
+      ys.push(mapValueToY(value, visualBounds, GEOMETRY))
+    }
+    return ys
+  }, [visualBounds])
+
+  useEffect(() => {
+    setHoverIndex(null)
+  }, [limitDays])
+
   if (movements.length === 0) return null
   if (data.length < 2) return null
 
-  const points = data
-    .map((point, index) => {
-      const x = xPositions[index]
-      const y = mapValueToY(point.value, visualBounds, GEOMETRY)
-      return `${x},${y}`
-    })
-    .join(' ')
+  const chartPoints = data.map((point, index) => ({
+    x: xPositions[index],
+    y: mapValueToY(point.value, visualBounds, GEOMETRY),
+    value: point.value,
+    timestamp: point.timestamp,
+  }))
 
-  const startX = xPositions[0]
-  const lastX = xPositions[xPositions.length - 1]
-  const areaPath = `M${points} L${lastX},${GEOMETRY.height - GEOMETRY.padding} L${startX},${GEOMETRY.height - GEOMETRY.padding} Z`
-  const linePath = `M${points}`
-  const lastY = mapValueToY(data[data.length - 1].value, visualBounds, GEOMETRY)
+  const polylinePoints = chartPoints.map((p) => `${p.x},${p.y}`).join(' ')
+  const startX = chartPoints[0].x
+  const lastPoint = chartPoints[chartPoints.length - 1]
+  const lastX = lastPoint.x
+  const lastY = lastPoint.y
+  const areaPath = `M${polylinePoints} L${lastX},${GEOMETRY.height - GEOMETRY.padding} L${startX},${GEOMETRY.height - GEOMETRY.padding} Z`
+
+  const segments = chartPoints.slice(1).map((p, index) => {
+    const prev = chartPoints[index]
+    const up = p.value >= prev.value
+    return {
+      x1: prev.x,
+      y1: prev.y,
+      x2: p.x,
+      y2: p.y,
+      color: up ? '#2e9e5b' : '#d9534f',
+      length: Math.hypot(p.x - prev.x, p.y - prev.y),
+      delay: 0.15 + index * 0.05,
+    }
+  })
+
+  const badgeLabel = `${currentPoints} pt`
+  const badgeW = badgeLabel.length * 7 + 16
+  const badgeX = GEOMETRY.width - GEOMETRY.padding - badgeW
+
+  const hovered = hoverIndex !== null ? chartPoints[hoverIndex] : null
+  const hoverDate = hovered
+    ? new Date(hovered.timestamp).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : ''
+
+  const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    if (rect.width === 0) return
+    const x = ((event.clientX - rect.left) / rect.width) * GEOMETRY.width
+    let nearest = 0
+    let best = Infinity
+    xPositions.forEach((xp, index) => {
+      const distance = Math.abs(xp - x)
+      if (distance < best) {
+        best = distance
+        nearest = index
+      }
+    })
+    setHoverIndex(nearest)
+  }
 
   const header = (
     <div className="sparkline-header">
@@ -314,9 +372,12 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
         ))}
       </div>
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${GEOMETRY.width} ${GEOMETRY.height}`}
         className="sparkline-canvas"
         preserveAspectRatio="none"
+        onPointerMove={handlePointerMove}
+        onPointerLeave={() => setHoverIndex(null)}
       >
         <defs>
           <linearGradient id="sparkline-grad" x1="0" y1="0" x2="0" y2="1">
@@ -324,16 +385,67 @@ export function Sparkline({ movements, currentPoints, embedded }: Props) {
             <stop offset="100%" stopColor="rgba(15,76,92,0.0)" />
           </linearGradient>
         </defs>
-        <path d={areaPath} fill="url(#sparkline-grad)" />
-        <path
-          d={linePath}
-          fill="none"
-          stroke="#0f4c5c"
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+
+        {gridY.map((y, index) => (
+          <line
+            key={`grid-${index}`}
+            className="spark-grid"
+            x1={GEOMETRY.padding}
+            y1={y}
+            x2={GEOMETRY.width - GEOMETRY.padding}
+            y2={y}
+            strokeWidth="1"
+          />
+        ))}
+
+        <g key={range}>
+          <path className="spark-area" d={areaPath} fill="url(#sparkline-grad)" />
+          {segments.map((segment, index) => (
+            <line
+              key={index}
+              x1={segment.x1}
+              y1={segment.y1}
+              x2={segment.x2}
+              y2={segment.y2}
+              stroke={segment.color}
+              strokeWidth="2"
+              strokeLinecap="round"
+              style={{
+                strokeDasharray: `${segment.length} ${segment.length}`,
+                strokeDashoffset: segment.length,
+                animation: `spark-draw 0.55s ease ${segment.delay}s forwards`,
+              }}
+            />
+          ))}
+        </g>
+
         <circle cx={lastX} cy={lastY} r="3.5" fill="#0f4c5c" stroke="#fff" strokeWidth="1.5" />
+
+        {hovered ? (
+          <g pointerEvents="none">
+            <line
+              className="spark-crosshair"
+              x1={hovered.x}
+              y1={GEOMETRY.padding}
+              x2={hovered.x}
+              y2={GEOMETRY.height - GEOMETRY.padding}
+              strokeWidth="1"
+            />
+            <circle cx={hovered.x} cy={hovered.y} r="4" fill="#0f4c5c" stroke="#fff" strokeWidth="1.5" />
+            <g
+              transform={`translate(${Math.min(Math.max(hovered.x + 8, GEOMETRY.padding), GEOMETRY.width - GEOMETRY.padding - 76)}, ${hovered.y - 38 < GEOMETRY.padding ? hovered.y + 10 : hovered.y - 38})`}
+            >
+              <rect className="spark-tip-rect" width="76" height="30" rx="5" />
+              <text x="8" y="13" className="spark-tip-value">{hovered.value} pt</text>
+              <text x="8" y="25" className="spark-tip-date">{hoverDate}</text>
+            </g>
+          </g>
+        ) : null}
+
+        <g pointerEvents="none">
+          <rect className="spark-tip-rect" x={badgeX} y={GEOMETRY.padding - 2} width={badgeW} height={18} rx={9} />
+          <text x={badgeX + badgeW / 2} y={GEOMETRY.padding + 9} textAnchor="middle" className="spark-tip-value">{badgeLabel}</text>
+        </g>
       </svg>
     </div>
   )

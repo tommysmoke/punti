@@ -1307,6 +1307,7 @@ time {
   height: 80px;
   display: block;
   border-radius: 0.5rem;
+  cursor: crosshair;
 }
 
 .sparkline-chart {
@@ -1329,6 +1330,43 @@ time {
   color: #7d8a8e;
   line-height: 1;
   white-space: nowrap;
+}
+
+@keyframes spark-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes spark-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.spark-area {
+  animation: spark-fade 0.7s ease forwards;
+}
+
+.spark-grid {
+  stroke: #e6e1d3;
+}
+
+.spark-crosshair {
+  stroke: #b7b0a0;
+  stroke-dasharray: 3 3;
+}
+
+.spark-tip-rect {
+  fill: #0f4c5c;
+}
+
+.spark-tip-value {
+  fill: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.spark-tip-date {
+  fill: rgba(255, 255, 255, 0.8);
+  font-size: 10px;
 }
 
 /* Sound toggle */
