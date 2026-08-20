@@ -383,12 +383,17 @@ function App() {
     const normalizedName = normalizeSearchText(customer.name)
     const normalizedPhone = customer.phone.replace(/\D+/g, '')
     const compactNeedle = needle.replace(/\s+/g, '')
+    const compactName = normalizedName.replace(/\s+/g, '')
 
-    return (
-      normalizedName.includes(needle) ||
-      normalizedName.replace(/\s+/g, '').includes(compactNeedle) ||
-      normalizedPhone.includes(compactNeedle)
-    )
+    if (normalizedPhone.includes(compactNeedle)) {
+      return true
+    }
+
+    if (normalizedName.includes(needle) || compactName.includes(compactNeedle)) {
+      return true
+    }
+
+    return needle.split(' ').every((word) => normalizedName.includes(word))
   })
 
   useEffect(() => {
