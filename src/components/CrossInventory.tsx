@@ -94,7 +94,7 @@ function renderExcludedStores(
   return excluded
 }
 
-export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void }) {
+export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest, onOpenCorrAssoc }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void; onOpenCorrAssoc: () => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
       return localStorage.getItem(STORE_KEY) ?? ''
@@ -1272,6 +1272,9 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                   <span className="badge">{dedupResults.length} duplicati trovati</span>
                 ) : null}
               </div>
+              <button className="cta" type="button" onClick={onOpenCorrAssoc}>
+                Corr. Assoc.
+              </button>
             </div>
           </article>
         </div>

@@ -14,6 +14,7 @@ import { Sparkline } from './components/Sparkline'
 const StoreNotifications = lazy(() => import('./components/StoreNotifications').then(m => ({ default: m.StoreNotifications })))
 const StoreRewardsPage = lazy(() => import('./components/StoreRewardsPage.tsx'))
 const CrossInventory = lazy(() => import('./components/CrossInventory').then(m => ({ default: m.CrossInventory })))
+const CrossAssociations = lazy(() => import('./components/CrossAssociations'))
 import { LoginPage } from './components/LoginPage'
 import { CustomerSidebar } from './components/CustomerSidebar'
 const ConfirmModal = lazy(() => import('./components/ConfirmModal').then(m => ({ default: m.ConfirmModal })))
@@ -2356,7 +2357,11 @@ function App() {
                 } else {
                   setShowTestConfirm(true)
                 }
-              }} />
+              }} onOpenCorrAssoc={() => setStorePage('cross-associations')} />
+            </Suspense>
+          ) : tab === 'cross-associations' ? (
+            <Suspense fallback={null}>
+              <CrossAssociations onBack={() => setStorePage('cross-inventory')} />
             </Suspense>
           ) : tab === 'rewards' ? (
             <Suspense fallback={<StoreRewardsFallback />}>
