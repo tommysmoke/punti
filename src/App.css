@@ -1618,6 +1618,38 @@ time {
   box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.12);
 }
 
+.cross-assoc-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.cross-assoc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  font-size: 0.82rem;
+}
+
+.cross-assoc-row + .cross-assoc-row {
+  border-top: 1px dashed #e8eae4;
+}
+
+.cross-assoc-row:has(.cross-match-barcode-search) {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cross-assoc-alias {
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
 .cross-identified-store {
   font-size: 0.8rem;
   color: var(--text);
