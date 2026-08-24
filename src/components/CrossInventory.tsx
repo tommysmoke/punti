@@ -1551,7 +1551,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                       {testMode && activeFilter !== 'nofiltro' && item.matches.length > 0 ? (
                         (() => {
                           const excluded = renderExcludedStores(
-                            item.matches.flatMap((m) => m.stocks),
+                            item.matches[0]?.stocks ?? [],
                             testMode ? '' : selectedStore,
                             activeFilter,
                           )
@@ -1806,20 +1806,15 @@ function collectStoreButtons(
   filterName: string,
   cartQty?: number,
 ): StoreButton[] {
-  const storeMap = new Map<string, StoreButton>()
+  const bestMatch = matches[0]
+  if (!bestMatch) return []
 
-  for (const m of matches) {
-    for (const s of m.stocks) {
-      if (s.quantity <= 0) continue
-      if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
-      if (!storePassesFilter(s, filterName, cartQty, m.entry)) continue
-      const existing = storeMap.get(s.store)
-      if (existing) {
-        existing.quantity += s.quantity
-      } else {
-        storeMap.set(s.store, { ...s })
-      }
-    }
+  const storeMap = new Map<string, StoreButton>()
+  for (const s of bestMatch.stocks) {
+    if (s.quantity <= 0) continue
+    if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
+    if (!storePassesFilter(s, filterName, cartQty, bestMatch.entry)) continue
+    storeMap.set(s.store, { ...s })
   }
 
   return [...storeMap.values()]
