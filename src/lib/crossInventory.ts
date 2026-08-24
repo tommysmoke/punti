@@ -271,7 +271,24 @@ export function getFilterDays(): { scaricoDays: number; caricoDays: number } {
   }
 }
 
-export function storePassesFilter(stock: StoreStock, filterName: string, requestedQty?: number): boolean {
+const SURPLUS_EXCLUDED_CATEGORY_FRAGMENTS = ['usa&getta', 'coil', 'vetri', 'basi', 'usa e getta']
+const SURPLUS_EXCLUDED_NAME_FRAGMENTS = ['coil', 'ohm', 'ω']
+
+export function isSurplusEligible(entry?: InventoryEntry): boolean {
+  if (!entry) return false
+
+  const category = (entry.category ?? '').trim()
+  if (!category) return false
+  const categoryLower = category.toLowerCase()
+  if (SURPLUS_EXCLUDED_CATEGORY_FRAGMENTS.some((f) => categoryLower.includes(f))) return false
+
+  const nameLower = (entry.product_name ?? '').toLowerCase()
+  if (SURPLUS_EXCLUDED_NAME_FRAGMENTS.some((f) => nameLower.includes(f))) return false
+
+  return true
+}
+
+export function storePassesFilter(stock: StoreStock, filterName: string, requestedQty?: number, entry?: InventoryEntry): boolean {
   if (filterName === 'nofiltro') return true
   const now = new Date()
   const { scaricoDays, caricoDays } = getFilterDays()
@@ -289,6 +306,7 @@ export function storePassesFilter(stock: StoreStock, filterName: string, request
   if (caricoRecent) return false
 
   if (scaricoRecent && !caricoRecent) {
+    if (!isSurplusEligible(entry)) return false
     if (stock.quantity >= 5) return true
     if (requestedQty !== undefined && requestedQty >= 3 && stock.quantity > requestedQty * 2) return true
     return false
@@ -333,7 +351,7 @@ export function getFilterRejection(stock: StoreStock, filterName: string): strin
     const days = Math.floor((now.getTime() - scaricoDate.getTime()) / (1000 * 60 * 60 * 24))
     if (days < scaricoDays && !caricoDate) return `🕐 Ultimo scarico: ${days}gg fa (min ${scaricoDays}gg)`
     if (days < scaricoDays && caricoDate && (Math.floor((now.getTime() - caricoDate.getTime()) / (1000 * 60 * 60 * 24)) >= caricoDays)) {
-      if (stock.quantity < 4) return `🕐 Giacenza bassa per smaltimento (${stock.quantity} disp.)`
+      if (stock.quantity < 5) return `🕐 Giacenza bassa per smaltimento (${stock.quantity} disp.)`
     }
   }
 
@@ -709,7 +727,7 @@ export function rankStoresForBasket(
       if (stock.store === currentStore.toLowerCase()) continue
       if (stock.quantity <= 0) continue
       if (seen.has(stock.store)) continue
-      if (!storePassesFilter(stock, filterName, item.quantity)) continue
+      if (!storePassesFilter(stock, filterName, item.quantity, bestMatch.entry)) continue
       seen.add(stock.store)
 
       const label = stock.label

@@ -1465,7 +1465,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                             (() => {
                               const manual = manualMatches.get(item.name)!
                               const manualButtons = manual.stores
-                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()) && storePassesFilter(s, activeFilter))
+                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()) && storePassesFilter(s, activeFilter, undefined, manual.entry))
                               return manualButtons.length > 0 ? (
                                 <>
                                    <p className="cross-match-product">{manual.entry.product_name}</p>
@@ -1514,7 +1514,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                             (() => {
                               const manual = manualMatches.get(item.name)!
                               const manualButtons = manual.stores
-                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()) && storePassesFilter(s, activeFilter))
+                                .filter((s) => s.quantity > 0 && (testMode || s.label.toLowerCase() !== selectedStore.toLowerCase()) && storePassesFilter(s, activeFilter, undefined, manual.entry))
                               return manualButtons.length > 0 ? (
                                 <>
                                    <p className="cross-match-product">{manual.entry.product_name}</p>
@@ -1812,7 +1812,7 @@ function collectStoreButtons(
     for (const s of m.stocks) {
       if (s.quantity <= 0) continue
       if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
-      if (!storePassesFilter(s, filterName, cartQty)) continue
+      if (!storePassesFilter(s, filterName, cartQty, m.entry)) continue
       const existing = storeMap.get(s.store)
       if (existing) {
         existing.quantity += s.quantity
