@@ -289,8 +289,8 @@ export function storePassesFilter(stock: StoreStock, filterName: string, request
   if (caricoRecent) return false
 
   if (scaricoRecent && !caricoRecent) {
-    if (stock.quantity >= 4) return true
-    if (requestedQty !== undefined && requestedQty >= 3 && stock.quantity >= requestedQty * 2) return true
+    if (stock.quantity >= 5) return true
+    if (requestedQty !== undefined && requestedQty >= 3 && stock.quantity > requestedQty * 2) return true
     return false
   }
 
