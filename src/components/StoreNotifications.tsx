@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import styles from './StoreNotifications.module.css'
 
@@ -36,6 +36,7 @@ export function StoreNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const sendingRef = useRef(false)
 
   // Get current user's store
   const [storeId, setStoreId] = useState<string | null>(null)
@@ -100,6 +101,8 @@ export function StoreNotifications() {
   }
 
   async function handleSendNotification() {
+    if (sendingRef.current) return
+
     if (!title.trim() || !message.trim()) {
       setError('Titolo e messaggio sono obbligatori')
       return
@@ -114,6 +117,8 @@ export function StoreNotifications() {
       setError('Supabase non configurato')
       return
     }
+
+    sendingRef.current = true
 
     try {
       setSending(true)
@@ -209,6 +214,7 @@ export function StoreNotifications() {
       
       setError(errorMessage || 'Errore nell\'invio della notifica')
     } finally {
+      sendingRef.current = false
       setSending(false)
     }
   }
