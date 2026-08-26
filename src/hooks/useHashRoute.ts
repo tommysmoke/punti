@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const STORE_PAGE_VALUES = ['operations', 'new-customer', 'rewards', 'communications', 'cross-inventory', 'cross-associations', 'cliente'] as const
+const STORE_PAGE_VALUES = ['operations', 'new-customer', 'rewards', 'communications', 'cross-inventory', 'cross-associations', 'liquid-calc', 'cliente'] as const
 type StorePage = (typeof STORE_PAGE_VALUES)[number]
 
 function isValidStorePage(value: string): value is StorePage {

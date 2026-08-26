@@ -1650,6 +1650,77 @@ time {
   word-break: break-word;
 }
 
+.liquid-calc-wrap {
+  overflow-x: auto;
+}
+
+.liquid-calc-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 480px;
+}
+
+.liquid-calc-table th {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-h);
+  padding: 0.3rem 0.25rem;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.2;
+}
+
+.liquid-calc-table td {
+  padding: 0.25rem;
+}
+
+.liquid-calc-table td.liquid-calc-desc {
+  width: 32%;
+}
+
+.liquid-calc-table input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 2.2rem;
+  font-size: 0.88rem;
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+}
+
+.liquid-calc-table td.liquid-calc-desc input {
+  text-align: left;
+}
+
+.liquid-calc-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.liquid-calc-toolbar select {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.liquid-calc-result {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.liquid-calc-result td {
+  padding: 0.35rem 0.4rem;
+  font-size: 0.9rem;
+  border-top: 1px dashed #e8eae4;
+}
+
+.liquid-calc-result td.right {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .cross-identified-store {
   font-size: 0.8rem;
   color: var(--text);
