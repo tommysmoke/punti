@@ -1658,6 +1658,7 @@ time {
   width: 100%;
   border-collapse: collapse;
   min-width: 480px;
+  table-layout: fixed;
 }
 
 .liquid-calc-table th {
@@ -1674,8 +1675,12 @@ time {
   padding: 0.25rem;
 }
 
-.liquid-calc-table td.liquid-calc-desc {
-  width: 32%;
+.liquid-calc-table .liquid-calc-num {
+  width: 4rem;
+}
+
+.liquid-calc-table .liquid-calc-nic {
+  width: 4.5rem;
 }
 
 .liquid-calc-table input,

@@ -75,10 +75,10 @@ export default function LiquidCalculator() {
             <thead>
               <tr>
                 <th className="liquid-calc-desc">Descrizione</th>
-                <th>qta<br />ml</th>
-                <th>VG<br />%</th>
-                <th>PG<br />%</th>
-                <th>nicotina<br />mg/ml</th>
+                <th className="liquid-calc-num">qta<br />ml</th>
+                <th className="liquid-calc-num">VG<br />%</th>
+                <th className="liquid-calc-num">PG<br />%</th>
+                <th className="liquid-calc-nic">nicotina<br />mg/ml</th>
               </tr>
             </thead>
             <tbody>
