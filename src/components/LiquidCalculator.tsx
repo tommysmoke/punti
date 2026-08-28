@@ -7,11 +7,13 @@ interface LiquidRow {
   qta: string
   vgl: string
   prg: string
-  alt: string
   nic: string
 }
 
-const EMPTY_ROW: LiquidRow = { des: '', qta: '0', vgl: '0', prg: '0', alt: '0', nic: '0' }
+const EMPTY_ROW: LiquidRow = { des: '', qta: '', vgl: '0', prg: '0', nic: '0' }
+
+const PERC_OPTIONS = ['0', '50', '100']
+const NIC_OPTIONS = ['0', '9', '20']
 
 function parseNum(value: string): number {
   const n = Number(String(value).replace(',', '.'))
@@ -44,7 +46,6 @@ export default function LiquidCalculator() {
     let totLiq = 0
     let totVgl = 0
     let totPrg = 0
-    let totAlt = 0
     let totNic = 0
     for (const r of rows) {
       const qta = parseNum(r.qta)
@@ -52,12 +53,11 @@ export default function LiquidCalculator() {
         totLiq += qta
         totVgl += (qta / 100) * parseNum(r.vgl)
         totPrg += (qta / 100) * parseNum(r.prg)
-        totAlt += (qta / 100) * parseNum(r.alt)
         totNic += qta * parseNum(r.nic)
       }
     }
     const gradNic = totLiq > 0 ? totNic / totLiq : 0
-    return { totLiq, totVgl, totPrg, totAlt, gradNic }
+    return { totLiq, totVgl, totPrg, gradNic }
   }, [rows])
 
   const nicColor = result.gradNic > 20 ? 'red' : result.gradNic > 10 ? 'brown' : result.gradNic > 5 ? 'darkorange' : 'green'
@@ -78,7 +78,6 @@ export default function LiquidCalculator() {
                 <th>qta<br />ml</th>
                 <th>VG<br />%</th>
                 <th>PG<br />%</th>
-                <th>altro<br />%</th>
                 <th>nicotina<br />mg/ml</th>
               </tr>
             </thead>
@@ -99,39 +98,32 @@ export default function LiquidCalculator() {
                       inputMode="decimal"
                       value={row.qta}
                       onChange={(e) => updateRow(index, 'qta', e.target.value)}
+                      placeholder="0"
                     />
                   </td>
                   <td>
-                    <input
-                      type="text"
-                      inputMode="decimal"
+                    <select
                       value={row.vgl}
                       onChange={(e) => updateRow(index, 'vgl', e.target.value)}
-                    />
+                    >
+                      {PERC_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
                   </td>
                   <td>
-                    <input
-                      type="text"
-                      inputMode="decimal"
+                    <select
                       value={row.prg}
                       onChange={(e) => updateRow(index, 'prg', e.target.value)}
-                    />
+                    >
+                      {PERC_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
                   </td>
                   <td>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={row.alt}
-                      onChange={(e) => updateRow(index, 'alt', e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      inputMode="decimal"
+                    <select
                       value={row.nic}
                       onChange={(e) => updateRow(index, 'nic', e.target.value)}
-                    />
+                    >
+                      {NIC_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
                   </td>
                 </tr>
               ))}
@@ -159,11 +151,6 @@ export default function LiquidCalculator() {
                   <td>Glicole prop.</td>
                   <td className="right">{round(result.totPrg, 2)} ml</td>
                   <td className="right">{round((100 / result.totLiq) * result.totPrg, 1)} %</td>
-                </tr>
-                <tr>
-                  <td>Altro</td>
-                  <td className="right">{round(result.totAlt, 2)} ml</td>
-                  <td className="right">{round((100 / result.totLiq) * result.totAlt, 1)} %</td>
                 </tr>
                 <tr>
                   <td>Totale liquido</td>

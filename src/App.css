@@ -1678,7 +1678,8 @@ time {
   width: 32%;
 }
 
-.liquid-calc-table input {
+.liquid-calc-table input,
+.liquid-calc-table select {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
