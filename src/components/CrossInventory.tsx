@@ -73,25 +73,31 @@ function extractSender(title: string): string | null {
   return match ? match[1] : null
 }
 
-function renderExcludedStores(
+function renderStoreDebug(
   stocks: { store: string; label: string; quantity: number; lastCarico: string | null; lastScarico: string | null }[],
   currentStore: string,
   filterName: string,
-): { store: string; label: string; reason: string }[] {
+  entry: InventoryEntry | undefined,
+): { store: string; label: string; quantity: number; carico: string; scarico: string; passes: boolean; reason: string | null }[] {
   if (filterName === 'nofiltro') return []
   const seen = new Set<string>()
-  const excluded: { store: string; label: string; reason: string }[] = []
+  const rows: { store: string; label: string; quantity: number; carico: string; scarico: string; passes: boolean; reason: string | null }[] = []
   for (const s of stocks) {
     if (s.quantity <= 0) continue
     if (s.label.toLowerCase() === currentStore.toLowerCase()) continue
     if (seen.has(s.store)) continue
     seen.add(s.store)
-    const reason = getFilterRejection(s, filterName)
-    if (reason) {
-      excluded.push({ store: s.store, label: s.label, reason })
-    }
+    rows.push({
+      store: s.store,
+      label: s.label,
+      quantity: s.quantity,
+      carico: s.lastCarico ?? '-',
+      scarico: s.lastScarico ?? '-',
+      passes: storePassesFilter(s, filterName, undefined, entry),
+      reason: getFilterRejection(s, filterName),
+    })
   }
-  return excluded
+  return rows
 }
 
 export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest, onOpenCorrAssoc }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void; onOpenCorrAssoc: () => void }) {
@@ -1550,18 +1556,23 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                       )}
                       {testMode && activeFilter !== 'nofiltro' && item.matches.length > 0 ? (
                         (() => {
-                          const excluded = renderExcludedStores(
+                          const debug = renderStoreDebug(
                             item.matches[0]?.stocks ?? [],
                             testMode ? '' : selectedStore,
                             activeFilter,
+                            item.matches[0]?.entry,
                           )
-                          return excluded.length > 0 ? (
+                          return debug.length > 0 ? (
                             <div className="cross-excluded-debug">
-                              <p className="cross-excluded-title">Esclusi dal filtro:</p>
-                              {excluded.map((e) => (
-                                <div key={e.store} className="cross-excluded-item">
-                                  <span className="cross-excluded-store">{e.label}</span>
-                                  <span className="cross-excluded-reason">{e.reason}</span>
+                              <p className="cross-excluded-title">Stato negozi (test):</p>
+                              {debug.map((s) => (
+                                <div key={s.store} className="cross-excluded-item">
+                                  <span className="cross-excluded-store">
+                                    {s.label} ({s.quantity} disp.) {s.passes ? '✓' : '✗'}
+                                  </span>
+                                  <span className="cross-excluded-reason">
+                                    carico: {s.carico} · scarico: {s.scarico}{s.reason ? ` · ${s.reason}` : ''}
+                                  </span>
                                 </div>
                               ))}
                             </div>

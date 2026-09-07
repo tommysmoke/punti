@@ -39,5 +39,22 @@ importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox
 if (workbox) {
   workbox.core.skipWaiting()
   workbox.core.clientsClaim()
+
+  // Navigazioni (HTML): network-first, così un reload prende sempre la versione
+  // appena deployata invece del vecchio index.html in cache.
+  workbox.routing.registerRoute(
+    ({ request }) => request.mode === 'navigate',
+    new workbox.strategies.NetworkFirst({
+      cacheName: 'punti-navigation',
+      networkTimeoutSeconds: 4,
+      plugins: [
+        new workbox.expiration.ExpirationPlugin({
+          maxEntries: 10,
+          maxAgeSeconds: 60 * 60, // 1 ora
+        }),
+      ],
+    }),
+  )
+
   workbox.precaching.precacheAndRoute(self.__WB_MANIFEST || [])
 }
