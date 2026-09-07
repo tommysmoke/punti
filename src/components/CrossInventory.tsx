@@ -100,6 +100,13 @@ function renderStoreDebug(
   return rows
 }
 
+function classifyRequest(title: string): { type: 'request' | 'response' | 'summary'; label: string } {
+  if (title.startsWith('Richiesta da')) return { type: 'request', label: 'DA RISPONDERE' }
+  if (title.startsWith('Risposta da')) return { type: 'response', label: 'RISPOSTA' }
+  if (title.startsWith('Riepilogo')) return { type: 'summary', label: 'RIEPILOGO' }
+  return { type: 'response', label: 'NOTIFICA' }
+}
+
 export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest, onOpenCorrAssoc }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void; onOpenCorrAssoc: () => void }) {
   const [selectedStore, setSelectedStore] = useState(() => {
     try {
@@ -1670,11 +1677,16 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                     ) : null}
                   </div>
                    <ul className="cross-received-list">
-                     {visibleReceived.map((req) => (
+                     {visibleReceived.map((req) => {
+                       const cls = classifyRequest(req.title)
+                       return (
                        <li key={req.id}>
-                         <div className="cross-received-item">
+                         <div className={`cross-received-item cross-received-item--${cls.type}`}>
                            <div className="cross-received-item-main">
-                             <strong>{req.title}</strong>
+                             <div className="cross-received-title-row">
+                               <strong>{req.title}</strong>
+                               <span className={`cross-received-badge cross-received-badge--${cls.type}`}>{cls.label}</span>
+                             </div>
                              <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
                              <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                             </div>
@@ -1685,8 +1697,8 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                               title="Nascondi"
                               style={{ fontSize: '0.85rem', lineHeight: 1, padding: '0.2rem 0.35rem' }}
                             >&#10005;</button>
-                            {req.title.startsWith('Richiesta da') ? (
-                              <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
+                            {cls.type === 'request' ? (
+                              <button className="ghost small cross-received-reply" type="button" onClick={() => openReply(req)} title="Rispondi">
                                 &#8630;
                               </button>
                             ) : null}
@@ -1710,8 +1722,9 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                             </div>
                           ) : null}
                         </li>
-                      ))}
-                    </ul>
+                       )
+                     })}
+                   </ul>
                   </div>
                 ) : basketMinimized ? (
                  <p className="hint">Nessuna richiesta ricevuta.</p>
@@ -1729,11 +1742,16 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
               </div>
                {visibleReceived.length > 0 ? (
                  <ul className="cross-received-list">
-                   {visibleReceived.map((req) => (
+                   {visibleReceived.map((req) => {
+                     const cls = classifyRequest(req.title)
+                     return (
                      <li key={req.id}>
-                       <div className="cross-received-item">
+                       <div className={`cross-received-item cross-received-item--${cls.type}`}>
                          <div className="cross-received-item-main">
-                           <strong>{req.title}</strong>
+                           <div className="cross-received-title-row">
+                             <strong>{req.title}</strong>
+                             <span className={`cross-received-badge cross-received-badge--${cls.type}`}>{cls.label}</span>
+                           </div>
                            <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
                            <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                            </div>
@@ -1744,8 +1762,8 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                              title="Nascondi"
                              style={{ fontSize: '0.85rem', lineHeight: 1, padding: '0.2rem 0.35rem' }}
                            >&#10005;</button>
-                            {req.title.startsWith('Richiesta da') ? (
-                             <button className="ghost small" type="button" onClick={() => openReply(req)} title="Rispondi">
+                            {cls.type === 'request' ? (
+                             <button className="ghost small cross-received-reply" type="button" onClick={() => openReply(req)} title="Rispondi">
                                &#8630;
                              </button>
                            ) : null}
@@ -1769,11 +1787,12 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                            </div>
                          ) : null}
                        </li>
-                     ))}
-                   </ul>
-                 ) : (
-                   <p className="hint no-top">Nessuna richiesta ricevuta.</p>
-                 )}
+                     )
+                   })}
+                 </ul>
+               ) : (
+                 <p className="hint no-top">Nessuna richiesta ricevuta.</p>
+               )}
             </article>
           )}
         </aside>
