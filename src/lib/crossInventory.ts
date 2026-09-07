@@ -215,48 +215,47 @@ const MAX_SCARICO_DAYS = 90
 const MAX_CARICO_DAYS = 105
 const FILTER2_IDLE_DAYS = 120
 
+function buildDate(y: number, m: number, d: number): Date | null {
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null
+  if (y < 2000 || y > 2100) return null
+  if (m < 1 || m > 12) return null
+  if (d < 1 || d > 31) return null
+  const daysInMonth = new Date(y, m, 0).getDate()
+  if (d > daysInMonth) return null
+  return new Date(y, m - 1, d)
+}
+
 export function parseDate(d: string | null): Date | null {
   if (!d) return null
 
-  const raw = d.trim()
+  const raw = String(d).trim()
   if (!raw) return null
 
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  // ISO / year-first with dashes: yyyy-mm-dd (optionally followed by time)
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
   if (isoMatch) {
-    const y = Number(isoMatch[1])
-    const m = Number(isoMatch[2])
-    const day = Number(isoMatch[3])
-    if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12 && day >= 1 && day <= 31) {
-      const date = new Date(y, m - 1, day)
-      if (date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === day) {
-        return date
-      }
-    }
+    const date = buildDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]))
+    if (date) return date
   }
 
-  const parts = raw.split(/[\/\.\-\s]+/)
-  if (parts.length >= 3) {
-    const a = Number(parts[0])
-    const b = Number(parts[1])
-    const c = Number(parts[2])
+  // Split on / . - or whitespace
+  const parts = raw.split(/[\/\.\-\s]+/).filter(Boolean)
+  if (parts.length < 3) return null
 
-    if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c)) return null
+  const a = Number(parts[0])
+  const b = Number(parts[1])
+  const c = Number(parts[2])
 
-    if (a > 31 && b >= 1 && b <= 12 && c >= 1 && c <= 31) {
-      const date = new Date(a, b - 1, c)
-      if (date.getFullYear() === a) return date
-    }
+  if (!Number.isInteger(a) || !Number.isInteger(b) || !Number.isInteger(c)) return null
 
-    if (a === 2 && b >= 1 && b <= 12 && c >= 1000) {
-      return null
-    }
+  // Year first: yyyy/mm/dd, yyyy.mm.dd, yyyy mm dd
+  if (a >= 1000 && a <= 2100) {
+    return buildDate(a, b, c)
+  }
 
-    if (c >= 1000 && c <= 2100 && a >= 1 && a <= 31 && b >= 1 && b <= 12) {
-      const date = new Date(c, b - 1, a)
-      if (date.getFullYear() === c) return date
-    }
-
-    return null
+  // Year last: dd/mm/yyyy (Italian format from Easyfatt)
+  if (c >= 1000 && c <= 2100) {
+    return buildDate(c, b, a)
   }
 
   return null
