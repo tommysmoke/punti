@@ -1901,6 +1901,11 @@ time {
   background: linear-gradient(90deg, #e9f2f4, transparent 45%);
 }
 
+.cross-received-item--responded {
+  border-left-color: #2e8b57;
+  background: linear-gradient(90deg, #eaf5ee, transparent 45%);
+}
+
 .cross-received-title-row {
   display: flex;
   align-items: center;
@@ -1928,6 +1933,10 @@ time {
 
 .cross-received-badge--summary {
   background: #0f4c5c;
+}
+
+.cross-received-badge--responded {
+  background: #2e8b57;
 }
 
 .cross-received-reply {
