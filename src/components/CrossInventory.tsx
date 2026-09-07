@@ -155,6 +155,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     { productName: string; barcode: string | null; quantity: number }[]
   >([])
   const [basketMinimized, setBasketMinimized] = useState(false)
+  const [sendingRequest, setSendingRequest] = useState(false)
 
   const addToBasket = (productName: string, barcode: string | null, qty = 1, maxQty?: number) => {
     const capped = maxQty != null ? Math.min(qty, maxQty) : qty
@@ -186,10 +187,12 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   }
 
   const sendBasketRequest = async () => {
-    if (!supabase || !profile?.store_id || requestBasket.length === 0) return
+    if (!supabase || !profile?.store_id || requestBasket.length === 0 || sendingRequest) return
+    setSendingRequest(true)
     const items = requestBasket.map((i) => ({ name: i.productName, quantity: i.quantity, barcode: i.barcode }))
     const ranking = rankStoresForBasket(items, allInventory, selectedStore, activeFilter)
     if (ranking.length === 0) {
+      setSendingRequest(false)
       pushToast('error', 'Nessun negozio disponibile per gli item nel carrello')
       return
     }
@@ -252,6 +255,8 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       setActiveFilter('filter1')
     } catch {
       pushToast('error', 'Invio richiesta non riuscito')
+    } finally {
+      setSendingRequest(false)
     }
   }
 
@@ -1647,9 +1652,10 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                     className="cta"
                     type="button"
                     onClick={() => sendBasketRequest()}
+                    disabled={sendingRequest}
                     style={{ marginTop: '0.5rem', width: '100%' }}
                   >
-                    Invia richiesta
+                    {sendingRequest ? 'Invio...' : 'Invia richiesta'}
                   </button>
                 </>
               ) : null}
