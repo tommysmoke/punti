@@ -27,7 +27,9 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
 const STORE_KEY = 'punti-cross-identified-store'
 const STORE_IDENTIFIED_KEY = 'punti-cross-identified'
 const FULFILLED_KEY = 'punti-cross-fulfilled-ids'
-const RESPONDED_KEY = 'punti-cross-responded-ids'
+const RESPONDED_KEY = 'punti-cross-responded-at'
+
+const AUTO_DISMISS_MS = 12 * 60 * 60 * 1000
 
 interface ReceivedRequest {
   id: number
@@ -52,18 +54,18 @@ function setFulfilledIds(ids: Set<number>) {
   } catch { /* ignore */ }
 }
 
-function getRespondedIds(): Set<number> {
+function getRespondedAt(): Record<number, string> {
   try {
     const raw = localStorage.getItem(RESPONDED_KEY)
-    return raw ? new Set(JSON.parse(raw) as number[]) : new Set()
+    return raw ? (JSON.parse(raw) as Record<number, string>) : {}
   } catch {
-    return new Set()
+    return {}
   }
 }
 
-function setRespondedIds(ids: Set<number>) {
+function setRespondedAt(map: Record<number, string>) {
   try {
-    localStorage.setItem(RESPONDED_KEY, JSON.stringify([...ids]))
+    localStorage.setItem(RESPONDED_KEY, JSON.stringify(map))
   } catch { /* ignore */ }
 }
 
@@ -174,7 +176,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [receivedRequests, setReceivedRequests] = useState<ReceivedRequest[]>([])
   const [showSvuotaConfirm, setShowSvuotaConfirm] = useState(false)
   const [fulfilledIds, setFulfilledIdsState] = useState<Set<number>>(() => getFulfilledIds())
-  const [respondedIds, setRespondedIdsState] = useState<Set<number>>(() => getRespondedIds())
+  const [respondedAt, setRespondedAtState] = useState<Record<number, string>>(() => getRespondedAt())
 
   const [requestBasket, setRequestBasket] = useState<
     { productName: string; barcode: string | null; quantity: number }[]
@@ -344,13 +346,37 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   }
 
   const markResponded = (id: number) => {
-    const next = new Set(respondedIds)
-    next.add(id)
-    setRespondedIds(next)
-    setRespondedIdsState(next)
+    const next = { ...respondedAt, [id]: new Date().toISOString() }
+    setRespondedAt(next)
+    setRespondedAtState(next)
   }
 
-  const visibleReceived = receivedRequests.filter((r) => !fulfilledIds.has(r.id))
+  const visibleReceived = useMemo(() => {
+    const now = new Date().getTime()
+    const active: ReceivedRequest[] = []
+    const rest: ReceivedRequest[] = []
+    for (const req of receivedRequests) {
+      if (fulfilledIds.has(req.id)) continue
+      const base = classifyRequest(req.title)
+      const respondedTs = respondedAt[req.id]
+      const responded = base.type === 'request' && respondedTs !== undefined
+
+      let autoDismiss = false
+      if (base.type === 'summary') {
+        autoDismiss = now - new Date(req.created_at).getTime() > AUTO_DISMISS_MS
+      } else if (responded) {
+        autoDismiss = now - new Date(respondedTs).getTime() > AUTO_DISMISS_MS
+      }
+      if (autoDismiss) continue
+
+      if (base.type === 'request' && !responded) {
+        active.push(req)
+      } else {
+        rest.push(req)
+      }
+    }
+    return [...active, ...rest]
+  }, [receivedRequests, fulfilledIds, respondedAt])
 
   const [expandedReplyId, setExpandedReplyId] = useState<number | null>(null)
   const [replyItems, setReplyItems] = useState<{ productName: string; barcode: string | null; quantity: number }[]>([])
@@ -1707,7 +1733,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                    <ul className="cross-received-list">
                      {visibleReceived.map((req) => {
                        const base = classifyRequest(req.title)
-                       const responded = base.type === 'request' && respondedIds.has(req.id)
+                       const responded = base.type === 'request' && respondedAt[req.id] !== undefined
                        const cls = responded ? { type: 'responded', label: 'RISPOSTO' } : base
                        return (
                        <li key={req.id}>
@@ -1774,7 +1800,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                  <ul className="cross-received-list">
                    {visibleReceived.map((req) => {
                      const base = classifyRequest(req.title)
-                     const responded = base.type === 'request' && respondedIds.has(req.id)
+                     const responded = base.type === 'request' && respondedAt[req.id] !== undefined
                      const cls = responded ? { type: 'responded', label: 'RISPOSTO' } : base
                      return (
                      <li key={req.id}>

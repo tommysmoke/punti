@@ -358,6 +358,19 @@ function App() {
     })
   }
 
+  const openCrossInventory = () => {
+    setDismissedNotificationIds((prev) => {
+      const next = new Set(prev)
+      for (const cr of crossRequests) {
+        next.add(cr.id)
+      }
+      const arr = [...next]
+      localStorage.setItem('comms_dismissed', JSON.stringify(arr))
+      return arr
+    })
+    setStorePage('cross-inventory')
+  }
+
   const pointsPreview = useMemo(() => {
     const amount = Number(expenseAmount)
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -1896,7 +1909,7 @@ function App() {
           {visibleCrossRequests.length > 0 ? (
             <div className="cross-requests-banner">
               {visibleCrossRequests.map((cr) => (
-                <div key={cr.id} className="comms-banner cross-request-banner" onClick={() => setStorePage('cross-inventory')} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') setStorePage('cross-inventory') }}>
+                <div key={cr.id} className="comms-banner cross-request-banner" onClick={openCrossInventory} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') openCrossInventory() }}>
                   <span className="comms-banner-dot" aria-hidden="true"></span>
                   <div className="comms-banner-text">
                     <span className="comms-banner-title">{cr.title}</span>
@@ -1943,7 +1956,7 @@ function App() {
             <button
               type="button"
               className={`ghost small ${tab === 'cross-inventory' ? 'active-tab' : ''}`}
-              onClick={() => setStorePage('cross-inventory')}
+              onClick={openCrossInventory}
             >
               Cross-Inventory
             </button>
