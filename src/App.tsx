@@ -1955,17 +1955,17 @@ function App() {
             </button>
             <button
               type="button"
-              className={`ghost small ${tab === 'cross-inventory' ? 'active-tab' : ''}`}
-              onClick={openCrossInventory}
-            >
-              Cross-Inventory
-            </button>
-            <button
-              type="button"
               className={`ghost small ${tab === 'liquid-calc' ? 'active-tab' : ''}`}
               onClick={() => setStorePage('liquid-calc')}
             >
               Calc. Liquidi
+            </button>
+            <button
+              type="button"
+              className={`ghost small ${tab === 'cross-inventory' ? 'active-tab' : ''}`}
+              onClick={openCrossInventory}
+            >
+              Cross-Inventory
             </button>
           </section>
 
