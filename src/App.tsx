@@ -1766,21 +1766,23 @@ function App() {
               <p>{profile.store_id}</p>
             </details>
           ) : null}
-          {import.meta.env.VITE_GIT_SHA ? (
+          {role === 'store' && import.meta.env.VITE_GIT_SHA ? (
             <details className="store-code-box">
               <summary>Versione</summary>
               <p>{import.meta.env.VITE_GIT_SHA.slice(0, 7)}</p>
             </details>
           ) : null}
-          <span
-            className={`sound-toggle${soundEnabled ? ' on' : ''}`}
-            onClick={toggleSound}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter') toggleSound() }}
-          >
-            {soundEnabled ? '🔊' : '🔇'}
-          </span>
+          {role === 'store' ? (
+            <span
+              className={`sound-toggle${soundEnabled ? ' on' : ''}`}
+              onClick={toggleSound}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter') toggleSound() }}
+            >
+              {soundEnabled ? '🔊' : '🔇'}
+            </span>
+          ) : null}
           <button className="ghost small" type="button" onClick={logout}>
             Logout
           </button>
