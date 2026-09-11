@@ -8,6 +8,7 @@ import { buildUsername, isValidBirthDayMonth } from './lib/username'
 import { loadSoundPreference, playEarnSound, playRedeemSound, playSuccessSound, saveSoundPreference, setSoundEnabled } from './lib/sounds'
 import { useAppState } from './hooks/useAppState'
 import { useHashRoute } from './hooks/useHashRoute'
+import { usePullToRefresh } from './hooks/usePullToRefresh'
 import type { Customer, Movement, Profile, Reward, Toast } from './hooks/useAppState'
 import { Sparkline } from './components/Sparkline'
 
@@ -754,6 +755,15 @@ function App() {
     setCustomers(data ? [data as Customer] : [])
     await loadCustomerMovements(customerId)
   }
+
+  const refreshCustomerHome = async () => {
+    if (!profile?.customer_id) return
+    await loadCustomerHome(profile.customer_id)
+    const storeId = customers.find((c) => c.id === profile.customer_id)?.store_id
+    if (storeId) await loadCustomerRewards(storeId)
+  }
+
+  const { pullDistance, refreshing } = usePullToRefresh(refreshCustomerHome, role === 'customer')
 
   const bootstrapFromProfile = async (nextProfile: Profile) => {
     perfStart(`bootstrap:${nextProfile.role}`)
@@ -2439,6 +2449,12 @@ function App() {
                 </div>
               ))}
             </div>
+          </div>
+        ) : null}
+        {(pullDistance > 0 || refreshing) ? (
+          <div className="pull-refresh-indicator" style={{ transform: `translateY(${refreshing ? 56 : pullDistance}px)` }}>
+            <span className="pull-refresh-spinner" aria-hidden="true"></span>
+            {refreshing ? 'Aggiornamento…' : pullDistance >= 70 ? 'Rilascia per aggiornare' : 'Trascina per aggiornare'}
           </div>
         ) : null}
         <section className="grid customer-view">
