@@ -303,6 +303,7 @@ function App() {
   const [balancePop, setBalancePop] = useState(false)
 
   const [crossRequests, setCrossRequests] = useState<{ id: number; title: string; body: string; created_at: string }[]>([])
+  const [redeemSummary, setRedeemSummary] = useState<{ points_cost: number; total_count: number; month_count: number }[]>([])
   const [testMode, setTestMode] = useState(() => {
     try {
       return localStorage.getItem('punti-cross-test-mode') === '1'
@@ -524,6 +525,16 @@ function App() {
     setCustomerMovements((data ?? []) as Movement[])
   }
 
+  const loadRedeemSummary = async (storeId: string) => {
+    if (!supabase) return
+    const { data, error } = await supabase.rpc('get_store_redeem_summary', { p_store_id: storeId })
+    if (error) {
+      console.warn('Errore caricamento riepilogo premi:', error.message)
+      return
+    }
+    setRedeemSummary((data ?? []) as { points_cost: number; total_count: number; month_count: number }[])
+  }
+
   const loadRewards = async (storeId: string) => {
     if (!supabase) return
     const { data } = await supabase
@@ -532,6 +543,7 @@ function App() {
       .eq('store_id', storeId)
       .order('points_cost', { ascending: true })
     setRewards((data ?? []) as Reward[])
+    await loadRedeemSummary(storeId)
   }
 
   const loadCustomerRewards = async (storeId: string) => {
@@ -1626,6 +1638,7 @@ function App() {
       pushToast('success', `${redeem} punti redenti`)
       if (profile?.store_id) {
         await loadStoreCustomers(profile.store_id)
+        await loadRedeemSummary(profile.store_id)
       }
     } finally {
       setRedeemingPoints(false)
@@ -2405,6 +2418,7 @@ function App() {
               <StoreRewardsPage
                 loadingData={loadingData}
                 rewards={rewards}
+                redeemSummary={redeemSummary}
                 newRewardName={newRewardName}
                 newRewardDescription={newRewardDescription}
                 newRewardPoints={newRewardPoints}

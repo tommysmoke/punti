@@ -1,9 +1,12 @@
 import type { FormEvent } from 'react'
 import type { Reward } from '../hooks/useAppState'
 
+type RedeemSummaryRow = { points_cost: number; total_count: number; month_count: number }
+
 type Props = {
   loadingData: boolean
   rewards: Reward[]
+  redeemSummary: RedeemSummaryRow[]
   newRewardName: string
   newRewardDescription: string
   newRewardPoints: string
@@ -20,6 +23,7 @@ type Props = {
 function StoreRewardsPage({
   loadingData,
   rewards,
+  redeemSummary,
   newRewardName,
   newRewardDescription,
   newRewardPoints,
@@ -32,6 +36,8 @@ function StoreRewardsPage({
   onRewardPointsChange,
   onSubmit,
 }: Props) {
+  const summaryByCost = new Map(redeemSummary.map((s) => [s.points_cost, s]))
+
   return (
     <section className="store-single-page">
       <article className="card">
@@ -110,6 +116,44 @@ function StoreRewardsPage({
             {addingReward ? 'Aggiunta premio...' : 'Aggiungi premio'}
           </button>
         </form>
+      </article>
+
+      <article className="card">
+        <h2>Riepilogo utilizzi premi</h2>
+        <div className="redeem-summary">
+          <div className="redeem-summary-col">
+            <h3>Totale</h3>
+            {rewards.length > 0 ? (
+              rewards.map((reward) => {
+                const s = summaryByCost.get(reward.points_cost)
+                return (
+                  <p key={reward.id} className="redeem-summary-row">
+                    <span className="redeem-summary-name">{reward.name}</span>
+                    <span className="redeem-summary-count">{s?.total_count ?? 0} volte</span>
+                  </p>
+                )
+              })
+            ) : (
+              <p className="hint">Nessun premio configurato</p>
+            )}
+          </div>
+          <div className="redeem-summary-col">
+            <h3>Questo mese</h3>
+            {rewards.length > 0 ? (
+              rewards.map((reward) => {
+                const s = summaryByCost.get(reward.points_cost)
+                return (
+                  <p key={reward.id} className="redeem-summary-row">
+                    <span className="redeem-summary-name">{reward.name}</span>
+                    <span className="redeem-summary-count">{s?.month_count ?? 0} volte</span>
+                  </p>
+                )
+              })
+            ) : (
+              <p className="hint">Nessun premio configurato</p>
+            )}
+          </div>
+        </div>
       </article>
     </section>
   )

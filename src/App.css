@@ -839,6 +839,52 @@ time {
   padding: 0.55rem 0.65rem;
 }
 
+.redeem-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+}
+
+.redeem-summary-col h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-h);
+}
+
+.redeem-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.35rem 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 0.86rem;
+}
+
+.redeem-summary-row:last-child {
+  border-bottom: none;
+}
+
+.redeem-summary-name {
+  min-width: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.redeem-summary-count {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+@media (max-width: 640px) {
+  .redeem-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 .ghost.small.danger {
   border-color: #e0c0c0;
   color: #a11c1c;
