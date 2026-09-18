@@ -1,7 +1,9 @@
 -- Riepilogo utilizzi premi per il profilo store.
 -- Conta le redenzioni (kind='redeem') di ogni cliente del negozio,
 -- raggruppate per valore punti (che corrisponde a un premio specifico).
--- Include anche la proiezione annuale basata sulla media mensile dell'anno corrente.
+-- Include anche la proiezione annuale basata sulla media mensile dell'anno corrente,
+-- con fattore di smorzamento k=0.6 (pseudo-mesi) per ridurre l'estrapolazione
+-- quando lo storico è corto.
 
 drop function if exists public.get_store_redeem_summary(uuid);
 
@@ -49,21 +51,28 @@ begin
   );
 
   return query
+  with redeem_counts as (
+    select
+      abs(t.points)::integer as points_cost,
+      count(*)::bigint as total_count,
+      count(*) filter (where date_trunc('month', t.created_at) = date_trunc('month', now()))::bigint as month_count,
+      count(*) filter (where date_trunc('year', t.created_at) = date_trunc('year', now()))::bigint as year_count
+    from public.point_transactions t
+    join public.customers c on c.id = t.customer_id
+    where c.store_id = p_store_id
+      and t.kind = 'redeem'
+    group by abs(t.points)::integer
+  )
   select
-    abs(t.points)::integer as points_cost,
-    count(*)::bigint as total_count,
-    count(*) filter (where date_trunc('month', t.created_at) = date_trunc('month', now()))::bigint as month_count,
-    count(*) filter (where date_trunc('year', t.created_at) = date_trunc('year', now()))::bigint as year_count,
-    round(
-      count(*) filter (where date_trunc('year', t.created_at) = date_trunc('year', now()))::numeric
-      * 12.0 / v_denominator::numeric,
-      1
-    )::double precision as year_projection
-  from public.point_transactions t
-  join public.customers c on c.id = t.customer_id
-  where c.store_id = p_store_id
-    and t.kind = 'redeem'
-  group by abs(t.points)::integer
+    points_cost,
+    total_count,
+    month_count,
+    year_count,
+    case
+      when v_denominator >= 12 then year_count::double precision
+      else round(year_count::numeric * 12.0 / (v_denominator::numeric + 0.6), 1)::double precision
+    end as year_projection
+  from redeem_counts
   order by points_cost;
 end;
 $$;
