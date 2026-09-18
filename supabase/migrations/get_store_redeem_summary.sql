@@ -64,16 +64,16 @@ begin
     group by abs(t.points)::integer
   )
   select
-    points_cost,
-    total_count,
-    month_count,
-    year_count,
+    rc.points_cost,
+    rc.total_count,
+    rc.month_count,
+    rc.year_count,
     case
-      when v_denominator >= 12 then year_count::double precision
-      else round(year_count::numeric * 12.0 / (v_denominator::numeric + 0.6), 1)::double precision
+      when v_denominator >= 12 then rc.year_count::double precision
+      else round(rc.year_count::numeric * 12.0 / (v_denominator::numeric + 0.6), 1)::double precision
     end as year_projection
-  from redeem_counts
-  order by points_cost;
+  from redeem_counts rc
+  order by rc.points_cost;
 end;
 $$;
 
