@@ -128,7 +128,7 @@ function StoreRewardsPage({
                 const s = summaryByCost.get(reward.points_cost)
                 return (
                   <p key={reward.id} className="redeem-summary-row">
-                    <span className="redeem-summary-name">{reward.name}</span>
+                    <span className="redeem-summary-name">{reward.points_cost} punti</span>
                     <span className="redeem-summary-count">{s?.total_count ?? 0} volte</span>
                   </p>
                 )
@@ -144,7 +144,7 @@ function StoreRewardsPage({
                 const s = summaryByCost.get(reward.points_cost)
                 return (
                   <p key={reward.id} className="redeem-summary-row">
-                    <span className="redeem-summary-name">{reward.name}</span>
+                    <span className="redeem-summary-name">{reward.points_cost} punti</span>
                     <span className="redeem-summary-count">{s?.month_count ?? 0} volte</span>
                   </p>
                 )
@@ -160,7 +160,7 @@ function StoreRewardsPage({
                 const s = summaryByCost.get(reward.points_cost)
                 return (
                   <p key={reward.id} className="redeem-summary-row">
-                    <span className="redeem-summary-name">{reward.name}</span>
+                    <span className="redeem-summary-name">{reward.points_cost} punti</span>
                     <span className="redeem-summary-count">{s?.year_projection ?? 0}/anno</span>
                   </p>
                 )
