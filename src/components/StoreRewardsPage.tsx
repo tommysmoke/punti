@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react'
 import type { Reward } from '../hooks/useAppState'
 
-type RedeemSummaryRow = { points_cost: number; total_count: number; month_count: number }
+type RedeemSummaryRow = { points_cost: number; total_count: number; month_count: number; year_count: number; year_projection: number }
 
 type Props = {
   loadingData: boolean
@@ -146,6 +146,22 @@ function StoreRewardsPage({
                   <p key={reward.id} className="redeem-summary-row">
                     <span className="redeem-summary-name">{reward.name}</span>
                     <span className="redeem-summary-count">{s?.month_count ?? 0} volte</span>
+                  </p>
+                )
+              })
+            ) : (
+              <p className="hint">Nessun premio configurato</p>
+            )}
+          </div>
+          <div className="redeem-summary-col">
+            <h3>Prospettiva annuale</h3>
+            {rewards.length > 0 ? (
+              rewards.map((reward) => {
+                const s = summaryByCost.get(reward.points_cost)
+                return (
+                  <p key={reward.id} className="redeem-summary-row">
+                    <span className="redeem-summary-name">{reward.name}</span>
+                    <span className="redeem-summary-count">{s?.year_projection ?? 0}/anno</span>
                   </p>
                 )
               })

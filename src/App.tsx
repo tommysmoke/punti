@@ -303,7 +303,7 @@ function App() {
   const [balancePop, setBalancePop] = useState(false)
 
   const [crossRequests, setCrossRequests] = useState<{ id: number; title: string; body: string; created_at: string }[]>([])
-  const [redeemSummary, setRedeemSummary] = useState<{ points_cost: number; total_count: number; month_count: number }[]>([])
+  const [redeemSummary, setRedeemSummary] = useState<{ points_cost: number; total_count: number; month_count: number; year_count: number; year_projection: number }[]>([])
   const [testMode, setTestMode] = useState(() => {
     try {
       return localStorage.getItem('punti-cross-test-mode') === '1'
@@ -532,7 +532,7 @@ function App() {
       console.warn('Errore caricamento riepilogo premi:', error.message)
       return
     }
-    setRedeemSummary((data ?? []) as { points_cost: number; total_count: number; month_count: number }[])
+    setRedeemSummary((data ?? []) as { points_cost: number; total_count: number; month_count: number; year_count: number; year_projection: number }[])
   }
 
   const loadRewards = async (storeId: string) => {
