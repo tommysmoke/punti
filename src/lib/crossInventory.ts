@@ -697,7 +697,7 @@ function substringBonus(a: string, b: string): number {
 
 /**
  * Ranks other stores by how well they can fulfill a basket of items.
- * Bologna gets a 0.7 penalty to stay near the bottom.
+ * Bologna gets a 0.3 multiplier (70% penalty) to stay near the bottom.
  */
 export function rankStoresForBasket(
   basket: { name: string; barcode: string | null; quantity: number }[],
@@ -735,7 +735,7 @@ export function rankStoresForBasket(
   }
 
   if (storeScores['Bologna']) {
-    storeScores['Bologna'] *= 0.7
+    storeScores['Bologna'] *= 0.3
   }
 
   return Object.entries(storeScores)

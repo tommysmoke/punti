@@ -466,7 +466,8 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       return
     }
 
-    const timerExpired = new Date().getTime() - new Date(req.timer_started).getTime() > 90 * 60 * 1000
+    const timeoutMs = currentStore === 'Bologna' ? 35 * 60 * 1000 : 65 * 60 * 1000
+    const timerExpired = new Date().getTime() - new Date(req.timer_started).getTime() > timeoutMs
 
     if (timerExpired) {
       if (req.current_index + 1 >= req.ranking.length) {
