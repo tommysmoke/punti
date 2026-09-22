@@ -1999,6 +1999,16 @@ time {
   background: linear-gradient(90deg, #eaf5ee, transparent 45%);
 }
 
+.cross-received-item--receipt {
+  border-left-color: #7b5ea7;
+  background: linear-gradient(90deg, #f1ecf8, transparent 45%);
+}
+
+.cross-received-item--timeout {
+  border-left-color: #b0554b;
+  background: linear-gradient(90deg, #f9ecea, transparent 45%);
+}
+
 .cross-received-title-row {
   display: flex;
   align-items: center;
@@ -2030,6 +2040,25 @@ time {
 
 .cross-received-badge--responded {
   background: #2e8b57;
+}
+
+.cross-received-badge--receipt {
+  background: #7b5ea7;
+}
+
+.cross-received-badge--timeout {
+  background: #b0554b;
+}
+
+.cross-received-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .cross-received-reply {

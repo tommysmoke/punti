@@ -118,10 +118,12 @@ function renderStoreDebug(
   return rows
 }
 
-function classifyRequest(title: string): { type: 'request' | 'response' | 'summary'; label: string } {
+function classifyRequest(title: string): { type: 'request' | 'response' | 'summary' | 'receipt' | 'timeout'; label: string } {
   if (title.startsWith('Richiesta da')) return { type: 'request', label: 'DA RISPONDERE' }
   if (title.startsWith('Risposta da')) return { type: 'response', label: 'RISPOSTA' }
   if (title.startsWith('Riepilogo')) return { type: 'summary', label: 'RIEPILOGO' }
+  if (title.startsWith('Da consegnare a')) return { type: 'receipt', label: 'DA CONSEGNARE' }
+  if (title.startsWith('Non hai fatto in tempo')) return { type: 'timeout', label: 'SCADUTO' }
   return { type: 'response', label: 'NOTIFICA' }
 }
 
@@ -380,6 +382,16 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
 
   const [expandedReplyId, setExpandedReplyId] = useState<number | null>(null)
   const [replyItems, setReplyItems] = useState<{ productName: string; barcode: string | null; quantity: number }[]>([])
+  const [expandedBodies, setExpandedBodies] = useState<Set<number>>(new Set())
+
+  const toggleBody = (id: number) => {
+    setExpandedBodies((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const [activeFilter, setActiveFilter] = useState('filter1')
 
@@ -409,7 +421,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const confirmReply = async () => {
     const fromStore = expandedReplyId ? extractSender(visibleReceived.find((r) => r.id === expandedReplyId)?.title ?? '') : ''
     const items = replyItems.filter((item) => item.quantity > 0)
-    if (!supabase || !profile?.store_id || !fromStore || items.length === 0) return
+    if (!supabase || !profile?.store_id || !fromStore) return
     const bodyLines = items.map((item) => `${item.quantity} ${item.productName}${item.barcode ? ` (${item.barcode})` : ''}`)
     const body = `Conferma invio:\n${bodyLines.join('\n')}`
     try {
@@ -426,7 +438,17 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
         pushToast('error', `Invio risposta a ${fromStore} non riuscito`)
         return
       }
-      pushToast('success', `Risposta inviata a ${fromStore}`)
+      if (items.length > 0) {
+        await supabase.from('store_notifications').insert({
+          store_id: profile.store_id,
+          kind: 'cross_request',
+          target_store: selectedStore,
+          title: `Da consegnare a ${fromStore}`,
+          body: `Da consegnare:\n${bodyLines.join('\n')}`,
+          created_by: profile.id,
+        })
+      }
+      pushToast('success', items.length === 0 ? `Confermato a ${fromStore}: nessun prodotto disponibile` : `Risposta inviata a ${fromStore}`)
       if (expandedReplyId) markResponded(expandedReplyId)
       closeReply()
     } catch {
@@ -470,6 +492,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     const timerExpired = new Date().getTime() - new Date(req.timer_started).getTime() > timeoutMs
 
     if (timerExpired) {
+      await markStoreTimeout(req, currentStore)
       if (req.current_index + 1 >= req.ranking.length) {
         await completeActiveRequest(req)
       } else {
@@ -540,7 +563,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
       }
     }
 
-    const allConfirmed = [...(req.confirmed as any[]), { store: storeName, items: newConfirmed }]
+    const allConfirmed = [...(req.confirmed as any[]), { store: storeName, items: newConfirmed, status: newConfirmed.length === 0 ? 'empty' : 'confirmed' }]
 
     if (remaining.length === 0 || req.current_index + 1 >= req.ranking.length) {
       const unconfirmed = remaining.length > 0 ? remaining : []
@@ -559,6 +582,22 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const advanceToNextStore = async (req: any) => {
     const remaining = (req.remaining as { name: string; quantity: number; barcode: string | null }[]).map((r) => ({ ...r }))
     await advanceToNextStoreInChain(req, remaining)
+  }
+
+  const markStoreTimeout = async (req: any, storeName: string) => {
+    if (!supabase) return
+    const allConfirmed = [...(req.confirmed as any[]), { store: storeName, items: [], status: 'timeout' }]
+    req.confirmed = allConfirmed
+    await supabase.from('active_cross_requests').update({ confirmed: allConfirmed }).eq('id', req.id)
+    await updatePartialAggregate(req, allConfirmed, req.remaining)
+    await supabase.from('store_notifications').insert({
+      store_id: req.requesting_store_id,
+      kind: 'cross_request',
+      target_store: storeName,
+      title: 'Non hai fatto in tempo',
+      body: `Non hai risposto in tempo alla richiesta da ${req.requesting_store}.`,
+      created_by: req.created_by,
+    })
   }
 
   const advanceToNextStoreInChain = async (req: any, remaining: { name: string; quantity: number; barcode: string | null }[]) => {
@@ -644,15 +683,22 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   }
 
   function buildAggregateBody(
-    confirmed: { store: string; items: { name: string; quantity: number; barcode: string | null }[] }[],
+    confirmed: { store: string; items: { name: string; quantity: number; barcode: string | null }[]; status?: 'confirmed' | 'empty' | 'timeout' }[],
     unconfirmed: { name: string; quantity: number; barcode: string | null }[],
   ): string {
     const sections: string[] = []
     for (const c of confirmed) {
-      if (c.items.length === 0) continue
-      sections.push(`Ricevuto da ${c.store}:`)
-      for (const item of c.items) {
-        sections.push(`${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
+      if (c.status === 'timeout') {
+        sections.push(`${c.store}: non ha risposto in tempo`)
+      } else if (c.status === 'empty') {
+        sections.push(`${c.store}: non invia nulla`)
+      } else if (c.items.length > 0) {
+        sections.push(`Ricevuto da ${c.store}:`)
+        for (const item of c.items) {
+          sections.push(`${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
+        }
+      } else {
+        continue
       }
       sections.push('')
     }
@@ -1740,11 +1786,18 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                        <li key={req.id}>
                          <div className={`cross-received-item cross-received-item--${cls.type}`}>
                            <div className="cross-received-item-main">
-                             <div className="cross-received-title-row">
-                               <strong>{req.title}</strong>
-                               <span className={`cross-received-badge cross-received-badge--${cls.type}`}>{cls.label}</span>
-                             </div>
-                             <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
+                              <div className="cross-received-title-row">
+                                <strong>{req.title}</strong>
+                                <span className={`cross-received-badge cross-received-badge--${cls.type}`}>{cls.label}</span>
+                                {responded ? (
+                                  <button className="cross-received-toggle" type="button" onClick={() => toggleBody(req.id)} title={expandedBodies.has(req.id) ? 'Nascondi dettagli' : 'Mostra dettagli'}>
+                                    {expandedBodies.has(req.id) ? '▾' : '▸'}
+                                  </button>
+                                ) : null}
+                              </div>
+                              {(!responded || expandedBodies.has(req.id)) ? (
+                                <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
+                              ) : null}
                              <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                             </div>
                             <button
@@ -1771,10 +1824,10 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                                   </li>
                                 ))}
                               </ul>
-                              {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
+                              {replyItems.length === 0 ? <p className="hint">Nessun prodotto selezionato: confermerai che non puoi fornire alcun elemento.</p> : null}
                               <div className="modal-actions">
                                 <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
-                                <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
+                                <button className="cta" type="button" onClick={confirmReply}>Conferma invio</button>
                               </div>
                             </div>
                           ) : null}
@@ -1807,11 +1860,18 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                      <li key={req.id}>
                        <div className={`cross-received-item cross-received-item--${cls.type}`}>
                          <div className="cross-received-item-main">
-                           <div className="cross-received-title-row">
-                             <strong>{req.title}</strong>
-                             <span className={`cross-received-badge cross-received-badge--${cls.type}`}>{cls.label}</span>
-                           </div>
-                           <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
+                            <div className="cross-received-title-row">
+                              <strong>{req.title}</strong>
+                              <span className={`cross-received-badge cross-received-badge--${cls.type}`}>{cls.label}</span>
+                              {responded ? (
+                                <button className="cross-received-toggle" type="button" onClick={() => toggleBody(req.id)} title={expandedBodies.has(req.id) ? 'Nascondi dettagli' : 'Mostra dettagli'}>
+                                  {expandedBodies.has(req.id) ? '▾' : '▸'}
+                                </button>
+                              ) : null}
+                            </div>
+                            {(!responded || expandedBodies.has(req.id)) ? (
+                              <p style={{ whiteSpace: 'pre-wrap' }}>{req.body}</p>
+                            ) : null}
                            <time>{new Date(req.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time>
                            </div>
                            <button
@@ -1838,10 +1898,10 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                                  </li>
                                ))}
                              </ul>
-                             {replyItems.length === 0 ? <p className="error">Nessun prodotto da confermare.</p> : null}
+                             {replyItems.length === 0 ? <p className="hint">Nessun prodotto selezionato: confermerai che non puoi fornire alcun elemento.</p> : null}
                              <div className="modal-actions">
                                <button className="ghost" type="button" onClick={closeReply}>Annulla</button>
-                               <button className="cta" type="button" onClick={confirmReply} disabled={replyItems.length === 0}>Conferma invio</button>
+                               <button className="cta" type="button" onClick={confirmReply}>Conferma invio</button>
                              </div>
                            </div>
                          ) : null}
