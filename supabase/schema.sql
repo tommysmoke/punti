@@ -319,6 +319,18 @@ begin
     raise exception 'Permesso negato';
   end if;
 
+  -- Blocco promozionale 2026: se ha già redento nella finestra, non può aggiungere punti.
+  if now() < ('2026-11-01 00:01:00'::timestamp at time zone 'Europe/Rome')
+     and exists (
+       select 1 from public.point_transactions t
+       where t.customer_id = p_customer_id
+         and t.kind = 'redeem'
+         and t.created_at >= ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
+         and t.created_at <= ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome')
+     ) then
+    raise exception 'Non puoi aggiungere punti fino al 01/11/2026';
+  end if;
+
   v_points := floor(p_amount_eur / 7);
 
   if v_points <= 0 then
@@ -349,6 +361,7 @@ as $$
 declare
   v_store_id uuid;
   v_current_points integer;
+  v_remaining integer;
 begin
   if p_points is null or p_points <= 0 then
     raise exception 'Punti non validi';
@@ -372,6 +385,18 @@ begin
     raise exception 'Permesso negato';
   end if;
 
+  -- Blocco promozionale 2026: se ha già redento nella finestra, non può scaricare.
+  if now() < ('2026-11-01 00:01:00'::timestamp at time zone 'Europe/Rome')
+     and exists (
+       select 1 from public.point_transactions t
+       where t.customer_id = p_customer_id
+         and t.kind = 'redeem'
+         and t.created_at >= ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
+         and t.created_at <= ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome')
+     ) then
+    raise exception 'Non puoi scaricare punti fino al 01/11/2026';
+  end if;
+
   if v_current_points < p_points then
     raise exception 'Saldo punti insufficiente';
   end if;
@@ -382,6 +407,20 @@ begin
   update public.customers
   set points = points - p_points
   where id = p_customer_id;
+
+  -- Azzeramento totale: solo se la redenzione avviene dentro la finestra.
+  if now() between
+       ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
+       and ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome') then
+    v_remaining := v_current_points - p_points;
+    if v_remaining > 0 then
+      insert into public.point_transactions (customer_id, kind, points, note)
+      values (p_customer_id, 'adjust', -v_remaining, 'Azzeramento totale');
+      update public.customers
+      set points = 0
+      where id = p_customer_id;
+    end if;
+  end if;
 end;
 $$;
 
