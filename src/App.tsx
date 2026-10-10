@@ -751,7 +751,10 @@ function App() {
 
   const updateIgPromo = async (customerId: number, value: boolean) => {
     if (!supabase) return
-    const { error } = await supabase.from('customers').update({ ig_promo: value }).eq('id', customerId)
+    const { error } = await supabase.rpc('set_customer_ig_promo', {
+      p_customer_id: customerId,
+      p_value: value,
+    })
     if (error) {
       pushToast('error', 'Aggiornamento promo IG non riuscito')
       return
