@@ -19,6 +19,7 @@ type Customer = {
   birth_day_month: string | null
   username: string | null
   notes: string | null
+  ig_promo: boolean
   created_at: string | null
   updated_at: string | null
 }

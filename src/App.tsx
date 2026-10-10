@@ -674,7 +674,7 @@ function App() {
     while (true) {
       const { data, error } = await supabase
         .from('customers')
-        .select('id, store_id, name, phone, points, birth_day_month, notes, created_at, updated_at')
+        .select('id, store_id, name, phone, points, birth_day_month, notes, ig_promo, created_at, updated_at')
         .eq('store_id', storeId)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .order('id', { ascending: false })
@@ -749,6 +749,35 @@ function App() {
     await loadCustomerMovements(currentSelectedId)
   }
 
+  const updateIgPromo = async (customerId: number, value: boolean) => {
+    if (!supabase) return
+    const { error } = await supabase.from('customers').update({ ig_promo: value }).eq('id', customerId)
+    if (error) {
+      pushToast('error', 'Aggiornamento promo IG non riuscito')
+      return
+    }
+    setCustomers((prev) => prev.map((c) => (c.id === customerId ? { ...c, ig_promo: value } : c)))
+  }
+
+  const toggleIgPromo = (customer: Customer) => {
+    if (customer.ig_promo) {
+      setConfirmModal({
+        action: 'ig-promo-reset',
+        message: `Confermi di ripristinare a verde la promo IG per ${customer.name}?`,
+        customerId: customer.id,
+      })
+    } else {
+      updateIgPromo(customer.id, true)
+    }
+  }
+
+  const confirmIgPromoReset = async () => {
+    if (!supabase || !confirmModal?.customerId) return
+    const customerId = confirmModal.customerId
+    setConfirmModal(null)
+    await updateIgPromo(customerId, false)
+  }
+
   const loadCustomerHome = async (customerId: number) => {
     if (!supabase) {
       return
@@ -756,7 +785,7 @@ function App() {
 
     const { data, error } = await supabase
       .from('customers')
-      .select('id, store_id, name, phone, points')
+      .select('id, store_id, name, phone, points, ig_promo')
       .eq('id', customerId)
       .single()
 
@@ -1865,6 +1894,7 @@ function App() {
               else if (action === 'delete-transaction') await confirmDeleteTransaction()
               else if (action === 'delete-customer') await confirmDeleteCustomer()
               else if (action === 'delete-reward') await confirmDeleteReward()
+              else if (action === 'ig-promo-reset') await confirmIgPromoReset()
             }}
           />
         </Suspense>
@@ -2090,7 +2120,16 @@ function App() {
                         ) : null}
 
                         {selectedStoreCustomer.username ? (
-                          <p className="hint no-top">Username: {selectedStoreCustomer.username}</p>
+                          <p className="hint no-top" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            Username: {selectedStoreCustomer.username}
+                            <button
+                              type="button"
+                              className={`ig-promo-dot${selectedStoreCustomer.ig_promo ? ' on' : ''}`}
+                              onClick={() => toggleIgPromo(selectedStoreCustomer)}
+                              title={selectedStoreCustomer.ig_promo ? 'Promo IG usata (clicca per ripristinare a verde)' : 'Promo IG non usata (clicca per segnare usata)'}
+                              aria-label={selectedStoreCustomer.ig_promo ? 'Promo IG usata' : 'Promo IG non usata'}
+                            />
+                          </p>
                         ) : null}
                       </div>
                     )}

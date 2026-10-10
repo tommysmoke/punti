@@ -24,8 +24,11 @@ create table if not exists public.customers (
   points integer not null default 0,
   birth_day_month text not null default '01/01',
   notes text,
+  ig_promo boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+alter table public.customers add column if not exists ig_promo boolean not null default false;
 
 create table if not exists public.point_transactions (
   id bigint generated always as identity primary key,

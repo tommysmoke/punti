@@ -444,6 +444,23 @@ select {
   font-size: 0.86rem;
 }
 
+.ig-promo-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: #2e8b57;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  box-shadow: 0 0 0 2px rgba(46, 139, 87, 0.25);
+}
+
+.ig-promo-dot.on {
+  background: #d9534f;
+  box-shadow: 0 0 0 2px rgba(217, 83, 79, 0.25);
+}
+
 .creation-summary {
   display: grid;
   gap: 0.4rem;

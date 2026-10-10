@@ -6,6 +6,7 @@ type ConfirmAction =
   | 'delete-transaction'
   | 'delete-customer'
   | 'delete-reward'
+  | 'ig-promo-reset'
 
 type ConfirmModalState = {
   action: ConfirmAction
