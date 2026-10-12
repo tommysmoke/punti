@@ -1,0 +1,4 @@
+project_id = "punti"
+
+[functions.cross-cascade-tick]
+verify_jwt = false

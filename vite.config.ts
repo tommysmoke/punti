@@ -2,6 +2,19 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+function pwaWorkerSingleBundleCompatibility() {
+  return {
+    name: 'pwa-worker-single-bundle-compatibility',
+    config(config: import('vite').UserConfig) {
+      const output = config.build?.rollupOptions?.output
+      if (!output || Array.isArray(output)) return
+
+      delete output.inlineDynamicImports
+      output.codeSplitting = false
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/punti/',
@@ -14,6 +27,9 @@ export default defineConfig({
       filename: 'sw.js',
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        buildPlugins: {
+          vite: [pwaWorkerSingleBundleCompatibility()],
+        },
       },
       includeAssets: [
         'favicon.ico',

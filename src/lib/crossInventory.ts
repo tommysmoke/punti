@@ -723,7 +723,8 @@ export function rankStoresForBasket(
     const seen = new Set<string>()
 
     for (const stock of bestMatch.stocks) {
-      if (stock.store === currentStore.toLowerCase()) continue
+      // currentStore è l'etichetta ("San Lazzaro"), stock.store la chiave ("san_lazzaro").
+      if (stock.label.toLowerCase() === currentStore.toLowerCase() || stock.store === currentStore.toLowerCase()) continue
       if (stock.quantity <= 0) continue
       if (seen.has(stock.store)) continue
       if (!storePassesFilter(stock, filterName, item.quantity, bestMatch.entry)) continue

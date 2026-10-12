@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react
 import { supabase } from '../lib/supabase'
 import { parseEasyfattCSV } from '../lib/csvParser'
 import { parseCart } from '../lib/cartParser'
+import { buildCrossRequestBody, parseCrossRequestBody } from '../../supabase/functions/_shared/crossCascade'
 import {
   matchCartAgainstInventory,
   getStoreColumnName,
@@ -37,6 +38,7 @@ interface ReceivedRequest {
   body: string
   created_at: string
   target_store: string
+  closed_at: string | null
 }
 
 function getFulfilledIds(): Set<number> {
@@ -67,23 +69,6 @@ function setRespondedAt(map: Record<number, string>) {
   try {
     localStorage.setItem(RESPONDED_KEY, JSON.stringify(map))
   } catch { /* ignore */ }
-}
-
-function parseRequestBody(body: string): { productName: string; barcode: string | null; quantity: number }[] {
-  const lines = body.split('\n').filter((l) => l.trim())
-  const items: { productName: string; barcode: string | null; quantity: number }[] = []
-  for (const line of lines) {
-    if (line.startsWith('Chiede:') || line.startsWith('Conferma')) continue
-    const match = line.match(/^(\d+)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/)
-    if (match) {
-      items.push({
-        quantity: parseInt(match[1], 10) || 1,
-        productName: match[2].trim(),
-        barcode: match[3]?.trim() ?? null,
-      })
-    }
-  }
-  return items
 }
 
 function extractSender(title: string): string | null {
@@ -125,6 +110,15 @@ function classifyRequest(title: string): { type: 'request' | 'response' | 'summa
   if (title.startsWith('Da consegnare a')) return { type: 'receipt', label: 'DA CONSEGNARE' }
   if (title.startsWith('Non hai fatto in tempo')) return { type: 'timeout', label: 'SCADUTO' }
   return { type: 'response', label: 'NOTIFICA' }
+}
+
+// Una richiesta chiusa dal worker (risposta elaborata o scaduta) non è più rispondibile.
+function classifyReceived(req: ReceivedRequest, respondedAt: Record<number, string>): ReturnType<typeof classifyRequest> {
+  const base = classifyRequest(req.title)
+  if (base.type === 'request' && req.closed_at && respondedAt[req.id] === undefined) {
+    return { type: 'timeout', label: 'CHIUSA' }
+  }
+  return base
 }
 
 export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTest, onOpenCorrAssoc }: { profile: Profile | null; pushToast: (type: Toast['type'], message: string) => void; testMode: boolean; onRequestToggleTest: () => void; onOpenCorrAssoc: () => void }) {
@@ -227,55 +221,15 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     }
 
     const firstStore = ranking[0]
-    const bodyLines = items.map((item) => `${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
-    const body = `Chiede:\n${bodyLines.join('\n')}`
 
     try {
-      const { data: requestData, error: notifError } = await supabase.from('store_notifications').insert({
-        store_id: profile.store_id,
-        kind: 'cross_request',
-        target_store: firstStore,
-        title: `Richiesta da ${selectedStore}`,
-        body,
-        created_by: profile.id,
-      }).select('id').single()
-      if (notifError || !requestData) {
-        pushToast('error', 'Invio richiesta non riuscito')
-        return
-      }
-
-      const aggBody = `Richiesta a ${ranking.join(', ')}\n\nIn attesa di risposta da ${firstStore}...`
-      const { data: aggData, error: aggError } = await supabase.from('store_notifications').insert({
-        store_id: profile.store_id,
-        kind: 'cross_request',
-        target_store: selectedStore,
-        title: `Riepilogo richiesta`,
-        body: aggBody,
-        created_by: profile.id,
-      }).select('id').single()
-
-      if (aggError) {
-        pushToast('error', 'Invio richiesta non riuscito (aggregato)')
-        return
-      }
-
-      const { error: activeError } = await supabase.from('active_cross_requests').insert({
-        requesting_store: selectedStore,
-        requesting_store_id: profile.store_id,
-        created_by: profile.id,
-        items,
-        remaining: items.map((i) => ({ ...i })),
-        confirmed: [],
-        ranking,
-        current_index: 0,
-        timer_started: new Date().toISOString(),
-        status: 'active',
-        aggregate_notification_id: aggData.id,
-        current_request_notification_id: requestData.id,
+      const { error } = await supabase.rpc('create_cross_request', {
+        p_requesting_store: selectedStore,
+        p_items: items,
+        p_ranking: ranking,
       })
-
-      if (activeError) {
-        pushToast('error', 'Errore creazione richiesta attiva')
+      if (error) {
+        pushToast('error', `Invio richiesta non riuscito: ${error.message}`)
         return
       }
 
@@ -293,7 +247,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     if (!supabase || !selectedStore) return
     const { data } = await supabase
       .from('store_notifications')
-      .select('id, title, body, created_at, target_store')
+      .select('id, title, body, created_at, target_store, closed_at')
       .eq('kind', 'cross_request')
       .eq('target_store', selectedStore)
       .order('created_at', { ascending: false })
@@ -304,6 +258,32 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   useEffect(() => {
     loadReceivedRequests()
   }, [loadReceivedRequests])
+
+  useEffect(() => {
+    if (!supabase || !selectedStore) return
+    const client = supabase
+    const channel = client
+      .channel(`cross-inventory-notifications-${selectedStore}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'store_notifications', filter: `target_store=eq.${selectedStore}` },
+        () => { void loadReceivedRequests() },
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') void loadReceivedRequests()
+      })
+
+    // Gli eventi persi durante una disconnessione (mobile in background) non vengono rimandati.
+    const reloadWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadReceivedRequests()
+    }
+    document.addEventListener('visibilitychange', reloadWhenVisible)
+
+    return () => {
+      document.removeEventListener('visibilitychange', reloadWhenVisible)
+      void client.removeChannel(channel)
+    }
+  }, [loadReceivedRequests, selectedStore])
 
   const cartUniqueCount = useMemo(() => {
     if (!cartText.trim()) return 0
@@ -359,7 +339,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     const rest: ReceivedRequest[] = []
     for (const req of receivedRequests) {
       if (fulfilledIds.has(req.id)) continue
-      const base = classifyRequest(req.title)
+      const base = classifyReceived(req, respondedAt)
       const respondedTs = respondedAt[req.id]
       const responded = base.type === 'request' && respondedTs !== undefined
 
@@ -396,7 +376,11 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const [activeFilter, setActiveFilter] = useState('filter1')
 
   const openReply = (req: ReceivedRequest) => {
-    const items = parseRequestBody(req.body)
+    const items = parseCrossRequestBody(req.body).map((item) => ({
+      productName: item.name,
+      barcode: item.barcode,
+      quantity: item.quantity,
+    }))
     setReplyItems(items)
     setExpandedReplyId(req.id)
   }
@@ -422,9 +406,24 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     const fromStore = expandedReplyId ? extractSender(visibleReceived.find((r) => r.id === expandedReplyId)?.title ?? '') : ''
     const items = replyItems.filter((item) => item.quantity > 0)
     if (!supabase || !profile?.store_id || !fromStore) return
-    const bodyLines = items.map((item) => `${item.quantity} ${item.productName}${item.barcode ? ` (${item.barcode})` : ''}`)
-    const body = `Conferma invio:\n${bodyLines.join('\n')}`
+    const body = buildCrossRequestBody(items.map((item) => ({
+      name: item.productName,
+      barcode: item.barcode,
+      quantity: item.quantity,
+    })), 'Conferma invio')
     try {
+      const { data: current } = await supabase
+        .from('store_notifications')
+        .select('closed_at')
+        .eq('id', expandedReplyId)
+        .maybeSingle()
+      if (current?.closed_at) {
+        pushToast('error', `La richiesta di ${fromStore} è già chiusa: la risposta non verrebbe conteggiata`)
+        closeReply()
+        void loadReceivedRequests()
+        return
+      }
+
       const { error } = await supabase.from('store_notifications').insert({
         store_id: profile.store_id,
         kind: 'cross_request',
@@ -444,7 +443,11 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
           kind: 'cross_request',
           target_store: selectedStore,
           title: `Da consegnare a ${fromStore}`,
-          body: `Da consegnare:\n${bodyLines.join('\n')}`,
+          body: buildCrossRequestBody(items.map((item) => ({
+            name: item.productName,
+            barcode: item.barcode,
+            quantity: item.quantity,
+          })), 'Da consegnare'),
           created_by: profile.id,
         })
       }
@@ -459,256 +462,6 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
   const closeReply = () => {
     setExpandedReplyId(null)
     setReplyItems([])
-  }
-
-  useEffect(() => {
-    const interval = setInterval(() => { processActiveRequests() }, 30000)
-    return () => clearInterval(interval)
-  }, [selectedStore])
-
-  const processActiveRequests = async () => {
-    if (!supabase || !selectedStore) return
-    const { data: activeRequests } = await supabase
-      .from('active_cross_requests')
-      .select('*')
-      .eq('status', 'active')
-    if (!activeRequests || activeRequests.length === 0) return
-
-    for (const req of activeRequests) {
-      await processOneActiveRequest(req)
-    }
-    if (activeRequests.length > 0) loadReceivedRequests()
-  }
-
-  const processOneActiveRequest = async (req: any) => {
-    if (!supabase) return
-    const currentStore = req.ranking[req.current_index] as string | undefined
-    if (!currentStore) {
-      await completeActiveRequest(req)
-      return
-    }
-
-    const timeoutMs = currentStore === 'Bologna' ? 35 * 60 * 1000 : 65 * 60 * 1000
-    const timerExpired = new Date().getTime() - new Date(req.timer_started).getTime() > timeoutMs
-
-    if (timerExpired) {
-      await markStoreTimeout(req, currentStore)
-      if (req.current_index + 1 >= req.ranking.length) {
-        await completeActiveRequest(req)
-      } else {
-        await advanceToNextStore(req)
-      }
-      return
-    }
-
-    let response: any = null
-
-    if (req.current_request_notification_id) {
-      const { data: byId } = await supabase
-        .from('store_notifications')
-        .select('*')
-        .eq('kind', 'cross_request')
-        .eq('target_store', req.requesting_store)
-        .eq('response_to_request_id', req.current_request_notification_id)
-        .gte('created_at', req.timer_started)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (byId && byId.length > 0) {
-        response = byId[0]
-      }
-    }
-
-    if (!response) {
-      const { data: byTitle } = await supabase
-        .from('store_notifications')
-        .select('*')
-        .eq('kind', 'cross_request')
-        .eq('target_store', req.requesting_store)
-        .eq('title', `Risposta da ${currentStore}`)
-        .gte('created_at', req.timer_started)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (byTitle && byTitle.length > 0) {
-        response = byTitle[0]
-      }
-    }
-
-    if (response) {
-      await handleStoreResponse(req, currentStore, response)
-    }
-  }
-
-  const handleStoreResponse = async (req: any, storeName: string, response: any) => {
-    if (!supabase) return
-    const confirmedItemsFromBody = parseRequestBody(response.body)
-    const remaining = (req.remaining as { name: string; quantity: number; barcode: string | null }[]).map((r) => ({ ...r }))
-
-    const newConfirmed: { name: string; quantity: number; barcode: string | null }[] = []
-
-    for (const confirmed of confirmedItemsFromBody) {
-      const remainingIdx = remaining.findIndex(
-        (r) => r.name === confirmed.productName || (confirmed.barcode && r.barcode === confirmed.barcode),
-      )
-      if (remainingIdx >= 0) {
-        const taken = Math.min(confirmed.quantity, remaining[remainingIdx].quantity)
-        if (taken > 0) {
-          newConfirmed.push({ name: confirmed.productName, quantity: taken, barcode: confirmed.barcode })
-          remaining[remainingIdx].quantity -= taken
-          if (remaining[remainingIdx].quantity <= 0) {
-            remaining.splice(remainingIdx, 1)
-          }
-        }
-      }
-    }
-
-    const allConfirmed = [...(req.confirmed as any[]), { store: storeName, items: newConfirmed, status: newConfirmed.length === 0 ? 'empty' : 'confirmed' }]
-
-    if (remaining.length === 0 || req.current_index + 1 >= req.ranking.length) {
-      const unconfirmed = remaining.length > 0 ? remaining : []
-      await updateAggregateNotification(req, allConfirmed, unconfirmed)
-      await supabase.from('active_cross_requests').update({
-        remaining,
-        confirmed: allConfirmed,
-        status: 'completed',
-      }).eq('id', req.id).eq('current_index', req.current_index)
-    } else {
-      await updatePartialAggregate(req, allConfirmed, remaining)
-      await advanceToNextStoreInChain(req, remaining)
-    }
-  }
-
-  const advanceToNextStore = async (req: any) => {
-    const remaining = (req.remaining as { name: string; quantity: number; barcode: string | null }[]).map((r) => ({ ...r }))
-    await advanceToNextStoreInChain(req, remaining)
-  }
-
-  const markStoreTimeout = async (req: any, storeName: string) => {
-    if (!supabase) return
-    const allConfirmed = [...(req.confirmed as any[]), { store: storeName, items: [], status: 'timeout' }]
-    req.confirmed = allConfirmed
-    await supabase.from('active_cross_requests').update({ confirmed: allConfirmed }).eq('id', req.id)
-    await updatePartialAggregate(req, allConfirmed, req.remaining)
-    await supabase.from('store_notifications').insert({
-      store_id: req.requesting_store_id,
-      kind: 'cross_request',
-      target_store: storeName,
-      title: 'Non hai fatto in tempo',
-      body: `Non hai risposto in tempo alla richiesta da ${req.requesting_store}.`,
-      created_by: req.created_by,
-    })
-  }
-
-  const advanceToNextStoreInChain = async (req: any, remaining: { name: string; quantity: number; barcode: string | null }[]) => {
-    if (!supabase) return
-    const nextIndex = req.current_index + 1
-    const nextStore = req.ranking[nextIndex] as string
-    const bodyLines = remaining.map((r) => `${r.quantity} ${r.name}${r.barcode ? ` (${r.barcode})` : ''}`)
-    const body = `Chiede:\n${bodyLines.join('\n')}`
-
-    // Opzione B: avanzamento atomico nel database (evita i doppioni).
-    try {
-      const { error } = await supabase.rpc('advance_cross_request', {
-        p_request_id: req.id,
-        p_current_index: req.current_index,
-        p_body: body,
-      })
-      if (!error) return
-      console.warn('[CROSS] advance_cross_request fallita, uso il fallback:', error.message)
-    } catch (err) {
-      console.warn('[CROSS] advance_cross_request fallback, errore inatteso:', err)
-    }
-
-    // Fallback (Opzione A): prenota il passo prima, solo il vincitore invia.
-    const { data: claimed } = await supabase
-      .from('active_cross_requests')
-      .update({
-        current_index: nextIndex,
-        timer_started: new Date().toISOString(),
-        current_request_notification_id: null,
-      })
-      .eq('id', req.id)
-      .eq('current_index', req.current_index)
-      .eq('status', 'active')
-      .select('id')
-
-    if (!claimed || claimed.length === 0) return
-
-    const { data: requestData } = await supabase.from('store_notifications').insert({
-      store_id: req.requesting_store_id,
-      kind: 'cross_request',
-      target_store: nextStore,
-      title: `Richiesta da ${req.requesting_store}`,
-      body,
-      created_by: req.created_by,
-    }).select('id').single()
-
-    if (requestData) {
-      await supabase.from('active_cross_requests')
-        .update({ current_request_notification_id: requestData.id })
-        .eq('id', req.id)
-        .eq('current_index', nextIndex)
-    }
-  }
-
-  const completeActiveRequest = async (req: any) => {
-    const remaining = (req.remaining as { name: string; quantity: number; barcode: string | null }[]).map((r) => ({ ...r }))
-    const unconfirmed = remaining.filter((r) => r.quantity > 0)
-    await updateAggregateNotification(req, req.confirmed, unconfirmed)
-    if (!supabase) return
-    await supabase.from('active_cross_requests').update({
-      status: 'completed',
-    }).eq('id', req.id).eq('current_index', req.current_index)
-  }
-
-  const updatePartialAggregate = async (
-    req: any,
-    confirmed: any[],
-    remaining: { name: string; quantity: number; barcode: string | null }[],
-  ) => {
-    if (!req.aggregate_notification_id || !supabase) return
-    const body = buildAggregateBody(confirmed, remaining)
-    await supabase.from('store_notifications').update({ body }).eq('id', req.aggregate_notification_id)
-  }
-
-  const updateAggregateNotification = async (
-    req: any,
-    confirmed: any[],
-    unconfirmed: { name: string; quantity: number; barcode: string | null }[],
-  ) => {
-    if (!req.aggregate_notification_id || !supabase) return
-    const body = buildAggregateBody(confirmed, unconfirmed)
-    await supabase.from('store_notifications').update({ body }).eq('id', req.aggregate_notification_id)
-  }
-
-  function buildAggregateBody(
-    confirmed: { store: string; items: { name: string; quantity: number; barcode: string | null }[]; status?: 'confirmed' | 'empty' | 'timeout' }[],
-    unconfirmed: { name: string; quantity: number; barcode: string | null }[],
-  ): string {
-    const sections: string[] = []
-    for (const c of confirmed) {
-      if (c.status === 'timeout') {
-        sections.push(`${c.store}: non ha risposto in tempo`)
-      } else if (c.status === 'empty') {
-        sections.push(`${c.store}: non invia nulla`)
-      } else if (c.items.length > 0) {
-        sections.push(`Ricevuto da ${c.store}:`)
-        for (const item of c.items) {
-          sections.push(`${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
-        }
-      } else {
-        continue
-      }
-      sections.push('')
-    }
-    if (unconfirmed.length > 0) {
-      sections.push('NON CONFERMATI:')
-      for (const item of unconfirmed) {
-        sections.push(`${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
-      }
-    }
-    return sections.join('\n')
   }
 
   useEffect(() => {
@@ -1779,7 +1532,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                   </div>
                    <ul className="cross-received-list">
                      {visibleReceived.map((req) => {
-                       const base = classifyRequest(req.title)
+                       const base = classifyReceived(req, respondedAt)
                        const responded = base.type === 'request' && respondedAt[req.id] !== undefined
                        const cls = responded ? { type: 'responded', label: 'RISPOSTO' } : base
                        return (
@@ -1853,7 +1606,7 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
                {visibleReceived.length > 0 ? (
                  <ul className="cross-received-list">
                    {visibleReceived.map((req) => {
-                     const base = classifyRequest(req.title)
+                     const base = classifyReceived(req, respondedAt)
                      const responded = base.type === 'request' && respondedAt[req.id] !== undefined
                      const cls = responded ? { type: 'responded', label: 'RISPOSTO' } : base
                      return (
