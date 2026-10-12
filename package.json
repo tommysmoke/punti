@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "build:dashboard-function": "node scripts/build-dashboard-function.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
