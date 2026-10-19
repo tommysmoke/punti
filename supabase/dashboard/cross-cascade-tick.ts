@@ -6,6 +6,7 @@ interface CrossRequestItem {
   name: string
   quantity: number
   barcode: string | null
+  visibleQuantities?: Record<string, number>
 }
 
 interface CrossRequestResult {
@@ -29,8 +30,20 @@ interface CrossRequestStepPlan {
   remaining: CrossRequestItem[]
 }
 
-function buildCrossRequestBody(items: CrossRequestItem[], heading: string): string {
-  const lines = items.map((item) => `${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
+function getCrossRequestItemsForStore(items: CrossRequestItem[], store: string): CrossRequestItem[] {
+  return items.flatMap((item) => {
+    if (!item.visibleQuantities) return [{ ...item }]
+
+    const visibleQuantity = item.visibleQuantities[store] ?? 0
+    if (visibleQuantity <= 0) return []
+
+    return [{ ...item, quantity: Math.min(item.quantity, visibleQuantity) }]
+  })
+}
+
+function buildCrossRequestBody(items: CrossRequestItem[], heading: string, store?: string): string {
+  const visibleItems = store ? getCrossRequestItemsForStore(items, store) : items
+  const lines = visibleItems.map((item) => `${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
   return `${heading}:\n${lines.join('\n')}`
 }
 
@@ -278,9 +291,10 @@ async function findResponse(
 async function transitionRequest(
   client: ReturnType<typeof createClient>,
   request: ActiveCrossRequest,
-  event: 'response' | 'timeout' | 'complete',
+  event: 'response' | 'timeout' | 'complete' | 'skip',
   confirmed: CrossRequestResult[],
   remaining: CrossRequestItem[],
+  nextRequestBody: string | null,
 ): Promise<boolean> {
   const aggregateBody = buildCrossRequestAggregateBody(confirmed, remaining)
   const { data, error } = await client.rpc('transition_cross_request_server', {
@@ -291,7 +305,7 @@ async function transitionRequest(
     p_confirmed: confirmed,
     p_remaining: remaining,
     p_aggregate_body: aggregateBody,
-    p_next_request_body: buildCrossRequestBody(remaining, 'Chiede'),
+    p_next_request_body: nextRequestBody,
   })
 
   if (error) throw error
@@ -301,11 +315,28 @@ async function transitionRequest(
 async function processRequest(client: ReturnType<typeof createClient>, request: ActiveCrossRequest): Promise<boolean> {
   const now = Date.now()
   const currentStore = request.ranking?.[request.current_index] ?? null
-  const response = currentStore ? await findResponse(client, request, currentStore) : null
+  if (!currentStore) return transitionRequest(client, request, 'complete', request.confirmed ?? [], request.remaining ?? [], null)
+
+  const visibleItems = getCrossRequestItemsForStore(request.remaining ?? [], currentStore)
+  if (visibleItems.length === 0) {
+    const nextStore = request.ranking?.[request.current_index + 1] ?? null
+    const nextItems = nextStore ? getCrossRequestItemsForStore(request.remaining ?? [], nextStore) : []
+    const nextRequestBody = nextStore && nextItems.length > 0
+      ? buildCrossRequestBody(request.remaining ?? [], 'Chiede', nextStore)
+      : null
+    return transitionRequest(client, request, 'skip', request.confirmed ?? [], request.remaining ?? [], nextRequestBody)
+  }
+
+  const response = await findResponse(client, request, currentStore)
   const plan = planCrossRequestStep(request, response?.body ?? null, now, response ? Date.parse(response.created_at) : undefined)
   if (plan.event === 'waiting') return false
 
-  return transitionRequest(client, request, plan.event, plan.confirmed, plan.remaining)
+  const nextStore = request.ranking?.[request.current_index + 1] ?? null
+  const nextItems = nextStore ? getCrossRequestItemsForStore(plan.remaining, nextStore) : []
+  const nextRequestBody = nextStore && nextItems.length > 0
+    ? buildCrossRequestBody(plan.remaining, 'Chiede', nextStore)
+    : null
+  return transitionRequest(client, request, plan.event, plan.confirmed, plan.remaining, nextRequestBody)
 }
 
 async function recordRequestError(client: ReturnType<typeof createClient>, requestId: number, cause: unknown): Promise<void> {

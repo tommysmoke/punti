@@ -743,3 +743,31 @@ export function rankStoresForBasket(
     .sort(([, a], [, b]) => b - a)
     .map(([store]) => store)
 }
+
+export function buildCrossRequestVisibility(
+  basket: { name: string; barcode: string | null; quantity: number }[],
+  allInventory: InventoryEntry[],
+  currentStore: string,
+  filterName: string,
+): Record<string, Record<string, number>> {
+  const results = matchCartAgainstInventory(basket.map((item) => item.name), allInventory)
+  const resultMap = new Map<string, MatchResult>()
+  for (const result of results) resultMap.set(result.cartName, result)
+
+  const visibility: Record<string, Record<string, number>> = {}
+  for (const item of basket) {
+    const bestMatch = resultMap.get(item.name)?.matches[0]
+    if (!bestMatch) continue
+
+    const stores: Record<string, number> = {}
+    for (const stock of bestMatch.stocks) {
+      if (stock.label.toLowerCase() === currentStore.toLowerCase()) continue
+      if (stock.quantity <= 0) continue
+      if (!storePassesFilter(stock, filterName, item.quantity, bestMatch.entry)) continue
+      stores[stock.label] = stock.quantity
+    }
+    visibility[item.name] = stores
+  }
+
+  return visibility
+}

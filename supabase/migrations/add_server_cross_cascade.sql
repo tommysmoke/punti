@@ -68,6 +68,17 @@ begin
          and btrim(item.value ->> 'barcode') <> ''
          and btrim(item.value ->> 'barcode') !~ '^[^[:space:]()]{1,64}$'
        )
+       or (
+         item.value ? 'visibleQuantities'
+         and jsonb_typeof(item.value -> 'visibleQuantities') <> 'object'
+       )
+       or exists (
+         select 1
+         from jsonb_each(coalesce(item.value -> 'visibleQuantities', '{}'::jsonb)) as visible(store_name, store_quantity)
+         where visible.store_name not in ('Quarto', 'Castenaso', 'Bologna', 'San Lazzaro')
+            or jsonb_typeof(visible.store_quantity) <> 'number'
+            or visible.store_quantity::text !~ '^[0-9]+$'
+       )
   ) then
     raise exception 'Elenco prodotti non valido';
   end if;
@@ -77,7 +88,11 @@ begin
              'name', btrim(item.value ->> 'name'),
              'quantity', (item.value ->> 'quantity')::int,
              'barcode', nullif(btrim(item.value ->> 'barcode'), '')
-           ) order by item.ord
+           ) || case
+             when item.value ? 'visibleQuantities'
+             then jsonb_build_object('visibleQuantities', item.value -> 'visibleQuantities')
+             else '{}'::jsonb
+           end order by item.ord
          )
   into v_items
   from jsonb_array_elements(p_items) with ordinality as item(value, ord);
@@ -104,11 +119,14 @@ begin
   v_first_store := p_ranking ->> 0;
 
   -- Stesso formato di buildCrossRequestBody / del riepilogo iniziale lato client.
-  select 'Chiede:' || E'\n' || string_agg(
-           (item.value ->> 'quantity') || ' ' || (item.value ->> 'name')
+  select 'Chiede:' || coalesce(E'\n' || string_agg(
+           least(
+             (item.value ->> 'quantity')::int,
+             coalesce(nullif(item.value -> 'visibleQuantities' ->> v_first_store, '')::int, (item.value ->> 'quantity')::int)
+           ) || ' ' || (item.value ->> 'name')
              || coalesce(' (' || (item.value ->> 'barcode') || ')', ''),
            E'\n' order by item.ord
-         )
+         ) filter (where coalesce(nullif(item.value -> 'visibleQuantities' ->> v_first_store, '')::int, (item.value ->> 'quantity')::int) > 0), '')
   into v_request_body
   from jsonb_array_elements(v_items) with ordinality as item(value, ord);
 
@@ -208,7 +226,7 @@ begin
     raise exception 'Permesso negato';
   end if;
 
-  if p_event is null or p_event not in ('response', 'timeout', 'complete') then
+  if p_event is null or p_event not in ('response', 'timeout', 'complete', 'skip') then
     raise exception 'Evento cascade non valido';
   end if;
 
@@ -277,8 +295,22 @@ begin
   end if;
 
   v_next_store := v_req.ranking ->> v_next_index;
-  if v_next_store is null or p_next_request_body is null then
+  if v_next_store is null then
     raise exception 'Prossimo negozio non valido';
+  end if;
+
+  if p_next_request_body is null then
+    update public.active_cross_requests
+    set confirmed = p_confirmed,
+        remaining = p_remaining,
+        current_index = v_next_index,
+        timer_started = now(),
+        current_request_notification_id = null,
+        attempts = 0,
+        last_error = null
+    where id = v_req.id;
+
+    return true;
   end if;
 
   insert into public.store_notifications (store_id, kind, target_store, title, body, created_by)

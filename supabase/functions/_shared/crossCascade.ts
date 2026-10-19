@@ -2,6 +2,7 @@ export interface CrossRequestItem {
   name: string
   quantity: number
   barcode: string | null
+  visibleQuantities?: Record<string, number>
 }
 
 export interface CrossRequestResult {
@@ -25,8 +26,20 @@ export interface CrossRequestStepPlan {
   remaining: CrossRequestItem[]
 }
 
-export function buildCrossRequestBody(items: CrossRequestItem[], heading: string): string {
-  const lines = items.map((item) => `${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
+export function getCrossRequestItemsForStore(items: CrossRequestItem[], store: string): CrossRequestItem[] {
+  return items.flatMap((item) => {
+    if (!item.visibleQuantities) return [{ ...item }]
+
+    const visibleQuantity = item.visibleQuantities[store] ?? 0
+    if (visibleQuantity <= 0) return []
+
+    return [{ ...item, quantity: Math.min(item.quantity, visibleQuantity) }]
+  })
+}
+
+export function buildCrossRequestBody(items: CrossRequestItem[], heading: string, store?: string): string {
+  const visibleItems = store ? getCrossRequestItemsForStore(items, store) : items
+  const lines = visibleItems.map((item) => `${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
   return `${heading}:\n${lines.join('\n')}`
 }
 

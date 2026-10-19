@@ -17,6 +17,7 @@ import {
   getFilterDays,
   isProductAbsentFromStore,
   rankStoresForBasket,
+  buildCrossRequestVisibility,
   type InventoryEntry,
   type MatchResult,
   type DuplicateGroup,
@@ -221,11 +222,16 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     }
 
     const firstStore = ranking[0]
+    const visibility = buildCrossRequestVisibility(items, allInventory, selectedStore, activeFilter)
+    const cascadeItems = items.map((item) => ({
+      ...item,
+      visibleQuantities: visibility[item.name] ?? {},
+    }))
 
     try {
       const { error } = await supabase.rpc('create_cross_request', {
         p_requesting_store: selectedStore,
-        p_items: items,
+        p_items: cascadeItems,
         p_ranking: ranking,
       })
       if (error) {
