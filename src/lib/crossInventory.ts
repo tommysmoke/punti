@@ -705,21 +705,11 @@ export function rankStoresForBasket(
   currentStore: string,
   filterName: string,
 ): string[] {
-  const cartNames = basket.map((item) => item.name)
-  const results = matchCartAgainstInventory(cartNames, allInventory)
-
-  const resultMap = new Map<string, MatchResult>()
-  for (const r of results) {
-    resultMap.set(r.cartName, r)
-  }
-
   const storeScores: Record<string, number> = {}
 
   for (const item of basket) {
-    const result = resultMap.get(item.name)
-    if (!result || result.matches.length === 0) continue
-
-    const bestMatch = result.matches[0]
+    const bestMatch = resolveBasketItem(item, allInventory).match
+    if (!bestMatch) continue
     const seen = new Set<string>()
 
     for (const stock of bestMatch.stocks) {
@@ -744,19 +734,57 @@ export function rankStoresForBasket(
     .map(([store]) => store)
 }
 
-export function buildCrossRequestVisibility(
+export interface CrossRequestProjection {
+  visibility: Record<string, Record<string, number>>
+  errors: Record<string, string>
+}
+
+interface BasketItemResolution {
+  match: MatchResult['matches'][number] | null
+  error: string | null
+}
+
+function resolveBasketItem(
+  item: { name: string; barcode: string | null; quantity: number },
+  allInventory: InventoryEntry[],
+): BasketItemResolution {
+  const barcode = item.barcode?.trim() ?? ''
+  if (barcode) {
+    const barcodeMatches = allInventory.filter((entry) => entry.barcode === barcode)
+    if (barcodeMatches.length > 1) {
+      return { match: null, error: `barcode ${barcode} duplicato su ${barcodeMatches.length} righe inventario` }
+    }
+    if (barcodeMatches.length === 0) {
+      return { match: null, error: `barcode ${barcode} non trovato nell'inventario` }
+    }
+
+    const entry = barcodeMatches[0]
+    if (!entry.category || entry.category.trim() === '') {
+      return { match: null, error: `barcode ${barcode} associato a una riga inventario senza categoria` }
+    }
+    return { match: { entry, score: 1, stocks: getStoreStocks(entry) }, error: null }
+  }
+
+  const result = matchCartAgainstInventory([item.name], allInventory)[0]
+  return { match: result?.matches[0] ?? null, error: null }
+}
+
+export function buildCrossRequestProjection(
   basket: { name: string; barcode: string | null; quantity: number }[],
   allInventory: InventoryEntry[],
   currentStore: string,
   filterName: string,
-): Record<string, Record<string, number>> {
-  const results = matchCartAgainstInventory(basket.map((item) => item.name), allInventory)
-  const resultMap = new Map<string, MatchResult>()
-  for (const result of results) resultMap.set(result.cartName, result)
-
+): CrossRequestProjection {
   const visibility: Record<string, Record<string, number>> = {}
+  const errors: Record<string, string> = {}
   for (const item of basket) {
-    const bestMatch = resultMap.get(item.name)?.matches[0]
+    const resolution = resolveBasketItem(item, allInventory)
+    if (resolution.error) {
+      errors[item.name] = resolution.error
+      visibility[item.name] = {}
+      continue
+    }
+    const bestMatch = resolution.match
     if (!bestMatch) continue
 
     const stores: Record<string, number> = {}
@@ -769,5 +797,14 @@ export function buildCrossRequestVisibility(
     visibility[item.name] = stores
   }
 
-  return visibility
+  return { visibility, errors }
+}
+
+export function buildCrossRequestVisibility(
+  basket: { name: string; barcode: string | null; quantity: number }[],
+  allInventory: InventoryEntry[],
+  currentStore: string,
+  filterName: string,
+): Record<string, Record<string, number>> {
+  return buildCrossRequestProjection(basket, allInventory, currentStore, filterName).visibility
 }

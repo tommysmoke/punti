@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCrossRequestVisibility, rankStoresForBasket, STORE_NAMES, type InventoryEntry } from './crossInventory'
+import { buildCrossRequestProjection, buildCrossRequestVisibility, rankStoresForBasket, STORE_NAMES, type InventoryEntry } from './crossInventory'
 import { buildCrossRequestBody, getCrossRequestItemsForStore } from '../../supabase/functions/_shared/crossCascade'
 
 const entry: InventoryEntry = {
@@ -57,5 +57,28 @@ describe('rankStoresForBasket', () => {
     expect(getCrossRequestItemsForStore(items, 'Castenaso')).toEqual([])
     expect(getCrossRequestItemsForStore(items, 'San Lazzaro')).toEqual(items)
     expect(items[0].quantity).toBe(2)
+  })
+
+  it('usa la riga con barcode unico anche se il nome del carrello è diverso', () => {
+    const basketWithDifferentName = [{ name: 'Nome scritto a mano', barcode: '111', quantity: 1 }]
+    const projection = buildCrossRequestProjection(basketWithDifferentName, [entry], 'Quarto', 'nofiltro')
+
+    expect(projection.errors).toEqual({})
+    expect(projection.visibility['Nome scritto a mano']).toEqual({
+      Castenaso: 5,
+      Bologna: 5,
+      'San Lazzaro': 5,
+    })
+    expect(rankStoresForBasket(basketWithDifferentName, [entry], 'Quarto', 'nofiltro')).toContain('Castenaso')
+  })
+
+  it('nasconde e segnala un barcode duplicato', () => {
+    const duplicate = { ...entry, id: 2, product_name: 'Altro prodotto' }
+    const basketWithDuplicateBarcode = [{ name: 'Nome qualsiasi', barcode: '111', quantity: 1 }]
+    const projection = buildCrossRequestProjection(basketWithDuplicateBarcode, [entry, duplicate], 'Quarto', 'nofiltro')
+
+    expect(projection.visibility['Nome qualsiasi']).toEqual({})
+    expect(projection.errors['Nome qualsiasi']).toContain('barcode 111 duplicato')
+    expect(rankStoresForBasket(basketWithDuplicateBarcode, [entry, duplicate], 'Quarto', 'nofiltro')).toEqual([])
   })
 })

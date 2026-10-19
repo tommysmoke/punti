@@ -17,7 +17,7 @@ import {
   getFilterDays,
   isProductAbsentFromStore,
   rankStoresForBasket,
-  buildCrossRequestVisibility,
+  buildCrossRequestProjection,
   type InventoryEntry,
   type MatchResult,
   type DuplicateGroup,
@@ -222,10 +222,11 @@ export function CrossInventory({ profile, pushToast, testMode, onRequestToggleTe
     }
 
     const firstStore = ranking[0]
-    const visibility = buildCrossRequestVisibility(items, allInventory, selectedStore, activeFilter)
+    const projection = buildCrossRequestProjection(items, allInventory, selectedStore, activeFilter)
     const cascadeItems = items.map((item) => ({
       ...item,
-      visibleQuantities: visibility[item.name] ?? {},
+      visibleQuantities: projection.visibility[item.name] ?? {},
+      ...(projection.errors[item.name] ? { error: projection.errors[item.name] } : {}),
     }))
 
     try {

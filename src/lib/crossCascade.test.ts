@@ -60,6 +60,12 @@ describe('cross-request cascade helpers', () => {
     expect(crossRequestTimeoutMs('Castenaso')).toBe(65 * 60 * 1000)
   })
 
+  it('reports catalog errors without treating them as normal unconfirmed items', () => {
+    expect(buildCrossRequestAggregateBody([], [
+      { name: 'Prodotto ambiguo', quantity: 1, barcode: '111', error: 'barcode 111 duplicato su 2 righe inventario' },
+    ])).toBe('NON ELABORATI:\n1 Prodotto ambiguo (111): barcode 111 duplicato su 2 righe inventario')
+  })
+
   it('waits for a response until the strict timeout boundary', () => {
     const state = {
       ranking: ['Quarto'],

@@ -3,6 +3,7 @@ export interface CrossRequestItem {
   quantity: number
   barcode: string | null
   visibleQuantities?: Record<string, number>
+  error?: string
 }
 
 export interface CrossRequestResult {
@@ -28,6 +29,7 @@ export interface CrossRequestStepPlan {
 
 export function getCrossRequestItemsForStore(items: CrossRequestItem[], store: string): CrossRequestItem[] {
   return items.flatMap((item) => {
+    if (item.error) return []
     if (!item.visibleQuantities) return [{ ...item }]
 
     const visibleQuantity = item.visibleQuantities[store] ?? 0
@@ -144,10 +146,21 @@ export function buildCrossRequestAggregateBody(
     sections.push('')
   }
 
-  if (unconfirmed.length > 0) {
+  const unresolved = unconfirmed.filter((item) => !item.error)
+  const invalid = unconfirmed.filter((item) => item.error)
+
+  if (unresolved.length > 0) {
     sections.push('NON CONFERMATI:')
-    for (const item of unconfirmed) {
+    for (const item of unresolved) {
       sections.push(`${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}`)
+    }
+  }
+
+  if (invalid.length > 0) {
+    if (sections.length > 0) sections.push('')
+    sections.push('NON ELABORATI:')
+    for (const item of invalid) {
+      sections.push(`${item.quantity} ${item.name}${item.barcode ? ` (${item.barcode})` : ''}: ${item.error}`)
     }
   }
 

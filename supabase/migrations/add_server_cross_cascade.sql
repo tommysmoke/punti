@@ -79,6 +79,13 @@ begin
             or jsonb_typeof(visible.store_quantity) <> 'number'
             or visible.store_quantity::text !~ '^[0-9]+$'
        )
+       or (
+         item.value ? 'error'
+         and (
+           jsonb_typeof(item.value -> 'error') <> 'string'
+           or char_length(item.value ->> 'error') not between 1 and 500
+         )
+       )
   ) then
     raise exception 'Elenco prodotti non valido';
   end if;
@@ -91,6 +98,10 @@ begin
            ) || case
              when item.value ? 'visibleQuantities'
              then jsonb_build_object('visibleQuantities', item.value -> 'visibleQuantities')
+             else '{}'::jsonb
+           end || case
+             when item.value ? 'error'
+             then jsonb_build_object('error', item.value ->> 'error')
              else '{}'::jsonb
            end order by item.ord
          )
