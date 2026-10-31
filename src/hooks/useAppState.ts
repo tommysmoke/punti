@@ -31,6 +31,7 @@ type Movement = {
   points: number
   note: string | null
   created_at: string
+  store_location: string | null
 }
 
 type Toast = {

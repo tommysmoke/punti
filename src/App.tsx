@@ -22,6 +22,13 @@ import { CustomerSidebar } from './components/CustomerSidebar'
 const ConfirmModal = lazy(() => import('./components/ConfirmModal').then(m => ({ default: m.ConfirmModal })))
 
 const PWA_UPDATE_PENDING_KEY = 'punti-pwa-update-pending'
+const CROSS_STORE_LABELS: Record<string, string> = {
+  Quarto: 'Quarto Inferiore',
+  Castenaso: 'Castenaso',
+  Bologna: 'Bologna',
+  'San Lazzaro': 'San Lazzaro',
+}
+
 const logPwa = (message: string, details?: unknown) => {
   if (details === undefined) {
     console.log(`[PWA] ${message}`)
@@ -62,6 +69,10 @@ function normalizeSearchText(value: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, ' ')
+}
+
+function getCrossStoreLabel(store: string | null): string | null {
+  return store ? CROSS_STORE_LABELS[store] ?? null : null
 }
 
 function truncateCrossBody(body: string): string {
@@ -514,7 +525,7 @@ function App() {
 
     const { data, error } = await supabase
       .from('point_transactions')
-      .select('id, customer_id, kind, points, note, created_at')
+      .select('id, customer_id, kind, points, note, created_at, store_location')
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
 
@@ -1596,6 +1607,7 @@ function App() {
         p_customer_id: selectedStoreCustomer.id,
         p_amount_eur: amount,
         p_note: `Spesa ${amount.toFixed(2)} EUR`,
+        p_store_location: getCrossStoreLabel(getIdentifiedStore()),
       })
 
       if (error) {
@@ -1655,6 +1667,7 @@ function App() {
         p_customer_id: selectedStoreCustomer.id,
         p_points: redeem,
         p_note: 'Redemption manuale',
+        p_store_location: getCrossStoreLabel(getIdentifiedStore()),
       })
 
       if (error) {
@@ -1713,6 +1726,7 @@ function App() {
       const { error } = await supabase.rpc('set_customer_points', {
         p_customer_id: selectedStoreCustomer.id,
         p_new_points: points,
+        p_store_location: getCrossStoreLabel(getIdentifiedStore()),
       })
 
       if (error) {
@@ -2202,6 +2216,9 @@ function App() {
                                   {Math.abs(movement.points)} pt
                                 </strong>
                                 <p>{movement.note ?? 'Movimento registrato'}</p>
+                                {role === 'store' && movement.store_location ? (
+                                  <p className="movement-store-location">{movement.store_location}</p>
+                                ) : null}
                               </div>
                               <div className="movement-actions">
                                 <time>{new Date(movement.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
