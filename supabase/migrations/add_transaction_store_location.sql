@@ -62,7 +62,7 @@ begin
        where t.customer_id = p_customer_id
          and t.kind = 'redeem'
          and t.created_at >= ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
-         and t.created_at <= ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome')
+         and t.created_at <= ('2026-10-31 23:00:00'::timestamp at time zone 'Europe/Rome')
      ) then
     raise exception 'Non puoi aggiungere punti fino al 01/11/2026';
   end if;
@@ -130,7 +130,7 @@ begin
        where t.customer_id = p_customer_id
          and t.kind = 'redeem'
          and t.created_at >= ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
-         and t.created_at <= ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome')
+         and t.created_at <= ('2026-10-31 23:00:00'::timestamp at time zone 'Europe/Rome')
      ) then
     raise exception 'Non puoi scaricare punti fino al 01/11/2026';
   end if;
@@ -148,7 +148,7 @@ begin
 
   if now() between
        ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
-       and ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome') then
+      and ('2026-10-31 23:00:00'::timestamp at time zone 'Europe/Rome') then
     v_remaining := v_current_points - p_points;
     if v_remaining > 0 then
       insert into public.point_transactions (customer_id, kind, points, note, store_location)

@@ -1,5 +1,5 @@
 -- Promozione ottobre 2026: finestra di "una sola redenzione".
--- Tra 02/10/2026 10:00 e 30/10/2026 23:00 (fuso Roma) ogni cliente può fare
+-- Tra 02/10/2026 10:00 e 31/10/2026 23:00 (fuso Roma) ogni cliente può fare
 -- UNA sola redenzione; quella redenzione azzera il saldo a 0. Dopo aver redento
 -- nella finestra, earn e redeem sono bloccati fino al 01/11/2026 00:01 (Roma).
 -- Le date sono fisse al 2026 (non si ripetono negli anni successivi).
@@ -48,7 +48,7 @@ begin
        where t.customer_id = p_customer_id
          and t.kind = 'redeem'
          and t.created_at >= ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
-         and t.created_at <= ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome')
+         and t.created_at <= ('2026-10-31 23:00:00'::timestamp at time zone 'Europe/Rome')
      ) then
     raise exception 'Non puoi scaricare punti fino al 01/11/2026';
   end if;
@@ -67,7 +67,7 @@ begin
   -- Azzeramento totale: solo se la redenzione avviene dentro la finestra.
   if now() between
        ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
-       and ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome') then
+      and ('2026-10-31 23:00:00'::timestamp at time zone 'Europe/Rome') then
     v_remaining := v_current_points - p_points;
     if v_remaining > 0 then
       insert into public.point_transactions (customer_id, kind, points, note)
@@ -125,7 +125,7 @@ begin
        where t.customer_id = p_customer_id
          and t.kind = 'redeem'
          and t.created_at >= ('2026-10-02 10:00:00'::timestamp at time zone 'Europe/Rome')
-         and t.created_at <= ('2026-10-30 23:00:00'::timestamp at time zone 'Europe/Rome')
+         and t.created_at <= ('2026-10-31 23:00:00'::timestamp at time zone 'Europe/Rome')
      ) then
     raise exception 'Non puoi aggiungere punti fino al 01/11/2026';
   end if;
