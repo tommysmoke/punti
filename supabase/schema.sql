@@ -334,7 +334,7 @@ begin
     raise exception 'Non puoi aggiungere punti fino al 01/11/2026';
   end if;
 
-  v_points := floor(p_amount_eur / 7);
+  v_points := floor(p_amount_eur / 1);
 
   if v_points <= 0 then
     raise exception 'Spesa troppo bassa per assegnare punti';

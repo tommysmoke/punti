@@ -1,4 +1,4 @@
-export const POINTS_DIVISOR = 7
+export const POINTS_DIVISOR = 1
 export const DEBOUNCE_SEARCH_MS = 250
 export const HARD_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 export const TOAST_DURATION_MS = 2600
