@@ -108,7 +108,6 @@ export function useAppState() {
 
   // Point management
   const [expenseAmount, setExpenseAmount] = useState('')
-  const [redeemAmount, setRedeemAmount] = useState('')
   const [overrideAmount, setOverrideAmount] = useState('')
 
   // Rewards form
@@ -175,7 +174,6 @@ export function useAppState() {
     newCustomerError, setNewCustomerError,
     // Point management
     expenseAmount, setExpenseAmount,
-    redeemAmount, setRedeemAmount,
     overrideAmount, setOverrideAmount,
     // Rewards form
     newRewardName, setNewRewardName,

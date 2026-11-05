@@ -134,7 +134,6 @@ function App() {
     newCustomerSuccess, setNewCustomerSuccess,
     newCustomerError, setNewCustomerError,
     expenseAmount, setExpenseAmount,
-    redeemAmount, setRedeemAmount,
     overrideAmount, setOverrideAmount,
     newRewardName, setNewRewardName,
     newRewardDescription, setNewRewardDescription,
@@ -309,7 +308,6 @@ function App() {
 
   const [soundEnabled, setSoundEnabledState] = useState(() => loadSoundPreference())
   const [showSparkline, setShowSparkline] = useState(false)
-  const [showRedeemOptions, setShowRedeemOptions] = useState(false)
   const [floatingPoints, setFloatingPoints] = useState<{ id: number; delta: number; kind: string }[]>([])
   const floatIdRef = useRef(0)
   const [balancePop, setBalancePop] = useState(false)
@@ -1630,26 +1628,15 @@ function App() {
     }
   }
 
-  const beginRedeem = (amountText: string) => {
+  const redeemPoints = () => {
     if (!selectedStoreCustomer) return
 
-    const redeem = amountText.trim() === '' ? selectedStoreCustomer.points : Number(amountText)
-    if (!Number.isFinite(redeem) || redeem <= 0) return
+    if (selectedStoreCustomer.points <= 0) return
 
     setConfirmModal({
       action: 'redeem',
-      message: `Redimere ${redeem} punti da ${selectedStoreCustomer.name}?`,
+      message: `Redimere tutti i ${selectedStoreCustomer.points} punti da ${selectedStoreCustomer.name}?`,
     })
-  }
-
-  const redeemPoints = (event: FormEvent) => {
-    event.preventDefault()
-    beginRedeem(redeemAmount)
-  }
-
-  const redeemAllPoints = () => {
-    setRedeemAmount('')
-    beginRedeem('')
   }
 
   const confirmRedeem = async () => {
@@ -1657,9 +1644,8 @@ function App() {
       return
     }
 
-    const amountText = redeemAmount.trim()
-    const redeem = amountText === '' ? selectedStoreCustomer.points : Number(amountText)
-    if (!Number.isFinite(redeem) || redeem <= 0) {
+    const redeem = selectedStoreCustomer.points
+    if (redeem <= 0) {
       return
     }
 
@@ -1670,7 +1656,7 @@ function App() {
     try {
       const { error } = await supabase.rpc('record_redeem', {
         p_customer_id: selectedStoreCustomer.id,
-        p_points: amountText === '' ? null : redeem,
+        p_points: null,
         p_note: 'Redemption manuale',
         p_store_location: getCrossStoreLabel(getIdentifiedStore()),
       })
@@ -1681,7 +1667,6 @@ function App() {
         return
       }
 
-      setRedeemAmount('')
       playRedeemSound()
       triggerFloatingPoints(-redeem, 'redeem')
       triggerBalancePop()
@@ -2328,38 +2313,9 @@ function App() {
 
               <div className="stack split">
                 <h3>Scarica Punti</h3>
-                <button className="ghost" type="button" onClick={redeemAllPoints} disabled={!selectedStoreCustomer || redeemingPoints || selectedStoreCustomer.points <= 0}>
+                <button className="ghost" type="button" onClick={redeemPoints} disabled={!selectedStoreCustomer || redeemingPoints || selectedStoreCustomer.points <= 0}>
                   {redeemingPoints ? 'Redenzione in corso...' : 'Scarica tutti i punti'}
                 </button>
-                <h4
-                  role="button"
-                  tabIndex={0}
-                  className="collapse-header"
-                  onClick={() => setShowRedeemOptions(v => !v)}
-                  onKeyDown={(event) => { if (event.key === 'Enter') setShowRedeemOptions(v => !v) }}
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                >
-                  Quantità personalizzata {showRedeemOptions ? '▾' : '▸'}
-                </h4>
-                {showRedeemOptions ? (
-                  <form onSubmit={redeemPoints} className="stack" style={{ marginTop: 0 }}>
-                    <label>
-                      <small>Lascia vuoto per scaricare tutti i punti</small>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={redeemAmount}
-                        onChange={(event) => setRedeemAmount(event.target.value)}
-                        placeholder={selectedStoreCustomer ? `Tutti i punti (attuali: ${selectedStoreCustomer.points})` : 'Seleziona un cliente'}
-                        disabled={!selectedStoreCustomer}
-                      />
-                    </label>
-                    <button className="ghost small" type="submit" disabled={!selectedStoreCustomer || redeemingPoints}>
-                      {redeemingPoints ? 'Redenzione in corso...' : 'Scarica quantità'}
-                    </button>
-                  </form>
-                ) : null}
               </div>
 
               <div className="stack split">
